@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid VTT</title>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;600;700&family=EB+Garamond:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --parchment-light: #c3baa6;
+            --parchment-dark: #bab09d;
+            --ink-dark: #2a2522;
+            --ink-medium: #3d3530;
+            --grid-line: rgba(61, 53, 48, 0.2);
+            --accent: #8b4513;
+            --accent-hover: #a0522d;
+        }
+        
+        body {
+            font-family: 'EB Garamond', serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            background: var(--parchment-light);
+            cursor: default;
+            user-select: none;
+            position: relative;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.4;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            z-index: 0;
+        }
+        
+        #viewport {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+            z-index: 1;
+            background: #3a3a3a;
+        }
+        
+        #grid-container {
+            position: absolute;
+            width: 5000px;
+            height: 5000px;
+            transform-origin: 0 0;
+            transition: transform 0.1s ease-out;
+        }
+        
+        #grid-background {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 8px solid var(--ink-dark);
+            box-sizing: border-box;
+            background: 
+                url("data:image/svg+xml,%3Csvg width='50' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 0 Q 12 -0.3 25 0.2 Q 37 -0.4 50 0' stroke='%232a2522' stroke-width='1' fill='none' opacity='0.5'/%3E%3Cpath d='M 0 0 Q -0.4 12 0.3 25 Q -0.2 37 0 50' stroke='%232a2522' stroke-width='1' fill='none' opacity='0.5'/%3E%3C/svg%3E"),
+                radial-gradient(circle at center, #d2cbbc, #7e7466);
+            pointer-events: none;
+        }
+        
+        #drawing-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        #drawing-canvas.drawing {
+            pointer-events: auto;
+        }
+        
+        .token {
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            border: 2px solid var(--ink-dark);
+            border-radius: 4px;
+            cursor: move;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.2);
+            transition: opacity 0.2s, transform 0.1s;
+            z-index: 200;
+        }
+        
+        .token:hover {
+            transform: scale(1.05);
+        }
+        
+        .token.hidden {
+            opacity: 0.3;
+        }
+        
+        .token.dragging {
+            z-index: 300;
+            cursor: grabbing;
+        }
+        
+        /* Stickers (placed icons) */
+        .sticker {
+            position: absolute;
+            cursor: grab;
+            pointer-events: auto;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+            transition: transform 0.1s;
+            z-index: 150;
+        }
+        
+        .sticker:hover {
+            transform: scale(1.05);
+        }
+        
+        .sticker.dragging {
+            cursor: grabbing;
+            z-index: 300;
+            transform: scale(1.1);
+        }
+        
+        .sticker img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            /* Tint black icons to ink color */
+            filter: brightness(0.7) sepia(0.3) hue-rotate(15deg);
+        }
+        
+        .sticker.size-small {
+            width: 24px;
+            height: 24px;
+        }
+        
+        .sticker.size-medium {
+            width: 48px;
+            height: 48px;
+        }
+        
+        .sticker.size-large {
+            width: 72px;
+            height: 72px;
+        }
+        
+        /* Text labels */
+        .text-label {
+            position: absolute;
+            font-family: 'Times New Roman', serif;
+            font-size: 18px;
+            color: var(--ink-dark);
+            white-space: nowrap;
+            pointer-events: auto;
+            cursor: grab;
+            z-index: 150;
+            text-shadow: 
+                1px 1px 0 rgba(255,255,255,0.8),
+                -1px -1px 0 rgba(255,255,255,0.8),
+                1px -1px 0 rgba(255,255,255,0.8),
+                -1px 1px 0 rgba(255,255,255,0.8);
+        }
+        
+        .text-label.dragging {
+            cursor: grabbing;
+            z-index: 300;
+        }
+        
+        #toolbar {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(195, 186, 166, 0.95);
+            border: 2px solid var(--ink-dark);
+            border-radius: 8px;
+            padding: 12px 16px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+        
+        .tool-btn {
+            background: var(--parchment-dark);
+            border: 2px solid var(--ink-medium);
+            border-radius: 6px;
+            padding: 8px 14px;
+            font-family: 'EB Garamond', serif;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--ink-dark);
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 36px;
+            text-align: center;
+        }
+        
+        .tool-btn:hover {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+        
+        .tool-btn.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent-hover);
+        }
+        
+        #icon-selector {
+            font-family: 'EB Garamond', serif;
+            font-size: 14px;
+            padding: 6px 10px;
+            background: var(--parchment-light);
+            border: 2px solid var(--ink-dark);
+            border-radius: 4px;
+            color: var(--ink-dark);
+            cursor: pointer;
+            min-width: 150px;
+        }
+        
+        #icon-selector:hover {
+            background: var(--parchment-mid);
+        }
+        
+        #icon-palette {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            width: 320px;
+            max-height: 600px;
+            background: var(--parchment-light);
+            border: 3px solid var(--ink-dark);
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            z-index: 2000;
+            overflow: hidden;
+        }
+        
+        .palette-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--parchment-mid);
+            border-bottom: 2px solid var(--ink-dark);
+        }
+        
+        .palette-header h3 {
+            margin: 0;
+            font-family: 'Crimson Text', serif;
+            font-size: 20px;
+            color: var(--ink-dark);
+        }
+        
+        .palette-header button {
+            background: transparent;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--ink-dark);
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            line-height: 1;
+        }
+        
+        #icon-palette-content {
+            padding: 16px;
+            max-height: 520px;
+            overflow-y: auto;
+        }
+        
+        .icon-category {
+            margin-bottom: 20px;
+        }
+        
+        .icon-category h4 {
+            margin: 0 0 8px 0;
+            font-family: 'Crimson Text', serif;
+            font-size: 16px;
+            color: var(--saddle-brown);
+            text-transform: capitalize;
+        }
+        
+        .icon-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+        }
+        
+        .icon-item {
+            width: 48px;
+            height: 48px;
+            border: 2px solid var(--ink-dark);
+            border-radius: 4px;
+            cursor: pointer;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .icon-item:hover {
+            border-color: var(--saddle-brown);
+            transform: scale(1.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        .icon-item.selected {
+            border-color: var(--saddle-brown);
+            background: #f5e6d3;
+            box-shadow: inset 0 0 0 2px var(--saddle-brown);
+        }
+        
+        .icon-item img {
+            width: 32px;
+            height: 32px;
+            filter: brightness(0.7) sepia(0.3) hue-rotate(15deg);
+        }
+        
+        .divider {
+            width: 2px;
+            height: 24px;
+            background: var(--ink-medium);
+            opacity: 0.3;
+        }
+        
+        #context-menu {
+            position: fixed;
+            background: rgba(195, 186, 166, 0.98);
+            border: 2px solid var(--ink-dark);
+            border-radius: 8px;
+            padding: 8px 0;
+            display: none;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            z-index: 2000;
+            min-width: 160px;
+            backdrop-filter: blur(4px);
+        }
+        
+        .context-item {
+            padding: 10px 16px;
+            font-family: 'EB Garamond', serif;
+            font-size: 16px;
+            color: var(--ink-dark);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        
+        .context-item:hover {
+            background: var(--accent);
+            color: white;
+        }
+        
+        .color-picker {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        
+        .color-swatch {
+            width: 28px;
+            height: 28px;
+            border: 2px solid var(--ink-dark);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: transform 0.15s;
+        }
+        
+        .color-swatch:hover {
+            transform: scale(1.1);
+        }
+        
+        .color-swatch.active {
+            border: 3px solid white;
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+            transform: scale(1.15);
+        }
+        
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        <button class="tool-btn" onclick="document.getElementById('token-upload').click()" title="Upload Token Images">➕ Token</button>
+        <input type="file" id="token-upload" accept="image/*" multiple style="display: none;">
+        <div class="divider"></div>
+        
+        <button class="tool-btn" onclick="setTool('pen')" title="Pen">✏️</button>
+        <button class="tool-btn" onclick="setTool('line')" title="Line">╱</button>
+        <button class="tool-btn" onclick="setTool('rect')" title="Rectangle">▭</button>
+        <button class="tool-btn" onclick="setTool('circle')" title="Circle">○</button>
+        <button class="tool-btn" onclick="setTool('text')" title="Text">T</button>
+        <button class="tool-btn" onclick="setTool('eraser')" title="Eraser">🧹</button>
+        
+        <div class="divider"></div>
+        
+        <div class="color-picker">
+            <div class="color-swatch active" style="background: #2a2522" onclick="setColor('#2a2522')"></div>
+            <div class="color-swatch" style="background: #8b4513" onclick="setColor('#8b4513')"></div>
+            <div class="color-swatch" style="background: #dc143c" onclick="setColor('#dc143c')"></div>
+            <div class="color-swatch" style="background: #1e4d2b" onclick="setColor('#1e4d2b')"></div>
+            <div class="color-swatch" style="background: #1a4d7a" onclick="setColor('#1a4d7a')"></div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <button class="tool-btn" onclick="toggleIconPalette()" title="Icon Palette">🎨 Icons</button>
+        
+        <div class="divider"></div>
+        <button class="tool-btn" onclick="clearDrawings()" title="Clear All Drawings">🗑️</button>
+    </div>
+    
+    <div id="context-menu">
+        <div class="context-item" data-action="delete">Delete</div>
+    </div>
+    
+    <div id="icon-palette" style="display: none;">
+        <div class="palette-header">
+            <h3>Icon Palette</h3>
+            <button onclick="toggleIconPalette()">✕</button>
+        </div>
+        <div id="icon-palette-content"></div>
+    </div>
+    
+    <div id="viewport">
+        <div id="grid-container">
+            <div id="grid-background"></div>
+            <canvas id="drawing-canvas" width="5000" height="5000"></canvas>
+            <div id="stickers-container"></div>
+            <div id="tokens-container"></div>
+            <div id="text-container"></div>
+        </div>
+    </div>
+    
+    <script>
+        let zoom = 1, panX = 0, panY = 0, isPanning = false, panStartX = 0, panStartY = 0;
+        let currentTool = null, drawColor = '#2a2522', isDrawing = false;
+        let drawStartX = 0, drawStartY = 0, penPath = [];
+        let tokens = [], nextTokenId = 1, draggedToken = null;
+        let dragOffsetX = 0, dragOffsetY = 0, contextToken = null;
+        let savedImageData = null; // For shape preview
+        let drawingFrameId = null; // For throttling
+        let drawings = []; // Store all drawings as objects
+        let selectedDrawing = null; // Currently selected drawing for dragging
+        let nextDrawingId = 1;
+        let draggedText = null; // Currently dragged text label
+        let textDragOffsetX = 0, textDragOffsetY = 0;
+        
+        // Icon library (Game Icons - game-icons.net) - CORRECTED AUTHORS
+        const iconLibrary = [
+            // Furniture
+            { name: 'Table', author: 'delapouite', icon: 'table', category: 'furniture' },
+            { name: 'Chair', author: 'delapouite', icon: 'wooden-chair', category: 'furniture' },
+            { name: 'Bed', author: 'delapouite', icon: 'bed', category: 'furniture' },
+            { name: 'Barrel', author: 'delapouite', icon: 'barrel', category: 'furniture' },
+            { name: 'Bookshelf', author: 'delapouite', icon: 'bookshelf', category: 'furniture' },
+            { name: 'Crate', author: 'delapouite', icon: 'wooden-crate', category: 'furniture' },
+            // Dungeon Features  
+            { name: 'Door', author: 'lorc', icon: 'wooden-door', category: 'dungeon' },
+            { name: 'Chest', author: 'delapouite', icon: 'chest', category: 'dungeon' },
+            { name: 'Treasure', author: 'skoll', icon: 'open-treasure-chest', category: 'dungeon' },
+            { name: 'Candles', author: 'delapouite', icon: 'candles', category: 'dungeon' },
+            { name: 'Fire Bowl', author: 'lorc', icon: 'fire-bowl', category: 'dungeon' },
+            { name: 'Ladder', author: 'delapouite', icon: 'ladder', category: 'dungeon' },
+            { name: 'Pillar', author: 'lorc', icon: 'greek-temple', category: 'dungeon' },
+            { name: 'Altar', author: 'lorc', icon: 'stone-tablet', category: 'dungeon' },
+            { name: 'Gate', author: 'delapouite', icon: 'dungeon-gate', category: 'dungeon' },
+            // Nature
+            { name: 'Pine Tree', author: 'lorc', icon: 'pine-tree', category: 'nature' },
+            { name: 'Dead Tree', author: 'lorc', icon: 'dead-wood', category: 'nature' },
+            { name: 'Boulder', author: 'lorc', icon: 'stone-block', category: 'nature' },
+            { name: 'Grass', author: 'delapouite', icon: 'high-grass', category: 'nature' },
+            { name: 'Mushroom', author: 'lorc', icon: 'mushroom-gills', category: 'nature' },
+            { name: 'Fountain', author: 'lorc', icon: 'fountain', category: 'nature' },
+            { name: 'Tent', author: 'delapouite', icon: 'camping-tent', category: 'nature' },
+            // Hazards
+            { name: 'Bear Trap', author: 'lorc', icon: 'mantrap', category: 'hazard' },
+            { name: 'Skull', author: 'lorc', icon: 'pirate-skull', category: 'hazard' },
+            { name: 'Fire', author: 'lorc', icon: 'campfire', category: 'hazard' },
+            { name: 'Poison', author: 'lorc', icon: 'poison-bottle', category: 'hazard' },
+            { name: 'Trap', author: 'lorc', icon: 'spiked-trap', category: 'hazard' },
+            // Interactive
+            { name: 'Lever', author: 'lorc', icon: 'on-off', category: 'interactive' },
+            { name: 'Key', author: 'lorc', icon: 'skeleton-key', category: 'interactive' },
+            { name: 'Rope', author: 'delapouite', icon: 'rope-coil', category: 'interactive' }
+        ];
+        
+        let stickers = [], nextStickerId = 1, draggedSticker = null;
+        let stickerDragOffsetX = 0, stickerDragOffsetY = 0;
+        let selectedIconUrl = null; // Currently selected icon for placement
+        
+        const gridContainer = document.getElementById('grid-container');
+        const canvas = document.getElementById('drawing-canvas');
+        const ctx = canvas.getContext('2d');
+        const tokensContainer = document.getElementById('tokens-container');
+        const stickersContainer = document.getElementById('stickers-container');
+        const contextMenu = document.getElementById('context-menu');
+        const viewport = document.getElementById('viewport');
+        const iconPalette = document.getElementById('icon-palette');
+        const iconPaletteContent = document.getElementById('icon-palette-content');
+        
+        // Populate icon palette
+        function populateIconPalette() {
+            const categories = {};
+            iconLibrary.forEach(item => {
+                if (!categories[item.category]) categories[item.category] = [];
+                categories[item.category].push(item);
+            });
+            
+            Object.keys(categories).forEach(category => {
+                const categoryDiv = document.createElement('div');
+                categoryDiv.className = 'icon-category';
+                
+                const header = document.createElement('h4');
+                header.textContent = category.charAt(0).toUpperCase() + category.slice(1);
+                categoryDiv.appendChild(header);
+                
+                const grid = document.createElement('div');
+                grid.className = 'icon-grid';
+                
+                categories[category].forEach(item => {
+                    const iconUrl = `https://game-icons.net/icons/000000/transparent/1x1/${item.author}/${item.icon}.png`;
+                    const iconDiv = document.createElement('div');
+                    iconDiv.className = 'icon-item';
+                    iconDiv.title = item.name;
+                    
+                    const img = document.createElement('img');
+                    img.src = iconUrl;
+                    img.alt = item.name;
+                    iconDiv.appendChild(img);
+                    
+                    iconDiv.onclick = () => selectIcon(iconUrl, iconDiv);
+                    grid.appendChild(iconDiv);
+                });
+                
+                categoryDiv.appendChild(grid);
+                iconPaletteContent.appendChild(categoryDiv);
+            });
+        }
+        
+        populateIconPalette();
+        
+        function toggleIconPalette() {
+            iconPalette.style.display = iconPalette.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function updateTransform() {
+            // Clamp panning to keep grid mostly in view
+            const gridSize = 5000;
+            const margin = 500; // Allow panning 500px beyond edges
+            const minPan = -(gridSize * zoom) + window.innerWidth - margin;
+            const maxPan = margin;
+            
+            panX = Math.max(minPan, Math.min(maxPan, panX));
+            panY = Math.max(minPan, Math.min(maxPan, panY));
+            
+            gridContainer.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+        }
+        
+        function zoomIn(clientX, clientY) {
+            const oldZoom = zoom;
+            zoom = Math.min(zoom * 1.2, 4);
+            
+            if (clientX !== undefined && clientY !== undefined) {
+                // Zoom from mouse position
+                const gridX = (clientX - panX) / oldZoom;
+                const gridY = (clientY - panY) / oldZoom;
+                panX = clientX - gridX * zoom;
+                panY = clientY - gridY * zoom;
+            }
+            
+            updateTransform();
+        }
+        
+        function zoomOut(clientX, clientY) {
+            const oldZoom = zoom;
+            zoom = Math.max(zoom / 1.2, 0.25);
+            
+            if (clientX !== undefined && clientY !== undefined) {
+                // Zoom from mouse position
+                const gridX = (clientX - panX) / oldZoom;
+                const gridY = (clientY - panY) / oldZoom;
+                panX = clientX - gridX * zoom;
+                panY = clientY - gridY * zoom;
+            }
+            
+            updateTransform();
+        }
+        
+        function resetZoom() { zoom = 1; panX = 0; panY = 0; updateTransform(); }
+        
+        // Mouse wheel zoom
+        viewport.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY;
+            if (delta < 0) {
+                zoomIn(e.clientX, e.clientY);
+            } else {
+                zoomOut(e.clientX, e.clientY);
+            }
+        }, { passive: false });
+        
+        viewport.addEventListener('mousedown', (e) => {
+            if (e.button === 2) { // Right button
+                e.preventDefault();
+                
+                // Disable current tool
+                if (currentTool) {
+                    currentTool = null;
+                    document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+                    canvas.classList.remove('drawing');
+                    return; // Don't start panning if we just disabled a tool
+                }
+                
+                // Start panning
+                isPanning = true;
+                panStartX = e.clientX - panX;
+                panStartY = e.clientY - panY;
+                viewport.style.cursor = 'grabbing';
+            }
+        });
+        
+        viewport.addEventListener('mousemove', (e) => {
+            if (isPanning) {
+                panX = e.clientX - panStartX;
+                panY = e.clientY - panStartY;
+                updateTransform();
+            }
+        });
+        
+        viewport.addEventListener('mouseup', (e) => {
+            if (e.button === 2 && isPanning) {
+                isPanning = false;
+                viewport.style.cursor = 'default';
+            }
+        });
+        
+        // Suppress default context menu on viewport
+        viewport.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+        
+        function setTool(tool) {
+            currentTool = currentTool === tool ? null : tool;
+            
+            // Update button states
+            document.querySelectorAll('.tool-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            if (currentTool) {
+                // Find and activate the button for this tool
+                document.querySelectorAll('.tool-btn').forEach(btn => {
+                    if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(`'${tool}'`)) {
+                        btn.classList.add('active');
+                    }
+                });
+                canvas.classList.add('drawing');
+            } else {
+                canvas.classList.remove('drawing');
+            }
+        }
+        
+        function setColor(color) { 
+            drawColor = color;
+            // Update active state on color swatches
+            document.querySelectorAll('.color-swatch').forEach(swatch => {
+                swatch.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+        
+        function selectIcon(iconUrl, iconDiv) {
+            if (!iconUrl) {
+                selectedIconUrl = null;
+                currentTool = null;
+                canvas.classList.remove('drawing');
+                viewport.style.cursor = 'default';
+                document.querySelectorAll('.icon-item').forEach(item => item.classList.remove('selected'));
+                return;
+            }
+            
+            selectedIconUrl = iconUrl;
+            currentTool = null; // Deselect drawing tools
+            canvas.classList.add('drawing'); // Make canvas clickable
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.icon-item').forEach(item => item.classList.remove('selected'));
+            if (iconDiv) iconDiv.classList.add('selected');
+            viewport.style.cursor = 'crosshair';
+        }
+        
+        function placeSticker(x, y, iconUrl, size = 'medium') {
+            const sticker = {
+                id: nextStickerId++,
+                x: x,
+                y: y,
+                iconUrl: iconUrl,
+                size: size
+            };
+            stickers.push(sticker);
+            renderSticker(sticker);
+        }
+        
+        function renderSticker(sticker) {
+            const div = document.createElement('div');
+            div.className = `sticker size-${sticker.size}`;
+            div.setAttribute('data-id', sticker.id);
+            
+            const img = document.createElement('img');
+            img.src = sticker.iconUrl;
+            div.appendChild(img);
+            
+            const sizeMap = { small: 24, medium: 48, large: 72 };
+            const halfSize = sizeMap[sticker.size] / 2;
+            
+            div.style.left = Math.round(sticker.x - halfSize + 8) + 'px';
+            div.style.top = Math.round(sticker.y - halfSize + 8) + 'px';
+            
+            // Drag handlers
+            div.addEventListener('mousedown', (e) => {
+                if (e.button === 0 && !currentTool && !selectedIconUrl) {
+                    e.stopPropagation();
+                    draggedSticker = sticker;
+                    div.classList.add('dragging');
+                    const pos = viewportToGrid(e.clientX, e.clientY);
+                    stickerDragOffsetX = pos.x - sticker.x;
+                    stickerDragOffsetY = pos.y - sticker.y;
+                }
+            });
+            
+            // Right-click context menu for resizing
+            div.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                showStickerContextMenu(e.clientX, e.clientY, sticker);
+            });
+            
+            stickersContainer.appendChild(div);
+        }
+        
+        function showStickerContextMenu(x, y, sticker) {
+            const menu = document.createElement('div');
+            menu.style.cssText = `
+                position: fixed;
+                left: ${x}px;
+                top: ${y}px;
+                background: var(--parchment-light);
+                border: 2px solid var(--ink-dark);
+                border-radius: 4px;
+                padding: 8px;
+                z-index: 3000;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                font-family: 'EB Garamond', serif;
+            `;
+            
+            ['small', 'medium', 'large'].forEach(size => {
+                const btn = document.createElement('button');
+                btn.textContent = size.charAt(0).toUpperCase() + size.slice(1);
+                btn.style.cssText = `
+                    display: block;
+                    width: 100%;
+                    padding: 6px 12px;
+                    margin: 2px 0;
+                    background: ${sticker.size === size ? '#8b4513' : 'transparent'};
+                    color: ${sticker.size === size ? 'white' : 'var(--ink-dark)'};
+                    border: 1px solid var(--ink-dark);
+                    cursor: pointer;
+                    font-family: 'EB Garamond', serif;
+                `;
+                btn.onclick = () => {
+                    sticker.size = size;
+                    stickersContainer.querySelector(`[data-id="${sticker.id}"]`).remove();
+                    renderSticker(sticker);
+                    menu.remove();
+                };
+                menu.appendChild(btn);
+            });
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = 'Delete';
+            deleteBtn.style.cssText = `
+                display: block;
+                width: 100%;
+                padding: 6px 12px;
+                margin-top: 8px;
+                background: #dc143c;
+                color: white;
+                border: 1px solid var(--ink-dark);
+                cursor: pointer;
+                font-family: 'EB Garamond', serif;
+            `;
+            deleteBtn.onclick = () => {
+                const index = stickers.findIndex(s => s.id === sticker.id);
+                stickers.splice(index, 1);
+                stickersContainer.querySelector(`[data-id="${sticker.id}"]`).remove();
+                menu.remove();
+            };
+            menu.appendChild(deleteBtn);
+            
+            document.body.appendChild(menu);
+            
+            const closeMenu = () => {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            };
+            setTimeout(() => document.addEventListener('click', closeMenu), 10);
+        }
+        
+        function viewportToGrid(clientX, clientY) {
+            const rect = gridContainer.getBoundingClientRect();
+            return { x: (clientX - rect.left) / zoom, y: (clientY - rect.top) / zoom };
+        }
+        
+        function snapToGrid(x, y) {
+            const cellSize = 50;
+            const halfCell = cellSize / 2;
+            return { 
+                x: Math.floor(x / cellSize) * cellSize + halfCell, 
+                y: Math.floor(y / cellSize) * cellSize + halfCell 
+            };
+        }
+        
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            const pos = viewportToGrid(e.clientX, e.clientY);
+            
+            // Icon placement mode
+            if (selectedIconUrl) {
+                placeSticker(pos.x, pos.y, selectedIconUrl);
+                selectedIconUrl = null;
+                document.querySelectorAll('.icon-item').forEach(item => item.classList.remove('selected'));
+                viewport.style.cursor = 'default';
+                return;
+            }
+            
+            if (!currentTool) return;
+            
+            if (currentTool === 'text') {
+                // Text tool - prompt and place immediately
+                const text = prompt('Enter text:');
+                if (text) {
+                    const textLabel = document.createElement('div');
+                    textLabel.className = 'text-label';
+                    textLabel.textContent = text;
+                    textLabel.style.left = Math.round(pos.x + 8) + 'px';
+                    textLabel.style.top = Math.round(pos.y + 8) + 'px';
+                    textLabel.style.color = drawColor;
+                    
+                    // Right-click to delete
+                    textLabel.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        textLabel.remove();
+                    });
+                    
+                    // Click with eraser to delete
+                    textLabel.addEventListener('click', (e) => {
+                        if (currentTool === 'eraser') {
+                            e.stopPropagation();
+                            textLabel.remove();
+                        }
+                    });
+                    
+                    // Drag when no tool selected
+                    textLabel.addEventListener('mousedown', (e) => {
+                        if (e.button !== 0 || currentTool) return;
+                        e.stopPropagation();
+                        draggedText = textLabel;
+                        textLabel.classList.add('dragging');
+                        
+                        // Get current position in grid coordinates
+                        const currentLeft = parseInt(textLabel.style.left) || 0;
+                        const currentTop = parseInt(textLabel.style.top) || 0;
+                        
+                        // Calculate click position in grid coordinates
+                        const clickPos = viewportToGrid(e.clientX, e.clientY);
+                        textDragOffsetX = clickPos.x - currentLeft;
+                        textDragOffsetY = clickPos.y - currentTop;
+                    });
+                    
+                    document.getElementById('text-container').appendChild(textLabel);
+                }
+                return; // Don't start drawing for text tool
+            }
+            
+            isDrawing = true;
+            drawStartX = pos.x;
+            drawStartY = pos.y;
+            
+            if (currentTool === 'pen') {
+                penPath = [pos];
+            } else if (currentTool === 'eraser') {
+                // Start erasing with large radius
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 50, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // Save canvas state for shape preview (line, rect, circle)
+                savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            }
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing || !currentTool) return;
+            
+            // Throttle drawing updates
+            if (drawingFrameId) return;
+            drawingFrameId = requestAnimationFrame(() => {
+                drawingFrameId = null;
+                
+                const pos = viewportToGrid(e.clientX, e.clientY);
+                
+                if (currentTool === 'pen') {
+                    penPath.push(pos);
+                    ctx.globalCompositeOperation = 'source-over';
+                    ctx.strokeStyle = drawColor;
+                    ctx.lineWidth = 3;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(penPath[0].x, penPath[0].y);
+                    for (let i = 1; i < penPath.length; i++) ctx.lineTo(penPath[i].x, penPath[i].y);
+                    ctx.stroke();
+                } else if (currentTool === 'eraser') {
+                    ctx.globalCompositeOperation = 'destination-out';
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, 50, 0, Math.PI * 2); // Increased from 15 to 50
+                    ctx.fill();
+                } else {
+                    // Shape preview (line, rect, circle)
+                    if (savedImageData) {
+                        // Restore saved canvas state
+                        ctx.putImageData(savedImageData, 0, 0);
+                        
+                        // Draw preview
+                        const width = pos.x - drawStartX;
+                        const height = pos.y - drawStartY;
+                        ctx.globalCompositeOperation = 'source-over';
+                        ctx.strokeStyle = drawColor;
+                        ctx.lineWidth = 3;
+                        ctx.setLineDash([5, 5]); // Dashed preview
+                        
+                        if (currentTool === 'line') {
+                            ctx.beginPath();
+                            ctx.moveTo(drawStartX, drawStartY);
+                            ctx.lineTo(pos.x, pos.y);
+                            ctx.stroke();
+                        } else if (currentTool === 'rect') {
+                            ctx.strokeRect(drawStartX, drawStartY, width, height);
+                        } else if (currentTool === 'circle') {
+                            const radius = Math.sqrt(width * width + height * height) / 2;
+                            ctx.beginPath();
+                            ctx.arc(drawStartX + width / 2, drawStartY + height / 2, radius, 0, Math.PI * 2);
+                            ctx.stroke();
+                        }
+                        
+                        ctx.setLineDash([]); // Reset dash
+                    }
+                }
+            });
+        });
+        
+        canvas.addEventListener('mouseup', (e) => {
+            if (!isDrawing || !currentTool) return;
+            const pos = viewportToGrid(e.clientX, e.clientY);
+            
+            if (currentTool === 'eraser') {
+                // Reset composite operation
+                ctx.globalCompositeOperation = 'source-over';
+            } else if (currentTool !== 'pen') {
+                // Draw final shape (solid, not dashed)
+                if (savedImageData) {
+                    ctx.putImageData(savedImageData, 0, 0);
+                    savedImageData = null;
+                }
+                
+                const width = pos.x - drawStartX;
+                const height = pos.y - drawStartY;
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = drawColor;
+                ctx.lineWidth = 3;
+                ctx.setLineDash([]); // Solid line
+                
+                if (currentTool === 'line') {
+                    ctx.beginPath();
+                    ctx.moveTo(drawStartX, drawStartY);
+                    ctx.lineTo(pos.x, pos.y);
+                    ctx.stroke();
+                } else if (currentTool === 'rect') {
+                    ctx.strokeRect(drawStartX, drawStartY, width, height);
+                } else if (currentTool === 'circle') {
+                    const radius = Math.sqrt(width * width + height * height) / 2;
+                    ctx.beginPath();
+                    ctx.arc(drawStartX + width / 2, drawStartY + height / 2, radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            }
+            
+            isDrawing = false;
+            penPath = [];
+        });
+        
+        function clearDrawings() {
+            if (confirm('Clear all drawings?')) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        
+        document.getElementById('token-upload').addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files);
+            for (const file of files) {
+                const webpDataUrl = await convertToWebP(file, 0.85);
+                addToken(webpDataUrl);
+            }
+            e.target.value = '';
+        });
+        
+        async function convertToWebP(file, quality) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        resolve(canvas.toDataURL('image/webp', quality));
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        function addToken(imageDataUrl) {
+            // Calculate viewport center in grid coordinates
+            const viewportCenterX = window.innerWidth / 2;
+            const viewportCenterY = window.innerHeight / 2;
+            const gridX = (viewportCenterX - panX) / zoom;
+            const gridY = (viewportCenterY - panY) / zoom;
+            
+            // Snap to grid cell center
+            const snapped = snapToGrid(gridX, gridY);
+            
+            const token = { id: nextTokenId++, x: snapped.x, y: snapped.y, image: imageDataUrl, hidden: false };
+            tokens.push(token);
+            renderToken(token);
+        }
+        
+        function renderToken(token) {
+            const div = document.createElement('div');
+            div.className = 'token';
+            if (token.hidden) div.classList.add('hidden');
+            div.dataset.id = token.id;
+            // Equal offset for border alignment
+            div.style.left = Math.round(token.x - 24 + 8) + 'px';
+            div.style.top = Math.round(token.y - 24 + 8) + 'px';
+            div.style.backgroundImage = `url(${token.image})`;
+            
+            div.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                e.stopPropagation();
+                
+                // Shift+click toggles visibility
+                if (e.shiftKey) {
+                    token.hidden = !token.hidden;
+                    div.classList.toggle('hidden');
+                    return;
+                }
+                
+                // Regular click starts dragging
+                draggedToken = token;
+                div.classList.add('dragging');
+                const pos = viewportToGrid(e.clientX, e.clientY);
+                dragOffsetX = pos.x - token.x;
+                dragOffsetY = pos.y - token.y;
+            });
+            
+            div.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                contextToken = token;
+                contextMenu.style.left = e.clientX + 'px';
+                contextMenu.style.top = e.clientY + 'px';
+                contextMenu.style.display = 'block';
+            });
+            
+            tokensContainer.appendChild(div);
+        }
+        
+        viewport.addEventListener('mousemove', (e) => {
+            if (draggedToken) {
+                const pos = viewportToGrid(e.clientX, e.clientY);
+                draggedToken.x = pos.x - dragOffsetX;
+                draggedToken.y = pos.y - dragOffsetY;
+                const div = tokensContainer.querySelector(`[data-id="${draggedToken.id}"]`);
+                div.style.left = Math.round(draggedToken.x - 24 + 8) + 'px';
+                div.style.top = Math.round(draggedToken.y - 24 + 8) + 'px';
+            }
+            
+            if (draggedText) {
+                const pos = viewportToGrid(e.clientX, e.clientY);
+                const newX = pos.x - textDragOffsetX;
+                const newY = pos.y - textDragOffsetY;
+                draggedText.style.left = Math.round(newX) + 'px';
+                draggedText.style.top = Math.round(newY) + 'px';
+            }
+            
+            if (draggedSticker) {
+                const pos = viewportToGrid(e.clientX, e.clientY);
+                draggedSticker.x = pos.x - stickerDragOffsetX;
+                draggedSticker.y = pos.y - stickerDragOffsetY;
+                const div = stickersContainer.querySelector(`[data-id="${draggedSticker.id}"]`);
+                const sizeMap = { small: 24, medium: 48, large: 72 };
+                const halfSize = sizeMap[draggedSticker.size] / 2;
+                div.style.left = Math.round(draggedSticker.x - halfSize + 8) + 'px';
+                div.style.top = Math.round(draggedSticker.y - halfSize + 8) + 'px';
+            }
+        });
+        
+        viewport.addEventListener('mouseup', (e) => {
+            if (draggedToken && e.button === 0) {
+                const snapped = snapToGrid(draggedToken.x, draggedToken.y);
+                draggedToken.x = snapped.x;
+                draggedToken.y = snapped.y;
+                const div = tokensContainer.querySelector(`[data-id="${draggedToken.id}"]`);
+                div.style.left = Math.round(draggedToken.x - 24 + 8) + 'px';
+                div.style.top = Math.round(draggedToken.y - 24 + 8) + 'px';
+                div.classList.remove('dragging');
+                draggedToken = null;
+            }
+            
+            if (draggedText && e.button === 0) {
+                draggedText.classList.remove('dragging');
+                draggedText = null;
+            }
+            
+            if (draggedSticker && e.button === 0) {
+                const div = stickersContainer.querySelector(`[data-id="${draggedSticker.id}"]`);
+                div.classList.remove('dragging');
+                draggedSticker = null;
+            }
+        });
+        
+        document.querySelectorAll('.context-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const action = item.dataset.action;
+                if (action === 'delete') {
+                    tokensContainer.querySelector(`[data-id="${contextToken.id}"]`).remove();
+                    tokens = tokens.filter(t => t.id !== contextToken.id);
+                }
+                contextMenu.style.display = 'none';
+            });
+        });
+        
+        document.addEventListener('click', () => { contextMenu.style.display = 'none'; });
+        
+        panX = (window.innerWidth - 2500) / 2;
+        panY = (window.innerHeight - 2500) / 2;
+        updateTransform();
+    </script>
+</body>
+</html>
