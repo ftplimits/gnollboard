@@ -141,8 +141,6 @@
             display: block;
             width: 100%;
             height: 100%;
-            /* Tint black icons to ink color */
-            filter: brightness(0.7) sepia(0.3) hue-rotate(15deg);
         }
         
         .sticker.size-small {
@@ -314,7 +312,7 @@
             border: 2px solid var(--ink-dark);
             border-radius: 4px;
             cursor: pointer;
-            background: white;
+            background: #2a2a2a;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -329,14 +327,14 @@
         
         .icon-item.selected {
             border-color: var(--saddle-brown);
-            background: #f5e6d3;
+            background: #3a3a3a;
             box-shadow: inset 0 0 0 2px var(--saddle-brown);
         }
         
         .icon-item img {
             width: 32px;
             height: 32px;
-            filter: brightness(0.7) sepia(0.3) hue-rotate(15deg);
+            filter: none;
         }
         
         .divider {
@@ -467,43 +465,65 @@
         let draggedText = null; // Currently dragged text label
         let textDragOffsetX = 0, textDragOffsetY = 0;
         
-        // Icon library (Game Icons - game-icons.net) - CORRECTED AUTHORS
+        // Icon library - Self-hosted on GitHub
         const iconLibrary = [
-            // Furniture
-            { name: 'Table', author: 'delapouite', icon: 'table', category: 'furniture' },
-            { name: 'Chair', author: 'delapouite', icon: 'wooden-chair', category: 'furniture' },
-            { name: 'Bed', author: 'delapouite', icon: 'bed', category: 'furniture' },
-            { name: 'Barrel', author: 'delapouite', icon: 'barrel', category: 'furniture' },
-            { name: 'Bookshelf', author: 'delapouite', icon: 'bookshelf', category: 'furniture' },
-            { name: 'Crate', author: 'delapouite', icon: 'wooden-crate', category: 'furniture' },
-            // Dungeon Features  
-            { name: 'Door', author: 'lorc', icon: 'wooden-door', category: 'dungeon' },
-            { name: 'Chest', author: 'delapouite', icon: 'chest', category: 'dungeon' },
-            { name: 'Treasure', author: 'skoll', icon: 'open-treasure-chest', category: 'dungeon' },
-            { name: 'Candles', author: 'delapouite', icon: 'candles', category: 'dungeon' },
-            { name: 'Fire Bowl', author: 'lorc', icon: 'fire-bowl', category: 'dungeon' },
-            { name: 'Ladder', author: 'delapouite', icon: 'ladder', category: 'dungeon' },
-            { name: 'Pillar', author: 'lorc', icon: 'greek-temple', category: 'dungeon' },
-            { name: 'Altar', author: 'lorc', icon: 'stone-tablet', category: 'dungeon' },
-            { name: 'Gate', author: 'delapouite', icon: 'dungeon-gate', category: 'dungeon' },
+            // Furniture & Objects
+            { name: 'Barrel', icon: 'barrel.png', category: 'furniture' },
+            { name: 'Bed', icon: 'bed.png', category: 'furniture' },
+            { name: 'Chair', icon: 'wooden-chair.png', category: 'furniture' },
+            { name: 'Crate', icon: 'wooden-crate.png', category: 'furniture' },
+            { name: 'Stool', icon: 'bar-stool.png', category: 'furniture' },
+            { name: 'Bag', icon: 'swap-bag.png', category: 'furniture' },
+            // Dungeon Features
+            { name: 'Door', icon: 'wooden-door.png', category: 'dungeon' },
+            { name: 'Gate', icon: 'dungeon-gate.png', category: 'dungeon' },
+            { name: 'Chest', icon: 'locked-chest.png', category: 'dungeon' },
+            { name: 'Ladder', icon: 'ladder.png', category: 'dungeon' },
+            { name: 'Column', icon: 'ionic-column.png', category: 'dungeon' },
+            { name: 'Gibbet', icon: 'gibbet.png', category: 'dungeon' },
+            { name: 'Manacles', icon: 'manacles.png', category: 'dungeon' },
+            { name: 'Brick Wall', icon: 'brick-wall.png', category: 'dungeon' },
+            { name: 'Broken Wall', icon: 'broken-wall.png', category: 'dungeon' },
+            { name: 'Stone Wall', icon: 'stone-wall.png', category: 'dungeon' },
+            { name: 'Fence', icon: 'stakes-fence.png', category: 'dungeon' },
             // Nature
-            { name: 'Pine Tree', author: 'lorc', icon: 'pine-tree', category: 'nature' },
-            { name: 'Dead Tree', author: 'lorc', icon: 'dead-wood', category: 'nature' },
-            { name: 'Boulder', author: 'lorc', icon: 'stone-block', category: 'nature' },
-            { name: 'Grass', author: 'delapouite', icon: 'high-grass', category: 'nature' },
-            { name: 'Mushroom', author: 'lorc', icon: 'mushroom-gills', category: 'nature' },
-            { name: 'Fountain', author: 'lorc', icon: 'fountain', category: 'nature' },
-            { name: 'Tent', author: 'delapouite', icon: 'camping-tent', category: 'nature' },
-            // Hazards
-            { name: 'Bear Trap', author: 'lorc', icon: 'mantrap', category: 'hazard' },
-            { name: 'Skull', author: 'lorc', icon: 'pirate-skull', category: 'hazard' },
-            { name: 'Fire', author: 'lorc', icon: 'campfire', category: 'hazard' },
-            { name: 'Poison', author: 'lorc', icon: 'poison-bottle', category: 'hazard' },
-            { name: 'Trap', author: 'lorc', icon: 'spiked-trap', category: 'hazard' },
+            { name: 'Pine Tree', icon: 'pine-tree.png', category: 'nature' },
+            { name: 'Oak Tree', icon: 'oak.png', category: 'nature' },
+            { name: 'Dead Tree', icon: 'dead-wood.png', category: 'nature' },
+            { name: 'Grass', icon: 'high-grass.png', category: 'nature' },
+            { name: 'Rock', icon: 'rock.png', category: 'nature' },
+            { name: 'Boulder', icon: 'stone-block.png', category: 'nature' },
+            { name: 'Stone Pile', icon: 'stone-pile.png', category: 'nature' },
+            { name: 'Spider Web', icon: 'spider-web.png', category: 'nature' },
+            { name: 'Dolmen', icon: 'dolmen.png', category: 'nature' },
+            // Hazards & Light
+            { name: 'Campfire', icon: 'campfire.png', category: 'hazard' },
+            { name: 'Torch', icon: 'torch.png', category: 'hazard' },
+            { name: 'Fire Bowl', icon: 'fire-bowl.png', category: 'hazard' },
+            { name: 'Bear Trap', icon: 'mantrap.png', category: 'hazard' },
+            { name: 'Spike Pit', icon: 'spiky-pit.png', category: 'hazard' },
+            { name: 'Web Trap', icon: 'web-spit.png', category: 'hazard' },
+            // Weapons & Combat
+            { name: 'Sword', icon: 'ancient-sword.png', category: 'weapons' },
+            { name: 'Axe', icon: 'sharp-axe.png', category: 'weapons' },
+            { name: 'Dagger', icon: 'stiletto.png', category: 'weapons' },
+            { name: 'Spear', icon: 'barbed-spear.png', category: 'weapons' },
+            { name: 'Spears', icon: 'spears.png', category: 'weapons' },
+            { name: 'Bow', icon: 'bow-arrow.png', category: 'weapons' },
+            { name: 'Crossbow', icon: 'crossbow.png', category: 'weapons' },
+            { name: 'Shield', icon: 'round-shield.png', category: 'weapons' },
+            // Occult & Ritual
+            { name: 'Pentagram', icon: 'pentagram-rose.png', category: 'occult' },
+            { name: 'Pentacle', icon: 'pentacle.png', category: 'occult' },
+            { name: 'Heptagram', icon: 'heptagram.png', category: 'occult' },
+            { name: 'Rub el Hizb', icon: 'rub-el-hizb.png', category: 'occult' },
+            { name: 'Star Altar', icon: 'star-altar.png', category: 'occult' },
+            { name: 'Sword Altar', icon: 'sword-altar.png', category: 'occult' },
+            { name: 'Regeneration', icon: 'regeneration.png', category: 'occult' },
             // Interactive
-            { name: 'Lever', author: 'lorc', icon: 'on-off', category: 'interactive' },
-            { name: 'Key', author: 'lorc', icon: 'skeleton-key', category: 'interactive' },
-            { name: 'Rope', author: 'delapouite', icon: 'rope-coil', category: 'interactive' }
+            { name: 'Key', icon: 'skeleton-key.png', category: 'interactive' },
+            { name: 'Sign', icon: 'wooden-sign.png', category: 'interactive' },
+            { name: 'Direction', icon: 'direction-sign.png', category: 'interactive' }
         ];
         
         let stickers = [], nextStickerId = 1, draggedSticker = null;
@@ -540,7 +560,7 @@
                 grid.className = 'icon-grid';
                 
                 categories[category].forEach(item => {
-                    const iconUrl = `https://game-icons.net/icons/000000/transparent/1x1/${item.author}/${item.icon}.png`;
+                    const iconUrl = `https://raw.githubusercontent.com/ftplimits/gnollboard/main/icons/${item.icon}`;
                     const iconDiv = document.createElement('div');
                     iconDiv.className = 'icon-item';
                     iconDiv.title = item.name;
