@@ -312,7 +312,7 @@
             border: 2px solid var(--ink-dark);
             border-radius: 4px;
             cursor: pointer;
-            background: #2a2a2a;
+            background: white;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -327,14 +327,13 @@
         
         .icon-item.selected {
             border-color: var(--saddle-brown);
-            background: #3a3a3a;
+            background: #f5e6d3;
             box-shadow: inset 0 0 0 2px var(--saddle-brown);
         }
         
         .icon-item img {
             width: 32px;
             height: 32px;
-            filter: none;
         }
         
         .divider {
@@ -465,65 +464,72 @@
         let draggedText = null; // Currently dragged text label
         let textDragOffsetX = 0, textDragOffsetY = 0;
         
-        // Icon library - Self-hosted on GitHub
+        // Icon library - Self-hosted WebP on GitHub
         const iconLibrary = [
             // Furniture & Objects
-            { name: 'Barrel', icon: 'barrel.png', category: 'furniture' },
-            { name: 'Bed', icon: 'bed.png', category: 'furniture' },
-            { name: 'Chair', icon: 'wooden-chair.png', category: 'furniture' },
-            { name: 'Crate', icon: 'wooden-crate.png', category: 'furniture' },
-            { name: 'Stool', icon: 'bar-stool.png', category: 'furniture' },
-            { name: 'Bag', icon: 'swap-bag.png', category: 'furniture' },
+            { name: 'Barrel', icon: 'barrel.webp', category: 'furniture' },
+            { name: 'Bed', icon: 'bed.webp', category: 'furniture' },
+            { name: 'Chair', icon: 'wooden-chair.webp', category: 'furniture' },
+            { name: 'Crate', icon: 'wooden-crate.webp', category: 'furniture' },
+            { name: 'Stool', icon: 'bar-stool.webp', category: 'furniture' },
+            { name: 'Bag', icon: 'swap-bag.webp', category: 'furniture' },
+            { name: 'Flask', icon: 'round-bottom-flask.webp', category: 'furniture' },
             // Dungeon Features
-            { name: 'Door', icon: 'wooden-door.png', category: 'dungeon' },
-            { name: 'Gate', icon: 'dungeon-gate.png', category: 'dungeon' },
-            { name: 'Chest', icon: 'locked-chest.png', category: 'dungeon' },
-            { name: 'Ladder', icon: 'ladder.png', category: 'dungeon' },
-            { name: 'Column', icon: 'ionic-column.png', category: 'dungeon' },
-            { name: 'Gibbet', icon: 'gibbet.png', category: 'dungeon' },
-            { name: 'Manacles', icon: 'manacles.png', category: 'dungeon' },
-            { name: 'Brick Wall', icon: 'brick-wall.png', category: 'dungeon' },
-            { name: 'Broken Wall', icon: 'broken-wall.png', category: 'dungeon' },
-            { name: 'Stone Wall', icon: 'stone-wall.png', category: 'dungeon' },
-            { name: 'Fence', icon: 'stakes-fence.png', category: 'dungeon' },
+            { name: 'Door', icon: 'wooden-door.webp', category: 'dungeon' },
+            { name: 'Gate', icon: 'dungeon-gate.webp', category: 'dungeon' },
+            { name: 'Chest', icon: 'locked-chest.webp', category: 'dungeon' },
+            { name: 'Ladder', icon: 'ladder.webp', category: 'dungeon' },
+            { name: 'Column', icon: 'ionic-column.webp', category: 'dungeon' },
+            { name: 'Gibbet', icon: 'gibbet.webp', category: 'dungeon' },
+            { name: 'Manacles', icon: 'manacles.webp', category: 'dungeon' },
+            { name: 'Brick Wall', icon: 'brick-wall.webp', category: 'dungeon' },
+            { name: 'Broken Wall', icon: 'broken-wall.webp', category: 'dungeon' },
+            { name: 'Stone Wall', icon: 'stone-wall.webp', category: 'dungeon' },
+            { name: 'Fence', icon: 'stakes-fence.webp', category: 'dungeon' },
             // Nature
-            { name: 'Pine Tree', icon: 'pine-tree.png', category: 'nature' },
-            { name: 'Oak Tree', icon: 'oak.png', category: 'nature' },
-            { name: 'Dead Tree', icon: 'dead-wood.png', category: 'nature' },
-            { name: 'Grass', icon: 'high-grass.png', category: 'nature' },
-            { name: 'Rock', icon: 'rock.png', category: 'nature' },
-            { name: 'Boulder', icon: 'stone-block.png', category: 'nature' },
-            { name: 'Stone Pile', icon: 'stone-pile.png', category: 'nature' },
-            { name: 'Spider Web', icon: 'spider-web.png', category: 'nature' },
-            { name: 'Dolmen', icon: 'dolmen.png', category: 'nature' },
+            { name: 'Pine Tree', icon: 'pine-tree.webp', category: 'nature' },
+            { name: 'Oak Tree', icon: 'oak.webp', category: 'nature' },
+            { name: 'Dead Tree', icon: 'dead-wood.webp', category: 'nature' },
+            { name: 'Grass', icon: 'high-grass.webp', category: 'nature' },
+            { name: 'Rock', icon: 'rock.webp', category: 'nature' },
+            { name: 'Boulder', icon: 'stone-block.webp', category: 'nature' },
+            { name: 'Stone Pile', icon: 'stone-pile.webp', category: 'nature' },
+            { name: 'Spider Web', icon: 'spider-web.webp', category: 'nature' },
+            { name: 'Dolmen', icon: 'dolmen.webp', category: 'nature' },
+            { name: 'Fountain', icon: 'water-fountain.webp', category: 'nature' },
             // Hazards & Light
-            { name: 'Campfire', icon: 'campfire.png', category: 'hazard' },
-            { name: 'Torch', icon: 'torch.png', category: 'hazard' },
-            { name: 'Fire Bowl', icon: 'fire-bowl.png', category: 'hazard' },
-            { name: 'Bear Trap', icon: 'mantrap.png', category: 'hazard' },
-            { name: 'Spike Pit', icon: 'spiky-pit.png', category: 'hazard' },
-            { name: 'Web Trap', icon: 'web-spit.png', category: 'hazard' },
+            { name: 'Campfire', icon: 'campfire.webp', category: 'hazard' },
+            { name: 'Torch', icon: 'torch.webp', category: 'hazard' },
+            { name: 'Fire Bowl', icon: 'fire-bowl.webp', category: 'hazard' },
+            { name: 'Bear Trap', icon: 'mantrap.webp', category: 'hazard' },
+            { name: 'Spike Pit', icon: 'spiky-pit.webp', category: 'hazard' },
+            { name: 'Web Trap', icon: 'web-spit.webp', category: 'hazard' },
+            { name: 'Poison', icon: 'poison-bottle.webp', category: 'hazard' },
             // Weapons & Combat
-            { name: 'Sword', icon: 'ancient-sword.png', category: 'weapons' },
-            { name: 'Axe', icon: 'sharp-axe.png', category: 'weapons' },
-            { name: 'Dagger', icon: 'stiletto.png', category: 'weapons' },
-            { name: 'Spear', icon: 'barbed-spear.png', category: 'weapons' },
-            { name: 'Spears', icon: 'spears.png', category: 'weapons' },
-            { name: 'Bow', icon: 'bow-arrow.png', category: 'weapons' },
-            { name: 'Crossbow', icon: 'crossbow.png', category: 'weapons' },
-            { name: 'Shield', icon: 'round-shield.png', category: 'weapons' },
+            { name: 'Sword', icon: 'ancient-sword.webp', category: 'weapons' },
+            { name: 'Axe', icon: 'sharp-axe.webp', category: 'weapons' },
+            { name: 'Dagger', icon: 'stiletto.webp', category: 'weapons' },
+            { name: 'Spear', icon: 'barbed-spear.webp', category: 'weapons' },
+            { name: 'Spears', icon: 'spears.webp', category: 'weapons' },
+            { name: 'Bow', icon: 'bow-arrow.webp', category: 'weapons' },
+            { name: 'Crossbow', icon: 'crossbow.webp', category: 'weapons' },
+            { name: 'Shield', icon: 'round-shield.webp', category: 'weapons' },
+            { name: 'Hammer', icon: 'thor-hammer.webp', category: 'weapons' },
             // Occult & Ritual
-            { name: 'Pentagram', icon: 'pentagram-rose.png', category: 'occult' },
-            { name: 'Pentacle', icon: 'pentacle.png', category: 'occult' },
-            { name: 'Heptagram', icon: 'heptagram.png', category: 'occult' },
-            { name: 'Rub el Hizb', icon: 'rub-el-hizb.png', category: 'occult' },
-            { name: 'Star Altar', icon: 'star-altar.png', category: 'occult' },
-            { name: 'Sword Altar', icon: 'sword-altar.png', category: 'occult' },
-            { name: 'Regeneration', icon: 'regeneration.png', category: 'occult' },
+            { name: 'Pentagram', icon: 'pentagram-rose.webp', category: 'occult' },
+            { name: 'Pentacle', icon: 'pentacle.webp', category: 'occult' },
+            { name: 'Heptagram', icon: 'heptagram.webp', category: 'occult' },
+            { name: 'Rub el Hizb', icon: 'rub-el-hizb.webp', category: 'occult' },
+            { name: 'Star Altar', icon: 'star-altar.webp', category: 'occult' },
+            { name: 'Sword Altar', icon: 'sword-altar.webp', category: 'occult' },
+            { name: 'Regeneration', icon: 'regeneration.webp', category: 'occult' },
+            { name: 'Skeleton', icon: 'skeleton.webp', category: 'occult' },
             // Interactive
-            { name: 'Key', icon: 'skeleton-key.png', category: 'interactive' },
-            { name: 'Sign', icon: 'wooden-sign.png', category: 'interactive' },
-            { name: 'Direction', icon: 'direction-sign.png', category: 'interactive' }
+            { name: 'Key', icon: 'skeleton-key.webp', category: 'interactive' },
+            { name: 'Lever', icon: 'lever.webp', category: 'interactive' },
+            { name: 'Sign', icon: 'wooden-sign.webp', category: 'interactive' },
+            { name: 'Direction', icon: 'direction-sign.webp', category: 'interactive' },
+            { name: 'Flag', icon: 'flying-flag.webp', category: 'interactive' }
         ];
         
         let stickers = [], nextStickerId = 1, draggedSticker = null;
