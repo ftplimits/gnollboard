@@ -553,6 +553,7 @@
             <div id="stickers-container"></div>
             <div id="tokens-container"></div>
             <div id="text-container"></div>
+            <canvas id="ping-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:400;"></canvas>
         </div>
     </div>
     
@@ -760,6 +761,72 @@
         }
         
         function resetZoom() { zoom = 1; panX = 0; panY = 0; updateTransform(); }
+        
+        // ── Ping system ─────────────────────────────────────────────────────────
+        const pingCanvas = document.getElementById('ping-canvas');
+        const pingCtx = pingCanvas.getContext('2d');
+        let activePings = [];
+
+        function triggerPing(gridX, gridY) {
+            activePings.push({ x: gridX, y: gridY, startTime: performance.now() });
+            if (activePings.length === 1) requestAnimationFrame(animatePings);
+            broadcastPing(gridX, gridY); // stub for multiplayer
+        }
+
+        function animatePings(now) {
+            pingCtx.clearRect(0, 0, pingCanvas.width, pingCanvas.height);
+            const duration = 1200; // ms
+
+            activePings = activePings.filter(p => now - p.startTime < duration);
+
+            for (const p of activePings) {
+                const t = (now - p.startTime) / duration; // 0→1
+                const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic
+
+                // Outer expanding ring
+                const maxR = 60;
+                pingCtx.beginPath();
+                pingCtx.arc(p.x, p.y, ease * maxR, 0, Math.PI * 2);
+                pingCtx.strokeStyle = `rgba(220, 30, 30, ${1 - t})`;
+                pingCtx.lineWidth = 3;
+                pingCtx.stroke();
+
+                // Second ring, slightly delayed
+                if (t > 0.15) {
+                    const t2 = (t - 0.15) / 0.85;
+                    pingCtx.beginPath();
+                    pingCtx.arc(p.x, p.y, t2 * maxR * 0.65, 0, Math.PI * 2);
+                    pingCtx.strokeStyle = `rgba(255, 80, 80, ${1 - t2})`;
+                    pingCtx.lineWidth = 2;
+                    pingCtx.stroke();
+                }
+
+                // Centre dot that fades quickly
+                if (t < 0.4) {
+                    pingCtx.beginPath();
+                    pingCtx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+                    pingCtx.fillStyle = `rgba(255, 60, 60, ${1 - t / 0.4})`;
+                    pingCtx.fill();
+                }
+            }
+
+            if (activePings.length > 0) requestAnimationFrame(animatePings);
+        }
+
+        // Stub — replace body with data channel send when multiplayer lands
+        function broadcastPing(x, y) { /* TODO: peer.send({ type:'ping', x, y }) */ }
+
+        // Middle mouse click → ping
+        viewport.addEventListener('mousedown', (e) => {
+            if (e.button === 1) {
+                e.preventDefault();
+                const pos = viewportToGrid(e.clientX, e.clientY);
+                triggerPing(pos.x, pos.y);
+            }
+        });
+        // Suppress browser scroll-on-middle-click
+        viewport.addEventListener('auxclick', (e) => { if (e.button === 1) e.preventDefault(); });
+        // ── End ping system ──────────────────────────────────────────────────────
         
         // Mouse wheel zoom
         viewport.addEventListener('wheel', (e) => {
