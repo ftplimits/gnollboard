@@ -260,15 +260,22 @@
         }
         
         .tool-btn.active {
-            background: var(--saddle-brown);
-            color: white;
-            border-color: var(--saddle-brown);
-        }
-        
-        .tool-btn.active {
             background: var(--accent);
             color: white;
             border-color: var(--accent-hover);
+        }
+
+        /* FIX: Trash button gets a warm light brown so the icon is visible */
+        .tool-btn.clear-btn {
+            background: #a07850;
+            color: white;
+            border-color: #7a5c38;
+        }
+
+        .tool-btn.clear-btn:hover {
+            background: #8b6540;
+            color: white;
+            border-color: #6a4c2a;
         }
         
         #icon-selector {
@@ -462,10 +469,25 @@
             box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
             transform: scale(1.15);
         }
+
+        /* FIX: Logo in top-left corner */
+        #vtt-logo {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            width: 48px;
+            height: 48px;
+            z-index: 1001;
+            pointer-events: none;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+        }
         
     </style>
 </head>
 <body>
+    <!-- FIX: Logo top-left -->
+    <img id="vtt-logo" src="./icons/Logo.webp" alt="Logo">
+
     <div id="toolbar">
         <button class="tool-btn" onclick="document.getElementById('token-upload').click()" title="Upload Token Images">➕ Token</button>
         <input type="file" id="token-upload" accept="image/*" multiple style="display: none;">
@@ -488,7 +510,8 @@
         <div class="color-picker">
             <div class="color-swatch active" style="background: #2a2522" onclick="setColor('#2a2522')"></div>
             <div class="color-swatch" style="background: #8b4513" onclick="setColor('#8b4513')"></div>
-            <div class="color-swatch" style="background: #dc143c" onclick="setColor('#dc143c')"></div>
+            <!-- FIX: was #dc143c (crimson/magenta-ish), now a cleaner red -->
+            <div class="color-swatch" style="background: #cc0000" onclick="setColor('#cc0000')"></div>
             <div class="color-swatch" style="background: #1e4d2b" onclick="setColor('#1e4d2b')"></div>
             <div class="color-swatch" style="background: #1a4d7a" onclick="setColor('#1a4d7a')"></div>
             <div class="color-swatch" style="background: #ffffff; border: 1px solid #666" onclick="setColor('#ffffff')"></div>
@@ -499,7 +522,8 @@
         <button class="tool-btn" onclick="toggleIconPalette()" title="Icon Palette">🎨 Icons</button>
         
         <div class="divider"></div>
-        <button class="tool-btn" onclick="clearDrawings()" title="Clear All Drawings">🗑️</button>
+        <!-- FIX: clear-btn class for visible brown background on trash button -->
+        <button class="tool-btn clear-btn" onclick="clearDrawings()" title="Clear All Drawings">🗑️</button>
     </div>
     
     <div id="toolbar-toggle" onclick="toggleToolbar()">▲</div>
@@ -712,7 +736,6 @@
             zoom = Math.min(zoom * 1.2, 4);
             
             if (clientX !== undefined && clientY !== undefined) {
-                // Zoom from mouse position
                 const gridX = (clientX - panX) / oldZoom;
                 const gridY = (clientY - panY) / oldZoom;
                 panX = clientX - gridX * zoom;
@@ -727,7 +750,6 @@
             zoom = Math.max(zoom / 1.2, 0.25);
             
             if (clientX !== undefined && clientY !== undefined) {
-                // Zoom from mouse position
                 const gridX = (clientX - panX) / oldZoom;
                 const gridY = (clientY - panY) / oldZoom;
                 panX = clientX - gridX * zoom;
@@ -759,7 +781,7 @@
                     currentTool = null;
                     document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
                     canvas.classList.remove('drawing');
-                    return; // Don't start panning if we just disabled a tool
+                    return;
                 }
                 
                 // Start panning
@@ -793,13 +815,11 @@
         function setTool(tool) {
             currentTool = currentTool === tool ? null : tool;
             
-            // Update button states
             document.querySelectorAll('.tool-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
             
             if (currentTool) {
-                // Find and activate the button for this tool
                 document.querySelectorAll('.tool-btn').forEach(btn => {
                     if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(`'${tool}'`)) {
                         btn.classList.add('active');
@@ -813,7 +833,6 @@
         
         function setColor(color) { 
             drawColor = color;
-            // Update active state on color swatches
             document.querySelectorAll('.color-swatch').forEach(swatch => {
                 swatch.classList.remove('active');
             });
@@ -845,7 +864,8 @@
                 x: x,
                 y: y,
                 iconUrl: iconUrl,
-                size: size
+                size: size,
+                placedAt: Date.now() // FIX: timestamp to prevent immediate drag on placement click
             };
             stickers.push(sticker);
             renderSticker(sticker);
@@ -866,14 +886,14 @@
             div.style.left = Math.round(sticker.x - halfSize + 8) + 'px';
             div.style.top = Math.round(sticker.y - halfSize + 8) + 'px';
             
-            // Apply flip if needed
             if (sticker.flipped) {
                 img.style.transform = 'scaleX(-1)';
             }
             
-            // Drag handlers
+            // FIX: Guard against initiating a drag within 200ms of placement
             div.addEventListener('mousedown', (e) => {
                 if (e.button === 0 && !currentTool && !selectedIconUrl) {
+                    if (Date.now() - (sticker.placedAt || 0) < 200) return;
                     e.stopPropagation();
                     draggedSticker = sticker;
                     div.classList.add('dragging');
@@ -883,7 +903,6 @@
                 }
             });
             
-            // Right-click context menu for resizing
             div.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1095,6 +1114,8 @@
                 placeSticker(pos.x, pos.y, selectedIconUrl);
                 selectedIconUrl = null;
                 document.querySelectorAll('.icon-item').forEach(item => item.classList.remove('selected'));
+                // FIX: remove drawing class so canvas stops intercepting events after placement
+                canvas.classList.remove('drawing');
                 viewport.style.cursor = 'default';
                 return;
             }
@@ -1102,7 +1123,6 @@
             if (!currentTool) return;
             
             if (currentTool === 'text') {
-                // Text tool - show custom input dialog at cursor
                 const dialog = document.getElementById('text-input-dialog');
                 const input = document.getElementById('text-input-field');
                 
@@ -1112,10 +1132,9 @@
                 input.value = '';
                 input.focus();
                 
-                // Store position and color for text placement
                 window.pendingTextPosition = { x: pos.x, y: pos.y, color: drawColor };
                 
-                return; // Don't start drawing for text tool
+                return;
             }
             
             isDrawing = true;
@@ -1125,13 +1144,11 @@
             if (currentTool === 'pen') {
                 penPath = [pos];
             } else if (currentTool === 'eraser') {
-                // Start erasing with large radius
                 ctx.globalCompositeOperation = 'destination-out';
                 ctx.beginPath();
                 ctx.arc(pos.x, pos.y, 50, 0, Math.PI * 2);
                 ctx.fill();
             } else {
-                // Save canvas state for shape preview (line, rect, circle)
                 savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             }
         });
@@ -1139,7 +1156,6 @@
         canvas.addEventListener('mousemove', (e) => {
             if (!isDrawing || !currentTool) return;
             
-            // Throttle drawing updates
             if (drawingFrameId) return;
             drawingFrameId = requestAnimationFrame(() => {
                 drawingFrameId = null;
@@ -1160,21 +1176,18 @@
                 } else if (currentTool === 'eraser') {
                     ctx.globalCompositeOperation = 'destination-out';
                     ctx.beginPath();
-                    ctx.arc(pos.x, pos.y, 50, 0, Math.PI * 2); // Increased from 15 to 50
+                    ctx.arc(pos.x, pos.y, 50, 0, Math.PI * 2);
                     ctx.fill();
                 } else {
-                    // Shape preview (line, rect, circle)
                     if (savedImageData) {
-                        // Restore saved canvas state
                         ctx.putImageData(savedImageData, 0, 0);
                         
-                        // Draw preview
                         const width = pos.x - drawStartX;
                         const height = pos.y - drawStartY;
                         ctx.globalCompositeOperation = 'source-over';
                         ctx.strokeStyle = drawColor;
                         ctx.lineWidth = boldLines ? 12 : 3;
-                        ctx.setLineDash([5, 5]); // Dashed preview
+                        ctx.setLineDash([5, 5]);
                         
                         if (currentTool === 'line') {
                             ctx.beginPath();
@@ -1190,14 +1203,14 @@
                             ctx.stroke();
                         } else if (currentTool === 'triangle') {
                             ctx.beginPath();
-                            ctx.moveTo(drawStartX + width / 2, drawStartY); // Top point
-                            ctx.lineTo(drawStartX + width, drawStartY + height); // Bottom right
-                            ctx.lineTo(drawStartX, drawStartY + height); // Bottom left
+                            ctx.moveTo(drawStartX + width / 2, drawStartY);
+                            ctx.lineTo(drawStartX + width, drawStartY + height);
+                            ctx.lineTo(drawStartX, drawStartY + height);
                             ctx.closePath();
                             ctx.stroke();
                         }
                         
-                        ctx.setLineDash([]); // Reset dash
+                        ctx.setLineDash([]);
                     }
                 }
             });
@@ -1208,10 +1221,8 @@
             const pos = viewportToGrid(e.clientX, e.clientY);
             
             if (currentTool === 'eraser') {
-                // Reset composite operation
                 ctx.globalCompositeOperation = 'source-over';
             } else if (currentTool !== 'pen') {
-                // Draw final shape (solid, not dashed)
                 if (savedImageData) {
                     ctx.putImageData(savedImageData, 0, 0);
                     savedImageData = null;
@@ -1222,7 +1233,7 @@
                 ctx.globalCompositeOperation = 'source-over';
                 ctx.strokeStyle = drawColor;
                 ctx.lineWidth = boldLines ? 12 : 3;
-                ctx.setLineDash([]); // Solid line
+                ctx.setLineDash([]);
                 
                 if (currentTool === 'line') {
                     ctx.beginPath();
@@ -1238,9 +1249,9 @@
                     ctx.stroke();
                 } else if (currentTool === 'triangle') {
                     ctx.beginPath();
-                    ctx.moveTo(drawStartX + width / 2, drawStartY); // Top point
-                    ctx.lineTo(drawStartX + width, drawStartY + height); // Bottom right
-                    ctx.lineTo(drawStartX, drawStartY + height); // Bottom left
+                    ctx.moveTo(drawStartX + width / 2, drawStartY);
+                    ctx.lineTo(drawStartX + width, drawStartY + height);
+                    ctx.lineTo(drawStartX, drawStartY + height);
                     ctx.closePath();
                     ctx.stroke();
                 }
@@ -1264,14 +1275,12 @@
                 textLabel.style.top = Math.round(pos.y + 8) + 'px';
                 textLabel.style.color = pos.color;
                 
-                // Right-click to delete
                 textLabel.addEventListener('contextmenu', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     textLabel.remove();
                 });
                 
-                // Click with eraser to delete
                 textLabel.addEventListener('click', (e) => {
                     if (currentTool === 'eraser') {
                         e.stopPropagation();
@@ -1279,7 +1288,6 @@
                     }
                 });
                 
-                // Drag when no tool selected
                 textLabel.addEventListener('mousedown', (e) => {
                     if (e.button !== 0 || currentTool) return;
                     e.stopPropagation();
@@ -1306,7 +1314,6 @@
             window.pendingTextPosition = null;
         }
         
-        // Handle Enter key in text input
         document.addEventListener('DOMContentLoaded', () => {
             const input = document.getElementById('text-input-field');
             input.addEventListener('keydown', (e) => {
@@ -1351,13 +1358,11 @@
         }
         
         function addToken(imageDataUrl) {
-            // Calculate viewport center in grid coordinates
             const viewportCenterX = window.innerWidth / 2;
             const viewportCenterY = window.innerHeight / 2;
             const gridX = (viewportCenterX - panX) / zoom;
             const gridY = (viewportCenterY - panY) / zoom;
             
-            // Snap to grid cell center
             const snapped = snapToGrid(gridX, gridY);
             
             const token = { id: nextTokenId++, x: snapped.x, y: snapped.y, image: imageDataUrl, hidden: false, size: 'small' };
@@ -1371,7 +1376,6 @@
             if (token.hidden) div.classList.add('hidden');
             div.dataset.id = token.id;
             
-            // Handle different sizes
             const sizeMap = { small: 48, medium: 100, large: 150 };
             const size = sizeMap[token.size || 'small'];
             const halfSize = size / 2;
@@ -1382,7 +1386,6 @@
             div.style.top = Math.round(token.y - halfSize + 8) + 'px';
             div.style.backgroundImage = `url(${token.image})`;
             
-            // Apply flip if needed
             if (token.flipped) {
                 div.style.transform = 'scaleX(-1)';
             }
@@ -1391,14 +1394,12 @@
                 if (e.button !== 0) return;
                 e.stopPropagation();
                 
-                // Shift+click toggles visibility
                 if (e.shiftKey) {
                     token.hidden = !token.hidden;
                     div.classList.toggle('hidden');
                     return;
                 }
                 
-                // Regular click starts dragging
                 draggedToken = token;
                 div.classList.add('dragging');
                 const pos = viewportToGrid(e.clientX, e.clientY);
