@@ -60,7 +60,6 @@
             width: 5000px;
             height: 5000px;
             transform-origin: 0 0;
-            transition: transform 0.1s ease-out;
         }
         
         #grid-background {
@@ -476,6 +475,32 @@
         .sel-handle[data-corner="sw"] { bottom: -14px; left: -14px;  cursor: sw-resize; }
         .sel-handle[data-corner="se"] { bottom: -14px; right: -14px; cursor: se-resize; }
 
+        #rotate-handle {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: white;
+            border: 2px solid #8b4513;
+            border-radius: 50%;
+            top: -34px;
+            left: 50%;
+            transform: translateX(-50%);
+            cursor: grab;
+            pointer-events: auto;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+        }
+
+        #rotate-handle::after {
+            content: '';
+            position: absolute;
+            width: 1px;
+            height: 20px;
+            background: rgba(139, 69, 19, 0.5);
+            left: 50%;
+            top: 100%;
+            transform: translateX(-50%);
+        }
+
         .token.selected, .sticker.selected {
             outline: 2px dashed rgba(139,69,19,0.6);
             outline-offset: 2px;
@@ -546,6 +571,7 @@
     
     <!-- Selection overlay (screen-space, handles resize) -->
     <div id="selection-overlay">
+        <div id="rotate-handle"></div>
         <div class="sel-handle" data-corner="nw"></div>
         <div class="sel-handle" data-corner="ne"></div>
         <div class="sel-handle" data-corner="sw"></div>
@@ -580,6 +606,11 @@
         let isResizing = false, resizeCorner = null;
         let resizeStartMouse = { x: 0, y: 0 };
         let resizeStartObj = {};    // snapshot: x, y, w, h
+
+        // ── Rotation state ──
+        let isRotating = false;
+        let rotateStartAngle = 0, rotateStartObjAngle = 0;
+        let rotateCenterX = 0, rotateCenterY = 0;
         
         // Icon library - Self-hosted WebP on GitHub
         const iconLibrary = [
@@ -1105,6 +1136,18 @@
             div.style.height = h + 'px';
             div.style.left   = Math.round(obj.x - w / 2 + 8) + 'px';
             div.style.top    = Math.round(obj.y - h / 2 + 8) + 'px';
+            updateObjTransform(obj, div);
+        }
+
+        function updateObjTransform(obj, div) {
+            const rot = obj.rotation || 0;
+            if (obj.type === 'token') {
+                div.style.transform = `rotate(${rot}deg)${obj.flipped ? ' scaleX(-1)' : ''}`;
+            } else {
+                div.style.transform = `rotate(${rot}deg)`;
+                const img = div.querySelector('img');
+                if (img) img.style.transform = obj.flipped ? 'scaleX(-1)' : '';
+            }
         }
 
         function updateSelectionOverlay() {
@@ -1142,6 +1185,19 @@
                 const { w, h } = getObjSize(selectedObject.data);
                 resizeStartObj = { x: selectedObject.data.x, y: selectedObject.data.y, w, h };
             });
+        });
+
+        // Handle mousedown — start rotation
+        document.getElementById('rotate-handle').addEventListener('mousedown', (e) => {
+            if (!selectedObject) return;
+            e.preventDefault();
+            e.stopPropagation();
+            isRotating = true;
+            const rect = selectedObject.div.getBoundingClientRect();
+            rotateCenterX = rect.left + rect.width  / 2;
+            rotateCenterY = rect.top  + rect.height / 2;
+            rotateStartAngle    = Math.atan2(e.clientY - rotateCenterY, e.clientX - rotateCenterX) * 180 / Math.PI;
+            rotateStartObjAngle = selectedObject.data.rotation || 0;
         });
 
         // Delete key removes selected object
@@ -1447,7 +1503,6 @@
             }
 
             div.style.backgroundImage = `url(${token.image})`;
-            if (token.flipped) div.style.transform = 'scaleX(-1)';
             updateObjDiv(token, div);
 
             div.addEventListener('mousedown', (e) => {
@@ -1478,18 +1533,25 @@
             tokensContainer.appendChild(div);
         }
         
-        viewport.addEventListener('mousemove', (e) => {
+        // ── All drag/resize/rotate on window so events fire even outside viewport ──
+        window.addEventListener('mousemove', (e) => {
+            // ── Rotate ──────────────────────────────────────────────────────────
+            if (isRotating && selectedObject) {
+                const angle = Math.atan2(e.clientY - rotateCenterY, e.clientX - rotateCenterX) * 180 / Math.PI;
+                selectedObject.data.rotation = rotateStartObjAngle + (angle - rotateStartAngle);
+                updateObjTransform(selectedObject.data, selectedObject.div);
+                return;
+            }
+
             // ── Resize ──────────────────────────────────────────────────────────
             if (isResizing && selectedObject) {
                 const dx = (e.clientX - resizeStartMouse.x) / zoom;
                 const dy = (e.clientY - resizeStartMouse.y) / zoom;
                 const { x: ox, y: oy, w: ow, h: oh } = resizeStartObj;
                 const obj = selectedObject.data;
-
                 let newW, newH, newX = ox, newY = oy;
 
                 if (selectedObject.type === 'token') {
-                    // Aspect-ratio locked: width-primary, derive height
                     const ar = ow / oh;
                     const wSign = (resizeCorner === 'se' || resizeCorner === 'ne') ? 1 : -1;
                     newW = Math.max(16, ow + wSign * dx);
@@ -1500,7 +1562,6 @@
                     if (resizeCorner === 'ne') { newX = ox + dw/2; newY = oy - dh/2; }
                     if (resizeCorner === 'nw') { newX = ox - dw/2; newY = oy - dh/2; }
                 } else {
-                    // Free resize for stickers
                     newW = ow; newH = oh;
                     if (resizeCorner === 'se') { newW = ow + dx; newH = oh + dy; }
                     if (resizeCorner === 'sw') { newW = ow - dx; newH = oh + dy; newX = ox + dx/2; }
@@ -1543,13 +1604,12 @@
         
         // Use window so drag state is always cleared even if mouse released outside viewport
         window.addEventListener('mouseup', (e) => {
-            if (e.button === 0 && isResizing) {
-                isResizing = false;
-                resizeCorner = null;
-                return;
-            }
+            if (e.button !== 0) return;
 
-            if (draggedToken && e.button === 0) {
+            if (isRotating)  { isRotating  = false; return; }
+            if (isResizing)  { isResizing  = false; resizeCorner = null; return; }
+
+            if (draggedToken) {
                 const snapped = snapToGrid(draggedToken.x, draggedToken.y);
                 draggedToken.x = snapped.x;
                 draggedToken.y = snapped.y;
@@ -1559,12 +1619,12 @@
                 draggedToken = null;
             }
 
-            if (draggedText && e.button === 0) {
+            if (draggedText) {
                 draggedText.classList.remove('dragging');
                 draggedText = null;
             }
 
-            if (draggedSticker && e.button === 0) {
+            if (draggedSticker) {
                 const div = stickersContainer.querySelector(`[data-id="${draggedSticker.id}"]`);
                 if (div) div.classList.remove('dragging');
                 updateSelectionOverlay();
