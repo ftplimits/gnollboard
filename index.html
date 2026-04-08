@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    
+<link rel="icon" type="image/png" sizes="32x32" href="favicon.webp">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon.webp">
+    <link rel="shortcut icon" type="image/png" href="favicon.webp">
+    <link rel="apple-touch-icon" href="favicon.webp">
+   
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Grid VTT</title>
@@ -505,6 +511,29 @@
             outline: 2px dashed rgba(139,69,19,0.6);
             outline-offset: 2px;
         }
+
+        /* ── Shape objects ── */
+        .shape-obj {
+            position: absolute;
+            cursor: move;
+            pointer-events: auto;
+            z-index: 125;
+        }
+
+        .shape-obj svg {
+            display: block;
+            overflow: visible;
+        }
+
+        .shape-obj.selected {
+            outline: 2px dashed rgba(139,69,19,0.6);
+            outline-offset: 4px;
+        }
+
+        .shape-obj.dragging {
+            cursor: grabbing;
+            z-index: 300;
+        }
     </style>
 </head>
 <body>
@@ -582,6 +611,7 @@
         <div id="grid-container">
             <div id="grid-background"></div>
             <canvas id="drawing-canvas" width="5000" height="5000"></canvas>
+            <div id="shapes-container"></div>
             <div id="stickers-container"></div>
             <div id="tokens-container"></div>
             <div id="text-container"></div>
@@ -600,6 +630,10 @@
         let drawings = [], selectedDrawing = null, nextDrawingId = 1;
         let boldLines = false;
         let draggedText = null, textDragOffsetX = 0, textDragOffsetY = 0;
+
+        // ── Shape objects ──
+        let shapes = [], nextShapeId = 1, draggedShape = null;
+        let shapeDragOffsetX = 0, shapeDragOffsetY = 0;
 
         // ── Selection / resize state ──
         let selectedObject = null;  // { type: 'token'|'sticker', data, div }
@@ -1213,10 +1247,94 @@
                 div.remove();
                 if (type === 'token') tokens = tokens.filter(t => t.id !== data.id);
                 if (type === 'sticker') { const i = stickers.findIndex(s => s.id === data.id); if (i > -1) stickers.splice(i, 1); }
+                if (type === 'shape')   { shapes = shapes.filter(s => s.id !== data.id); }
             }
             if (e.key === 'Escape') deselectObject();
         });
         // ── End selection system ─────────────────────────────────────────────────
+
+        // ── Shape object system ──────────────────────────────────────────────────
+        const shapesContainer = document.getElementById('shapes-container');
+
+        // Generates SVG markup for a shape.
+        // viewBox="0 0 100 100" + preserveAspectRatio="none" → shape always fills div.
+        // vector-effect="non-scaling-stroke" → stroke-width stays constant in screen px.
+        function getShapeSVG(shape) {
+            const sw = shape.lineWidth || 3;
+            const c  = shape.color || '#2a2522';
+            const base = `fill="none" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke"`;
+            let inner = '';
+
+            if (shape.shapeType === 'rect') {
+                inner = `<rect x="0" y="0" width="100" height="100" ${base}/>`;
+            } else if (shape.shapeType === 'circle') {
+                inner = `<ellipse cx="50" cy="50" rx="50" ry="50" ${base}/>`;
+            } else if (shape.shapeType === 'triangle') {
+                inner = `<polygon points="50,0 100,100 0,100" ${base} stroke-linejoin="round"/>`;
+            }
+
+            return `<svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
+        }
+
+        function addShape(shapeType, x, y, w, h, color, lineWidth) {
+            // Ignore accidental zero-size draws
+            if (w < 6 || h < 6) return;
+            const shape = { id: nextShapeId++, shapeType, x, y, w, h, color, lineWidth, rotation: 0, type: 'shape' };
+            shapes.push(shape);
+            renderShape(shape);
+            // P2P stub: broadcastShapeAdd(shape)
+            return shape;
+        }
+
+        function renderShape(shape) {
+            const div = document.createElement('div');
+            div.className = 'shape-obj';
+            div.setAttribute('data-id', shape.id);
+            shape.type = 'shape';
+
+            div.innerHTML = getShapeSVG(shape);
+            updateObjDiv(shape, div);
+
+            div.addEventListener('mousedown', (e) => {
+                if (e.button !== 0 || currentTool) return;
+                e.stopPropagation();
+                selectObject('shape', shape, div);
+                draggedShape = shape;
+                div.classList.add('dragging');
+                const pos = viewportToGrid(e.clientX, e.clientY);
+                shapeDragOffsetX = pos.x - shape.x;
+                shapeDragOffsetY = pos.y - shape.y;
+            });
+
+            div.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                showShapeContextMenu(e.clientX, e.clientY, shape, div);
+            });
+
+            shapesContainer.appendChild(div);
+        }
+
+        function showShapeContextMenu(x, y, shape, div) {
+            const menu = document.createElement('div');
+            menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:'EB Garamond',serif;`;
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = 'Delete';
+            deleteBtn.style.cssText = `display:block;width:100%;padding:6px 12px;background:#dc143c;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:'EB Garamond',serif;border-radius:2px;`;
+            deleteBtn.onclick = () => {
+                shapes = shapes.filter(s => s.id !== shape.id);
+                div.remove();
+                if (selectedObject && selectedObject.data.id === shape.id) deselectObject();
+                menu.remove();
+            };
+            menu.appendChild(deleteBtn);
+
+            document.body.appendChild(menu);
+            const close = () => { menu.remove(); document.removeEventListener('click', close); };
+            setTimeout(() => document.addEventListener('click', close), 10);
+        }
+        // ── End shape object system ──────────────────────────────────────────────
         
         canvas.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return;
@@ -1342,39 +1460,30 @@
             
             if (currentTool === 'eraser') {
                 ctx.globalCompositeOperation = 'source-over';
-            } else if (currentTool !== 'pen') {
-                if (savedImageData) {
-                    ctx.putImageData(savedImageData, 0, 0);
-                    savedImageData = null;
-                }
-                
-                const width = pos.x - drawStartX;
-                const height = pos.y - drawStartY;
+            } else if (currentTool === 'pen') {
+                // pen is already drawn incrementally — nothing to commit
+            } else if (currentTool === 'line') {
+                // Line stays on canvas
+                if (savedImageData) { ctx.putImageData(savedImageData, 0, 0); savedImageData = null; }
                 ctx.globalCompositeOperation = 'source-over';
                 ctx.strokeStyle = drawColor;
                 ctx.lineWidth = boldLines ? 12 : 3;
                 ctx.setLineDash([]);
-                
-                if (currentTool === 'line') {
-                    ctx.beginPath();
-                    ctx.moveTo(drawStartX, drawStartY);
-                    ctx.lineTo(pos.x, pos.y);
-                    ctx.stroke();
-                } else if (currentTool === 'rect') {
-                    ctx.strokeRect(drawStartX, drawStartY, width, height);
-                } else if (currentTool === 'circle') {
-                    const radius = Math.sqrt(width * width + height * height) / 2;
-                    ctx.beginPath();
-                    ctx.arc(drawStartX + width / 2, drawStartY + height / 2, radius, 0, Math.PI * 2);
-                    ctx.stroke();
-                } else if (currentTool === 'triangle') {
-                    ctx.beginPath();
-                    ctx.moveTo(drawStartX + width / 2, drawStartY);
-                    ctx.lineTo(drawStartX + width, drawStartY + height);
-                    ctx.lineTo(drawStartX, drawStartY + height);
-                    ctx.closePath();
-                    ctx.stroke();
-                }
+                ctx.beginPath();
+                ctx.moveTo(drawStartX, drawStartY);
+                ctx.lineTo(pos.x, pos.y);
+                ctx.stroke();
+            } else if (currentTool === 'rect' || currentTool === 'circle' || currentTool === 'triangle') {
+                // Revert the dashed canvas preview, commit as SVG shape object
+                if (savedImageData) { ctx.putImageData(savedImageData, 0, 0); savedImageData = null; }
+                const rawW = pos.x - drawStartX;
+                const rawH = pos.y - drawStartY;
+                const w = Math.abs(rawW);
+                const h = Math.abs(rawH);
+                // Center point accounts for drag direction
+                const cx = drawStartX + rawW / 2;
+                const cy = drawStartY + rawH / 2;
+                addShape(currentTool, cx, cy, w, h, drawColor, boldLines ? 12 : 3);
             }
             
             isDrawing = false;
@@ -1602,6 +1711,15 @@
                 updateObjDiv(draggedSticker, stickersContainer.querySelector(`[data-id="${draggedSticker.id}"]`));
                 updateSelectionOverlay();
             }
+
+            // ── Shape drag ─────────────────────────────────────────────────────
+            if (draggedShape) {
+                const pos = viewportToGrid(e.clientX, e.clientY);
+                draggedShape.x = pos.x - shapeDragOffsetX;
+                draggedShape.y = pos.y - shapeDragOffsetY;
+                updateObjDiv(draggedShape, shapesContainer.querySelector(`[data-id="${draggedShape.id}"]`));
+                updateSelectionOverlay();
+            }
         });
         
         // Use window so drag state is always cleared even if mouse released outside viewport
@@ -1631,6 +1749,13 @@
                 if (div) div.classList.remove('dragging');
                 updateSelectionOverlay();
                 draggedSticker = null;
+            }
+
+            if (draggedShape) {
+                const div = shapesContainer.querySelector(`[data-id="${draggedShape.id}"]`);
+                if (div) div.classList.remove('dragging');
+                updateSelectionOverlay();
+                draggedShape = null;
             }
         });
         
