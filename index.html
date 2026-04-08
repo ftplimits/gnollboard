@@ -226,7 +226,7 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(95, 95, 95, 0.95);
+            background: rgba(81, 81, 81, 0.95);
             border: 2px solid var(--ink-dark);
             border-radius: 8px;
             padding: 12px 16px;
@@ -257,6 +257,12 @@
             background: var(--accent);
             color: white;
             border-color: var(--accent);
+        }
+        
+        .tool-btn.active {
+            background: var(--saddle-brown);
+            color: white;
+            border-color: var(--saddle-brown);
         }
         
         .tool-btn.active {
@@ -384,16 +390,15 @@
             opacity: 0.3;
         }
         
-        #show-hide-tab {
+        #toolbar-toggle {
             position: fixed;
             top: 20px;
-            right: 20px;
-            background: rgba(95, 95, 95, 0.95);
+            left: calc(50% + 420px);
+            background: rgba(81, 81, 81, 0.95);
             border: 2px solid var(--ink-dark);
             border-radius: 8px;
-            padding: 8px 16px;
-            font-family: 'EB Garamond', serif;
-            font-size: 14px;
+            padding: 12px 8px;
+            font-size: 16px;
             color: white;
             cursor: pointer;
             z-index: 1000;
@@ -402,8 +407,8 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
         
-        #show-hide-tab:hover {
-            background: rgba(115, 115, 115, 0.95);
+        #toolbar-toggle:hover {
+            background: rgba(100, 100, 100, 0.95);
         }
         
         #context-menu {
@@ -470,8 +475,13 @@
         <button class="tool-btn" onclick="setTool('line')" title="Line">╱</button>
         <button class="tool-btn" onclick="setTool('rect')" title="Rectangle">▭</button>
         <button class="tool-btn" onclick="setTool('circle')" title="Circle">○</button>
+        <button class="tool-btn" onclick="setTool('triangle')" title="Triangle">△</button>
         <button class="tool-btn" onclick="setTool('text')" title="Text">T</button>
         <button class="tool-btn" onclick="setTool('eraser')" title="Eraser">🧹</button>
+        
+        <div class="divider"></div>
+        
+        <button class="tool-btn" id="bold-toggle" onclick="toggleBold()" title="Bold Lines">B</button>
         
         <div class="divider"></div>
         
@@ -492,7 +502,7 @@
         <button class="tool-btn" onclick="clearDrawings()" title="Clear All Drawings">🗑️</button>
     </div>
     
-    <div id="show-hide-tab" onclick="toggleTokensVisibility()">👁️ Show/Hide</div>
+    <div id="toolbar-toggle" onclick="toggleToolbar()">▲</div>
     
     <div id="context-menu">
         <div class="context-item" data-action="delete">Delete</div>
@@ -533,6 +543,7 @@
         let drawings = []; // Store all drawings as objects
         let selectedDrawing = null; // Currently selected drawing for dragging
         let nextDrawingId = 1;
+        let boldLines = false; // Bold line toggle
         let draggedText = null; // Currently dragged text label
         let textDragOffsetX = 0, textDragOffsetY = 0;
         
@@ -664,15 +675,23 @@
             iconPalette.style.display = iconPalette.style.display === 'none' ? 'block' : 'none';
         }
         
-        let tokensVisible = true;
-        function toggleTokensVisibility() {
-            tokensVisible = !tokensVisible;
-            const tokenElements = document.querySelectorAll('.token');
-            tokenElements.forEach(token => {
-                token.style.display = tokensVisible ? 'block' : 'none';
-            });
-            const tab = document.getElementById('show-hide-tab');
-            tab.textContent = tokensVisible ? '👁️ Show/Hide' : '👁️‍🗨️ Show/Hide';
+        let toolbarVisible = true;
+        function toggleToolbar() {
+            toolbarVisible = !toolbarVisible;
+            const toolbar = document.getElementById('toolbar');
+            const toggle = document.getElementById('toolbar-toggle');
+            toolbar.style.display = toolbarVisible ? 'flex' : 'none';
+            toggle.textContent = toolbarVisible ? '▲' : '▼';
+        }
+        
+        function toggleBold() {
+            boldLines = !boldLines;
+            const btn = document.getElementById('bold-toggle');
+            if (boldLines) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
         }
         
         function updateTransform() {
@@ -847,6 +866,11 @@
             div.style.left = Math.round(sticker.x - halfSize + 8) + 'px';
             div.style.top = Math.round(sticker.y - halfSize + 8) + 'px';
             
+            // Apply flip if needed
+            if (sticker.flipped) {
+                img.style.transform = 'scaleX(-1)';
+            }
+            
             // Drag handlers
             div.addEventListener('mousedown', (e) => {
                 if (e.button === 0 && !currentTool && !selectedIconUrl) {
@@ -907,6 +931,27 @@
                 };
                 menu.appendChild(btn);
             });
+            
+            const flipBtn = document.createElement('button');
+            flipBtn.textContent = 'Flip';
+            flipBtn.style.cssText = `
+                display: block;
+                width: 100%;
+                padding: 6px 12px;
+                margin-top: 8px;
+                background: #1a4d7a;
+                color: white;
+                border: 1px solid var(--ink-dark);
+                cursor: pointer;
+                font-family: 'EB Garamond', serif;
+            `;
+            flipBtn.onclick = () => {
+                sticker.flipped = !sticker.flipped;
+                stickersContainer.querySelector(`[data-id="${sticker.id}"]`).remove();
+                renderSticker(sticker);
+                menu.remove();
+            };
+            menu.appendChild(flipBtn);
             
             const deleteBtn = document.createElement('button');
             deleteBtn.textContent = 'Delete';
@@ -976,6 +1021,27 @@
                 };
                 menu.appendChild(btn);
             });
+            
+            const flipBtn = document.createElement('button');
+            flipBtn.textContent = 'Flip';
+            flipBtn.style.cssText = `
+                display: block;
+                width: 100%;
+                padding: 6px 12px;
+                margin-top: 8px;
+                background: #1a4d7a;
+                color: white;
+                border: 1px solid var(--ink-dark);
+                cursor: pointer;
+                font-family: 'EB Garamond', serif;
+            `;
+            flipBtn.onclick = () => {
+                token.flipped = !token.flipped;
+                tokensContainer.querySelector(`[data-id="${token.id}"]`).remove();
+                renderToken(token);
+                menu.remove();
+            };
+            menu.appendChild(flipBtn);
             
             const deleteBtn = document.createElement('button');
             deleteBtn.textContent = 'Delete';
@@ -1084,7 +1150,7 @@
                     penPath.push(pos);
                     ctx.globalCompositeOperation = 'source-over';
                     ctx.strokeStyle = drawColor;
-                    ctx.lineWidth = 3;
+                    ctx.lineWidth = boldLines ? 12 : 3;
                     ctx.lineCap = 'round';
                     ctx.lineJoin = 'round';
                     ctx.beginPath();
@@ -1107,7 +1173,7 @@
                         const height = pos.y - drawStartY;
                         ctx.globalCompositeOperation = 'source-over';
                         ctx.strokeStyle = drawColor;
-                        ctx.lineWidth = 3;
+                        ctx.lineWidth = boldLines ? 12 : 3;
                         ctx.setLineDash([5, 5]); // Dashed preview
                         
                         if (currentTool === 'line') {
@@ -1121,6 +1187,13 @@
                             const radius = Math.sqrt(width * width + height * height) / 2;
                             ctx.beginPath();
                             ctx.arc(drawStartX + width / 2, drawStartY + height / 2, radius, 0, Math.PI * 2);
+                            ctx.stroke();
+                        } else if (currentTool === 'triangle') {
+                            ctx.beginPath();
+                            ctx.moveTo(drawStartX + width / 2, drawStartY); // Top point
+                            ctx.lineTo(drawStartX + width, drawStartY + height); // Bottom right
+                            ctx.lineTo(drawStartX, drawStartY + height); // Bottom left
+                            ctx.closePath();
                             ctx.stroke();
                         }
                         
@@ -1148,7 +1221,7 @@
                 const height = pos.y - drawStartY;
                 ctx.globalCompositeOperation = 'source-over';
                 ctx.strokeStyle = drawColor;
-                ctx.lineWidth = 3;
+                ctx.lineWidth = boldLines ? 12 : 3;
                 ctx.setLineDash([]); // Solid line
                 
                 if (currentTool === 'line') {
@@ -1162,6 +1235,13 @@
                     const radius = Math.sqrt(width * width + height * height) / 2;
                     ctx.beginPath();
                     ctx.arc(drawStartX + width / 2, drawStartY + height / 2, radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                } else if (currentTool === 'triangle') {
+                    ctx.beginPath();
+                    ctx.moveTo(drawStartX + width / 2, drawStartY); // Top point
+                    ctx.lineTo(drawStartX + width, drawStartY + height); // Bottom right
+                    ctx.lineTo(drawStartX, drawStartY + height); // Bottom left
+                    ctx.closePath();
                     ctx.stroke();
                 }
             }
@@ -1301,6 +1381,11 @@
             div.style.left = Math.round(token.x - halfSize + 8) + 'px';
             div.style.top = Math.round(token.y - halfSize + 8) + 'px';
             div.style.backgroundImage = `url(${token.image})`;
+            
+            // Apply flip if needed
+            if (token.flipped) {
+                div.style.transform = 'scaleX(-1)';
+            }
             
             div.addEventListener('mousedown', (e) => {
                 if (e.button !== 0) return;
