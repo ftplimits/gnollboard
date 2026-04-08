@@ -780,7 +780,7 @@
             activePings = activePings.filter(p => now - p.startTime < duration);
 
             for (const p of activePings) {
-                const t = (now - p.startTime) / duration; // 0→1
+                const t = Math.max(0, (now - p.startTime) / duration); // 0→1, clamped against rAF timestamp skew
                 const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic
 
                 // Outer expanding ring
