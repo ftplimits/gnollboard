@@ -147,13 +147,13 @@
         }
         
         .sticker.size-medium {
-            width: 75px;
-            height: 75px;
+            width: 100px;
+            height: 100px;
         }
         
         .sticker.size-large {
-            width: 100px;
-            height: 100px;
+            width: 150px;
+            height: 150px;
         }
         
         /* Text labels */
@@ -226,7 +226,7 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(42, 42, 42, 0.95);
+            background: rgba(95, 95, 95, 0.95);
             border: 2px solid var(--ink-dark);
             border-radius: 8px;
             padding: 12px 16px;
@@ -384,6 +384,28 @@
             opacity: 0.3;
         }
         
+        #show-hide-tab {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(95, 95, 95, 0.95);
+            border: 2px solid var(--ink-dark);
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-family: 'EB Garamond', serif;
+            font-size: 14px;
+            color: white;
+            cursor: pointer;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+            user-select: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        #show-hide-tab:hover {
+            background: rgba(115, 115, 115, 0.95);
+        }
+        
         #context-menu {
             position: fixed;
             background: rgba(195, 186, 166, 0.98);
@@ -470,6 +492,8 @@
         <button class="tool-btn" onclick="clearDrawings()" title="Clear All Drawings">🗑️</button>
     </div>
     
+    <div id="show-hide-tab" onclick="toggleTokensVisibility()">👁️ Show/Hide</div>
+    
     <div id="context-menu">
         <div class="context-item" data-action="delete">Delete</div>
     </div>
@@ -527,6 +551,7 @@
             { name: 'Gate', icon: 'dungeon-gate.webp', category: 'dungeon' },
             { name: 'Chest', icon: 'locked-chest.webp', category: 'dungeon' },
             { name: 'Ladder', icon: 'ladder.webp', category: 'dungeon' },
+            { name: 'Stairs', icon: '3d-stairs.webp', category: 'dungeon' },
             { name: 'Column', icon: 'ionic-column.webp', category: 'dungeon' },
             { name: 'Gibbet', icon: 'gibbet.webp', category: 'dungeon' },
             { name: 'Manacles', icon: 'manacles.webp', category: 'dungeon' },
@@ -637,6 +662,17 @@
         
         function toggleIconPalette() {
             iconPalette.style.display = iconPalette.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        let tokensVisible = true;
+        function toggleTokensVisibility() {
+            tokensVisible = !tokensVisible;
+            const tokenElements = document.querySelectorAll('.token');
+            tokenElements.forEach(token => {
+                token.style.display = tokensVisible ? 'block' : 'none';
+            });
+            const tab = document.getElementById('show-hide-tab');
+            tab.textContent = tokensVisible ? '👁️ Show/Hide' : '👁️‍🗨️ Show/Hide';
         }
         
         function updateTransform() {
@@ -805,7 +841,7 @@
             img.src = sticker.iconUrl;
             div.appendChild(img);
             
-            const sizeMap = { small: 50, medium: 75, large: 100 };
+            const sizeMap = { small: 50, medium: 100, large: 150 };
             const halfSize = sizeMap[sticker.size] / 2;
             
             div.style.left = Math.round(sticker.x - halfSize + 8) + 'px';
@@ -848,7 +884,7 @@
                 font-family: 'EB Garamond', serif;
             `;
             
-            const sizeLabels = { small: 'Default (1 cell)', medium: 'Large (1.5 cells)', large: 'Huge (2 cells)' };
+            const sizeLabels = { small: 'Default (1 cell)', medium: 'Large (4 cells)', large: 'Huge (9 cells)' };
             ['small', 'medium', 'large'].forEach(size => {
                 const btn = document.createElement('button');
                 btn.textContent = sizeLabels[size];
@@ -917,7 +953,7 @@
                 font-family: 'EB Garamond', serif;
             `;
             
-            const sizeLabels = { small: 'Default (1 cell)', medium: 'Large (1.5 cells)', large: 'Huge (2 cells)' };
+            const sizeLabels = { small: 'Default', medium: 'Large (4 cells)', large: 'Huge (9 cells)' };
             ['small', 'medium', 'large'].forEach(size => {
                 const btn = document.createElement('button');
                 btn.textContent = sizeLabels[size];
@@ -1256,7 +1292,7 @@
             div.dataset.id = token.id;
             
             // Handle different sizes
-            const sizeMap = { small: 50, medium: 75, large: 100 };
+            const sizeMap = { small: 48, medium: 100, large: 150 };
             const size = sizeMap[token.size || 'small'];
             const halfSize = size / 2;
             
@@ -1300,7 +1336,7 @@
                 draggedToken.x = pos.x - dragOffsetX;
                 draggedToken.y = pos.y - dragOffsetY;
                 const div = tokensContainer.querySelector(`[data-id="${draggedToken.id}"]`);
-                const sizeMap = { small: 50, medium: 75, large: 100 };
+                const sizeMap = { small: 48, medium: 100, large: 150 };
                 const halfSize = sizeMap[draggedToken.size || 'small'] / 2;
                 div.style.left = Math.round(draggedToken.x - halfSize + 8) + 'px';
                 div.style.top = Math.round(draggedToken.y - halfSize + 8) + 'px';
@@ -1319,7 +1355,7 @@
                 draggedSticker.x = pos.x - stickerDragOffsetX;
                 draggedSticker.y = pos.y - stickerDragOffsetY;
                 const div = stickersContainer.querySelector(`[data-id="${draggedSticker.id}"]`);
-                const sizeMap = { small: 50, medium: 75, large: 100 };
+                const sizeMap = { small: 50, medium: 100, large: 150 };
                 const halfSize = sizeMap[draggedSticker.size] / 2;
                 div.style.left = Math.round(draggedSticker.x - halfSize + 8) + 'px';
                 div.style.top = Math.round(draggedSticker.y - halfSize + 8) + 'px';
