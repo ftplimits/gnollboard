@@ -503,10 +503,10 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.4);
         }
 
-        .sel-handle[data-corner="nw"] { top: -7px;  left: -7px;  cursor: nw-resize; }
-        .sel-handle[data-corner="ne"] { top: -7px;  right: -7px; cursor: ne-resize; }
-        .sel-handle[data-corner="sw"] { bottom: -7px; left: -7px;  cursor: sw-resize; }
-        .sel-handle[data-corner="se"] { bottom: -7px; right: -7px; cursor: se-resize; }
+        .sel-handle[data-corner="nw"] { top: -14px;  left: -14px;  cursor: nw-resize; }
+        .sel-handle[data-corner="ne"] { top: -14px;  right: -14px; cursor: ne-resize; }
+        .sel-handle[data-corner="sw"] { bottom: -14px; left: -14px;  cursor: sw-resize; }
+        .sel-handle[data-corner="se"] { bottom: -14px; right: -14px; cursor: se-resize; }
 
         .token.selected, .sticker.selected {
             outline: 2px dashed rgba(139,69,19,0.6);
@@ -1103,12 +1103,17 @@
         }
         
         function snapToGrid(x, y) {
-            const cellSize = 50;
-            const halfCell = cellSize / 2;
-            return { 
-                x: Math.floor(x / cellSize) * cellSize + halfCell, 
-                y: Math.floor(y / cellSize) * cellSize + halfCell 
-            };
+            const cell = 50;
+            // Candidate A: cell center (25, 75, 125 ...)
+            const cx = Math.floor(x / cell) * cell + 25;
+            const cy = Math.floor(y / cell) * cell + 25;
+            // Candidate B: cell intersection (0, 50, 100 ...)
+            const ix = Math.round(x / cell) * cell;
+            const iy = Math.round(y / cell) * cell;
+            // Pick whichever type is closer (keep x+y on the same type)
+            const distCenter       = Math.abs(x - cx) + Math.abs(y - cy);
+            const distIntersection = Math.abs(x - ix) + Math.abs(y - iy);
+            return distCenter <= distIntersection ? { x: cx, y: cy } : { x: ix, y: iy };
         }
 
         // ── Selection system ────────────────────────────────────────────────────
