@@ -993,6 +993,8 @@
 
             const img = document.createElement('img');
             img.src = sticker.iconUrl;
+            img.draggable = false;                  // prevent browser native image drag
+            img.style.pointerEvents = 'none';       // all mouse events go to the div, not the img
             img.style.width = '100%';
             img.style.height = '100%';
             if (sticker.flipped) img.style.transform = 'scaleX(-1)';
