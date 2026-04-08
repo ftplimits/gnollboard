@@ -91,19 +91,14 @@
         
         .token {
             position: absolute;
-            border: 2px solid var(--ink-dark);
-            border-radius: 4px;
+            border: none;
+            border-radius: 0;
             cursor: move;
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.2);
-            transition: opacity 0.2s, transform 0.1s;
+            transition: opacity 0.2s;
             z-index: 200;
-        }
-        
-        .token:hover {
-            transform: scale(1.05);
         }
         
         .token.hidden {
@@ -121,39 +116,12 @@
             cursor: grab;
             pointer-events: auto;
             filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
-            transition: transform 0.1s;
             z-index: 150;
-        }
-        
-        .sticker:hover {
-            transform: scale(1.05);
         }
         
         .sticker.dragging {
             cursor: grabbing;
             z-index: 300;
-            transform: scale(1.1);
-        }
-        
-        .sticker img {
-            display: block;
-            width: 100%;
-            height: 100%;
-        }
-        
-        .sticker.size-small {
-            width: 50px;
-            height: 50px;
-        }
-        
-        .sticker.size-medium {
-            width: 100px;
-            height: 100px;
-        }
-        
-        .sticker.size-large {
-            width: 150px;
-            height: 150px;
         }
         
         /* Text labels */
@@ -967,17 +935,16 @@
             viewport.style.cursor = 'crosshair';
         }
         
-        function placeSticker(x, y, iconUrl, size = 'small') {
+        function placeSticker(x, y, iconUrl) {
             const sticker = {
                 id: nextStickerId++,
-                x: x,
-                y: y,
-                iconUrl: iconUrl,
-                size: size,
-                placedAt: Date.now() // FIX: timestamp to prevent immediate drag on placement click
+                x, y,
+                iconUrl,
+                size: 'small',
             };
             stickers.push(sticker);
             renderSticker(sticker);
+            return sticker;
         }
         
         function renderSticker(sticker) {
@@ -1003,7 +970,6 @@
 
             div.addEventListener('mousedown', (e) => {
                 if (e.button === 0 && !currentTool && !selectedIconUrl) {
-                    if (Date.now() - (sticker.placedAt || 0) < 200) return;
                     e.stopPropagation();
                     selectObject('sticker', sticker, div);
                     draggedSticker = sticker;
@@ -1200,14 +1166,19 @@
             if (!currentTool && !selectedIconUrl) { deselectObject(); return; }
             const pos = viewportToGrid(e.clientX, e.clientY);
             
-            // Icon placement mode
+            // Icon placement mode — create sticker and immediately start dragging it
             if (selectedIconUrl) {
-                placeSticker(pos.x, pos.y, selectedIconUrl);
+                const sticker = placeSticker(pos.x, pos.y, selectedIconUrl);
                 selectedIconUrl = null;
                 document.querySelectorAll('.icon-item').forEach(item => item.classList.remove('selected'));
-                // FIX: remove drawing class so canvas stops intercepting events after placement
                 canvas.classList.remove('drawing');
                 viewport.style.cursor = 'default';
+                // Wire straight into drag so mouseup drops it — offset 0 since cursor == center
+                draggedSticker = sticker;
+                const div = stickersContainer.querySelector(`[data-id="${sticker.id}"]`);
+                if (div) { selectObject('sticker', sticker, div); div.classList.add('dragging'); }
+                stickerDragOffsetX = 0;
+                stickerDragOffsetY = 0;
                 return;
             }
             
@@ -1515,12 +1486,27 @@
                 const { x: ox, y: oy, w: ow, h: oh } = resizeStartObj;
                 const obj = selectedObject.data;
 
-                let newW = ow, newH = oh, newX = ox, newY = oy;
+                let newW, newH, newX = ox, newY = oy;
 
-                if (resizeCorner === 'se') { newW = ow + dx; newH = oh + dy; }
-                if (resizeCorner === 'sw') { newW = ow - dx; newH = oh + dy; newX = ox + dx / 2; }
-                if (resizeCorner === 'ne') { newW = ow + dx; newH = oh - dy; newY = oy + dy / 2; }
-                if (resizeCorner === 'nw') { newW = ow - dx; newH = oh - dy; newX = ox + dx / 2; newY = oy + dy / 2; }
+                if (selectedObject.type === 'token') {
+                    // Aspect-ratio locked: width-primary, derive height
+                    const ar = ow / oh;
+                    const wSign = (resizeCorner === 'se' || resizeCorner === 'ne') ? 1 : -1;
+                    newW = Math.max(16, ow + wSign * dx);
+                    newH = Math.max(16, newW / ar);
+                    const dw = newW - ow, dh = newH - oh;
+                    if (resizeCorner === 'se') { newX = ox + dw/2; newY = oy + dh/2; }
+                    if (resizeCorner === 'sw') { newX = ox - dw/2; newY = oy + dh/2; }
+                    if (resizeCorner === 'ne') { newX = ox + dw/2; newY = oy - dh/2; }
+                    if (resizeCorner === 'nw') { newX = ox - dw/2; newY = oy - dh/2; }
+                } else {
+                    // Free resize for stickers
+                    newW = ow; newH = oh;
+                    if (resizeCorner === 'se') { newW = ow + dx; newH = oh + dy; }
+                    if (resizeCorner === 'sw') { newW = ow - dx; newH = oh + dy; newX = ox + dx/2; }
+                    if (resizeCorner === 'ne') { newW = ow + dx; newH = oh - dy; newY = oy + dy/2; }
+                    if (resizeCorner === 'nw') { newW = ow - dx; newH = oh - dy; newX = ox + dx/2; newY = oy + dy/2; }
+                }
 
                 applyObjSize(obj, newW, newH);
                 obj.x = newX; obj.y = newY;
