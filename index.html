@@ -1448,7 +1448,8 @@
             }
         });
         
-        viewport.addEventListener('mouseup', (e) => {
+        // Use window so drag state is always cleared even if mouse released outside viewport
+        window.addEventListener('mouseup', (e) => {
             if (draggedToken && e.button === 0) {
                 const snapped = snapToGrid(draggedToken.x, draggedToken.y);
                 draggedToken.x = snapped.x;
@@ -1467,7 +1468,7 @@
             
             if (draggedSticker && e.button === 0) {
                 const div = stickersContainer.querySelector(`[data-id="${draggedSticker.id}"]`);
-                div.classList.remove('dragging');
+                if (div) div.classList.remove('dragging');
                 draggedSticker = null;
             }
         });
@@ -1485,8 +1486,9 @@
         
         document.addEventListener('click', () => { contextMenu.style.display = 'none'; });
         
-        panX = (window.innerWidth - 2500) / 2;
-        panY = (window.innerHeight - 2500) / 2;
+        zoom = 1.3;
+        panX = window.innerWidth / 2 - 2500 * zoom;
+        panY = window.innerHeight / 2 - 2500 * zoom;
         updateTransform();
     </script>
 </body>
