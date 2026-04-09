@@ -326,24 +326,27 @@
     }
 
     function discordReady() {
-        // Handshake: send READY command to Discord's parent frame.
-        // Discord's iframe protocol expects this specific postMessage structure.
-        const nonce = Math.random().toString(36).slice(2);
+        // Exact handshake format Discord's iframe protocol expects
         window.parent.postMessage({
-            v: 1, cmd: 'HANDSHAKE',
-            args: { v: 1, client_id: CLIENT_ID, frame_id: nonce },
-            nonce
+            v: 1,
+            encoding: 'json',
+            cmd: 'HANDSHAKE',
+            args: { v: 1, client_id: CLIENT_ID }
         }, '*');
-        // Acknowledge any incoming dispatch from Discord
+
+        // Listen for Discord's READY response
         window.addEventListener('message', e => {
-            if (e.data?.cmd === 'DISPATCH' || e.data?.evt === 'READY') {
-                // Discord acknowledged — activity is interactive
+            if (!e.data) return;
+            const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+            if (data.evt === 'READY' || data.cmd === 'DISPATCH') {
+                console.log('Discord ready confirmed');
             }
-        }, { once: false });
+        });
     }
 
     async function initApp() {
         const instanceId = getDiscordInstanceId();
+        console.log('initApp — instanceId:', instanceId, '| full search:', window.location.search);
         if (instanceId) {
             // We are inside Discord
             inDiscord = true;
