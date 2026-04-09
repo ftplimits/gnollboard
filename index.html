@@ -97,9 +97,9 @@
         .token.selected, .sticker.selected { outline: 2px dashed rgba(139,69,19,0.6); outline-offset: 2px; }
 
         /* ── Shape objects ── */
-        .shape-obj { position: absolute; cursor: move; pointer-events: auto; z-index: 125; }
-        .shape-obj svg { display: block; overflow: visible; }
-        .shape-obj.selected { outline: 2px dashed rgba(139,69,19,0.6); outline-offset: 4px; }
+        .shape-obj { position: absolute; cursor: move; pointer-events: none; z-index: 125; }
+        .shape-obj svg { display: block; overflow: visible; pointer-events: none; }
+        .shape-obj.selected { outline: 2px dashed rgba(139,69,19,0.6); outline-offset: 4px; pointer-events: auto; }
         .shape-obj.dragging { cursor: grabbing; z-index: 300; }
 
         /* ── Player overlay ── */
@@ -1131,12 +1131,20 @@
     // ═══════════════════════════════════════════════════════════════════════════
     function getShapeSVG(shape) {
         const sw = shape.lineWidth || 3, c = shape.color || '#2a2522';
-        const base = `fill="none" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke"`;
-        let inner = '';
-        if (shape.shapeType==='rect')     inner = `<rect x="0" y="0" width="100" height="100" ${base}/>`;
-        if (shape.shapeType==='circle')   inner = `<ellipse cx="50" cy="50" rx="50" ry="50" ${base}/>`;
-        if (shape.shapeType==='triangle') inner = `<polygon points="50,0 100,100 0,100" ${base} stroke-linejoin="round"/>`;
-        return `<svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
+        const vis  = `fill="none" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" pointer-events="none"`;
+        const hit  = `fill="none" stroke="transparent" stroke-width="20" vector-effect="non-scaling-stroke" pointer-events="stroke" style="cursor:move"`;
+        let visEl = '', hitEl = '';
+        if (shape.shapeType==='rect') {
+            visEl = `<rect x="0" y="0" width="100" height="100" ${vis}/>`;
+            hitEl = `<rect x="0" y="0" width="100" height="100" ${hit}/>`;
+        } else if (shape.shapeType==='circle') {
+            visEl = `<ellipse cx="50" cy="50" rx="50" ry="50" ${vis}/>`;
+            hitEl = `<ellipse cx="50" cy="50" rx="50" ry="50" ${hit}/>`;
+        } else if (shape.shapeType==='triangle') {
+            visEl = `<polygon points="50,0 100,100 0,100" ${vis} stroke-linejoin="round"/>`;
+            hitEl = `<polygon points="50,0 100,100 0,100" ${hit} stroke-linejoin="round"/>`;
+        }
+        return `<svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style="overflow:visible;pointer-events:none" xmlns="http://www.w3.org/2000/svg">${visEl}${hitEl}</svg>`;
     }
 
     function addShape(shapeType, x, y, w, h, color, lineWidth) {
@@ -1158,15 +1166,24 @@
         div.innerHTML = getShapeSVG(shape);
         updateObjDiv(shape, div);
 
-        div.addEventListener('mousedown', e => {
+        const handler = e => {
             if (e.button !== 0 || currentTool) return;
             e.stopPropagation();
             selectObject('shape', shape, div);
             draggedShape = shape; div.classList.add('dragging');
             const pos = viewportToGrid(e.clientX, e.clientY);
             shapeDragOffsetX = pos.x - shape.x; shapeDragOffsetY = pos.y - shape.y;
+        };
+        const ctxHandler = e => { e.preventDefault(); e.stopPropagation(); showShapeContextMenu(e.clientX,e.clientY,shape,div); };
+
+        // Attach to the transparent hit elements in the SVG, not the div
+        div.querySelectorAll('[stroke="transparent"]').forEach(el => {
+            el.addEventListener('mousedown', handler);
+            el.addEventListener('contextmenu', ctxHandler);
         });
-        div.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); showShapeContextMenu(e.clientX,e.clientY,shape,div); });
+        // Also allow drag from div when already selected (selection overlay handles resize/rotate)
+        div.addEventListener('mousedown', e => { if (div.classList.contains('selected')) handler(e); });
+
         shapesContainer.appendChild(div);
     }
 
