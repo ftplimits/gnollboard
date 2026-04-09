@@ -298,31 +298,28 @@
         peer.on('error', err => { console.error('PeerJS:', err); setStatus('Error: ' + err.type, 'red'); });
     }
 
-    function wireConnection(conn, incoming) {
-        conn.on('open', () => {
+    function wireConnection(conn, incoming, alreadyOpen = false) {
+        const setup = () => {
             const pid = conn.peer;
             connections[pid] = conn;
 
             if (incoming && isHost) {
-                // Tell new peer about everyone else
                 const peerList = Object.keys(connections)
                     .filter(id => id !== pid)
                     .map(id => ({ id, name: peerNames[id] || '?' }));
                 conn.send(JSON.stringify({ type: 'peer_list', peers: peerList, hostId: myPeerId, hostName: myName }));
-
-                // Tell existing peers about new arrival
                 broadcast({ type: 'peer_joined', peerId: pid, name: peerNames[pid] || '?' }, pid);
-
-                // Send full state snapshot
                 sendSnapshot(conn);
             }
 
-            conn.on('data', raw => handleMessage(typeof raw === 'string' ? JSON.parse(raw) : raw, pid));
+            conn.on('data',  raw => handleMessage(typeof raw === 'string' ? JSON.parse(raw) : raw, pid));
             conn.on('close', () => { delete connections[pid]; delete peerNames[pid]; updatePeerUI(); });
             conn.on('error', e => console.error('conn error', e));
-
             updatePeerUI();
-        });
+        };
+
+        if (alreadyOpen) setup();
+        else conn.on('open', setup);
     }
 
     function hostSession() {
@@ -349,7 +346,7 @@
             const conn = peer.connect(code, { reliable: true });
             conn.on('open', () => {
                 conn.send(JSON.stringify({ type: 'announce', name: myName }));
-                wireConnection(conn, false);
+                wireConnection(conn, false, true);  // open already fired
                 setStatus('Connected', '#8bc34a');
                 updatePeerUI();
             });
