@@ -8,17 +8,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Grid VTT</title>
-    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-    <script src="https://www.unpkg.com/@discord/embedded-app-sdk@1.4.0/output/discord-embedded-app-sdk.iife.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;600;700&family=EB+Garamond:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="./peerjs.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
             --parchment-light: #c3baa6; --parchment-dark: #bab09d;
             --ink-dark: #2a2522; --ink-medium: #3d3530;
             --grid-line: rgba(61,53,48,0.2); --accent: #8b4513; --accent-hover: #a0522d;
+            --font-serif: Georgia, 'Times New Roman', serif;
         }
-        body { font-family: 'EB Garamond', serif; overflow: hidden; width: 100vw; height: 100vh; background: var(--parchment-light); cursor: default; user-select: none; position: relative; }
+        body { font-family: var(--font-serif); overflow: hidden; width: 100vw; height: 100vh; background: var(--parchment-light); cursor: default; user-select: none; position: relative; }
         body::before { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0.4; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E"); z-index: 0; }
         #viewport { width: 100%; height: 100%; overflow: hidden; position: relative; z-index: 1; background: #3a3a3a; }
         #grid-container { position: absolute; width: 5000px; height: 5000px; transform-origin: 0 0; }
@@ -30,25 +29,25 @@
         .token.dragging { z-index: 300; cursor: grabbing; }
         .sticker { position: absolute; cursor: grab; pointer-events: auto; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); z-index: 150; }
         .sticker.dragging { cursor: grabbing; z-index: 300; }
-        .text-label { position: absolute; font-family: 'Times New Roman', serif; font-size: 18px; color: var(--ink-dark); white-space: nowrap; pointer-events: auto; cursor: grab; z-index: 150; text-shadow: 1px 1px 0 rgba(255,255,255,0.8), -1px -1px 0 rgba(255,255,255,0.8), 1px -1px 0 rgba(255,255,255,0.8), -1px 1px 0 rgba(255,255,255,0.8); }
+        .text-label { position: absolute; font-family: var(--font-serif); font-size: 18px; color: var(--ink-dark); white-space: nowrap; pointer-events: auto; cursor: grab; z-index: 150; text-shadow: 1px 1px 0 rgba(255,255,255,0.8), -1px -1px 0 rgba(255,255,255,0.8), 1px -1px 0 rgba(255,255,255,0.8), -1px 1px 0 rgba(255,255,255,0.8); }
         .text-label.dragging { cursor: grabbing; z-index: 300; }
         #text-input-dialog { position: fixed; background: rgba(42,42,42,0.95); border: 2px solid var(--ink-dark); border-radius: 8px; padding: 16px; z-index: 10000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: none; }
-        #text-input-dialog input { font-family: 'Times New Roman', serif; font-size: 18px; padding: 8px 12px; border: 2px solid var(--ink-dark); border-radius: 4px; background: #1a1a1a; color: white; min-width: 250px; outline: none; }
-        #text-input-dialog button { font-family: 'Times New Roman', serif; font-size: 16px; padding: 6px 16px; margin-left: 8px; background: var(--saddle-brown); color: white; border: none; border-radius: 4px; cursor: pointer; }
+        #text-input-dialog input { font-family: var(--font-serif); font-size: 18px; padding: 8px 12px; border: 2px solid var(--ink-dark); border-radius: 4px; background: #1a1a1a; color: white; min-width: 250px; outline: none; }
+        #text-input-dialog button { font-family: var(--font-serif); font-size: 16px; padding: 6px 16px; margin-left: 8px; background: var(--saddle-brown); color: white; border: none; border-radius: 4px; cursor: pointer; }
         #text-input-dialog button:hover { background: #6d3510; }
         #toolbar { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(81,81,81,0.95); border: 2px solid var(--ink-dark); border-radius: 8px; padding: 12px 16px; display: flex; gap: 12px; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000; backdrop-filter: blur(4px); }
-        .tool-btn { background: var(--parchment-dark); border: 2px solid var(--ink-medium); border-radius: 6px; padding: 8px 14px; font-family: 'EB Garamond', serif; font-size: 15px; font-weight: 600; color: var(--ink-dark); cursor: pointer; transition: all 0.2s; min-width: 36px; text-align: center; }
+        .tool-btn { background: var(--parchment-dark); border: 2px solid var(--ink-medium); border-radius: 6px; padding: 8px 14px; font-family: var(--font-serif); font-size: 15px; font-weight: 600; color: var(--ink-dark); cursor: pointer; transition: all 0.2s; min-width: 36px; text-align: center; }
         .tool-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
         .tool-btn.active { background: var(--accent); color: white; border-color: var(--accent-hover); }
         .tool-btn.clear-btn { background: #a07850; color: white; border-color: #7a5c38; }
         .tool-btn.clear-btn:hover { background: #8b6540; color: white; border-color: #6a4c2a; }
         #icon-palette { position: fixed; top: 80px; right: 20px; width: 320px; max-height: 600px; background: var(--parchment-light); border: 3px solid var(--ink-dark); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); z-index: 2000; overflow: hidden; }
         .palette-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--parchment-mid); border-bottom: 2px solid var(--ink-dark); }
-        .palette-header h3 { margin: 0; font-family: 'Crimson Text', serif; font-size: 20px; color: var(--ink-dark); }
+        .palette-header h3 { margin: 0; font-family: var(--font-serif); font-size: 20px; color: var(--ink-dark); }
         .palette-header button { background: transparent; border: none; font-size: 24px; cursor: pointer; color: var(--ink-dark); padding: 0; width: 30px; height: 30px; line-height: 1; }
         #icon-palette-content { padding: 16px; max-height: 520px; overflow-y: auto; }
         .icon-category { margin-bottom: 20px; }
-        .icon-category h4 { margin: 0 0 8px 0; font-family: 'Crimson Text', serif; font-size: 16px; color: var(--saddle-brown); text-transform: capitalize; }
+        .icon-category h4 { margin: 0 0 8px 0; font-family: var(--font-serif); font-size: 16px; color: var(--saddle-brown); text-transform: capitalize; }
         .icon-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
         .icon-item { width: 48px; height: 48px; border: 2px solid var(--ink-dark); border-radius: 4px; cursor: pointer; background: white; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
         .icon-item:hover { border-color: var(--saddle-brown); transform: scale(1.1); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
@@ -58,7 +57,7 @@
         #toolbar-toggle { position: fixed; top: 0px; left: calc(50% + 0px); background: rgba(81,81,81,0.95); border: 2px solid var(--ink-dark); border-radius: 8px; padding: 5px 5px; font-size: 16px; color: white; cursor: pointer; z-index: 1000; backdrop-filter: blur(4px); user-select: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
         #toolbar-toggle:hover { background: rgba(100,100,100,0.95); }
         #context-menu { position: fixed; background: rgba(195,186,166,0.98); border: 2px solid var(--ink-dark); border-radius: 8px; padding: 8px 0; display: none; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 2000; min-width: 160px; backdrop-filter: blur(4px); }
-        .context-item { padding: 10px 16px; font-family: 'EB Garamond', serif; font-size: 16px; color: var(--ink-dark); cursor: pointer; transition: background 0.15s; }
+        .context-item { padding: 10px 16px; font-family: var(--font-serif); font-size: 16px; color: var(--ink-dark); cursor: pointer; transition: background 0.15s; }
         .context-item:hover { background: var(--accent); color: white; }
         .color-picker { display: flex; gap: 6px; align-items: center; }
         .color-swatch { width: 28px; height: 28px; border: 2px solid var(--ink-dark); border-radius: 4px; cursor: pointer; transition: transform 0.15s; }
@@ -88,7 +87,7 @@
             position: fixed; left: 10px; top: 80px; width: 210px;
             background: rgba(42,42,42,0.95); border: 2px solid var(--ink-dark);
             border-radius: 8px; z-index: 1000; backdrop-filter: blur(4px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-family: 'EB Garamond', serif;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-family: var(--font-serif);
             color: #ddd; overflow: hidden;
         }
         #p2p-header {
@@ -103,7 +102,7 @@
         .p2p-btn {
             display: block; width: 100%; padding: 7px 10px; margin: 4px 0;
             background: #8b4513; color: white; border: none; border-radius: 4px;
-            font-family: 'EB Garamond', serif; font-size: 14px; cursor: pointer; text-align: center;
+            font-family: var(--font-serif); font-size: 14px; cursor: pointer; text-align: center;
         }
         .p2p-btn:hover { background: #a0522d; }
         .p2p-btn.secondary { background: #2a4a6a; }
@@ -111,7 +110,7 @@
         #p2p-code-input {
             width: 100%; padding: 6px 8px; margin: 4px 0;
             background: #1a1a1a; border: 1px solid #555; border-radius: 4px;
-            color: white; font-family: 'EB Garamond', serif; font-size: 13px;
+            color: white; font-family: var(--font-serif); font-size: 13px;
         }
         #p2p-room-display {
             background: #1a1a1a; border: 1px solid #555; border-radius: 4px;
@@ -259,7 +258,6 @@
     // P2P STATE
     // ═══════════════════════════════════════════════════════════════════════════
     const CLIENT_ID = '1491605237109100574';
-    let discordSdk = null;
     let inDiscord   = false;
 
     let peer = null;
@@ -318,29 +316,49 @@
         peer.on('error', err => { console.error('PeerJS:', err); setStatus('Error: ' + err.type, '#e55'); });
     }
 
-    // ── Discord auto-session ──────────────────────────────────────────────────
-    async function initApp() {
-        if (window.DiscordSDK) {
-            try {
-                const { DiscordSDK } = window.DiscordSDK;
-                discordSdk = new DiscordSDK(CLIENT_ID);
-                await discordSdk.ready();
-                inDiscord = true;
-                document.getElementById('p2p-manual-controls').style.display = 'none';
-                document.getElementById('p2p-discord-status').style.display  = 'block';
-                await startDiscordSession();
-                return;
-            } catch(e) {
-                console.log('Not in Discord, using manual mode:', e.message);
-            }
-        }
-        // Manual mode — panel already visible, nothing to do
+    // ── Discord detection & minimal shim ─────────────────────────────────────
+    // Discord passes instance_id in the URL query string and communicates via
+    // postMessage. We don't need the full SDK — just read the URL and signal ready.
+
+    function getDiscordInstanceId() {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('instance_id');
     }
 
-    async function startDiscordSession() {
+    function discordReady() {
+        // Handshake: send READY command to Discord's parent frame.
+        // Discord's iframe protocol expects this specific postMessage structure.
+        const nonce = Math.random().toString(36).slice(2);
+        window.parent.postMessage({
+            v: 1, cmd: 'HANDSHAKE',
+            args: { v: 1, client_id: CLIENT_ID, frame_id: nonce },
+            nonce
+        }, '*');
+        // Acknowledge any incoming dispatch from Discord
+        window.addEventListener('message', e => {
+            if (e.data?.cmd === 'DISPATCH' || e.data?.evt === 'READY') {
+                // Discord acknowledged — activity is interactive
+            }
+        }, { once: false });
+    }
+
+    async function initApp() {
+        const instanceId = getDiscordInstanceId();
+        if (instanceId) {
+            // We are inside Discord
+            inDiscord = true;
+            discordReady();
+            document.getElementById('p2p-manual-controls').style.display = 'none';
+            document.getElementById('p2p-discord-status').style.display  = 'block';
+            await startDiscordSession(instanceId);
+        }
+        // else: manual mode, panel already visible
+    }
+
+    async function startDiscordSession(instanceId) {
         myName = generateName();
         // Sanitise instanceId → valid PeerJS custom ID (alphanumeric, max 30 chars)
-        const roomCode = discordSdk.instanceId.replace(/-/g, '').substring(0, 30);
+        const roomCode = instanceId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
         const config   = { debug: 0, ...getDiscordPeerConfig() };
 
         setStatus('Connecting...', '#aaa');
@@ -350,7 +368,6 @@
 
         peer.on('open', id => {
             myPeerId = id; peerNames[id] = myName; isHost = true;
-            // peer.on('connection') already wired in initPeer equiv below
             peer.on('connection', conn => wireConnection(conn, true));
             setStatus('Hosting', '#8bc34a');
             updatePeerUI();
@@ -362,7 +379,7 @@
                 peer = new Peer(undefined, config);
                 peer.on('open', id => {
                     myPeerId = id; peerNames[id] = myName; isHost = false;
-                    peer.on('connection', conn => wireConnection(conn, true)); // accept mesh connections
+                    peer.on('connection', conn => wireConnection(conn, true));
                     const conn = peer.connect(roomCode, { reliable: true });
                     conn.on('open', () => {
                         conn.send(JSON.stringify({ type: 'announce', name: myName }));
@@ -1038,10 +1055,10 @@
 
     function showShapeContextMenu(x, y, shape, div) {
         const menu = document.createElement('div');
-        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:'EB Garamond',serif;`;
+        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:var(--font-serif);`;
         const del = document.createElement('button');
         del.textContent = 'Delete';
-        del.style.cssText = `display:block;width:100%;padding:6px 12px;background:#dc143c;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:'EB Garamond',serif;border-radius:2px;`;
+        del.style.cssText = `display:block;width:100%;padding:6px 12px;background:#dc143c;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);border-radius:2px;`;
         del.onclick = () => {
             shapes = shapes.filter(s => s.id !== shape.id); div.remove();
             if (selectedObject?.data.id === shape.id) deselectObject();
@@ -1096,9 +1113,9 @@
 
     function showStickerContextMenu(x, y, sticker, div) {
         const menu = document.createElement('div');
-        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:'EB Garamond',serif;`;
+        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:var(--font-serif);`;
         const flip = document.createElement('button'); flip.textContent = 'Flip';
-        flip.style.cssText = `display:block;width:100%;padding:6px 12px;margin:2px 0;background:#1a4d7a;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:'EB Garamond',serif;`;
+        flip.style.cssText = `display:block;width:100%;padding:6px 12px;margin:2px 0;background:#1a4d7a;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);`;
         flip.onclick = () => {
             sticker.flipped = !sticker.flipped;
             stickersContainer.querySelector(`[data-id="${sticker.id}"]`).remove();
@@ -1108,7 +1125,7 @@
             menu.remove();
         };
         const del = document.createElement('button'); del.textContent = 'Delete';
-        del.style.cssText = `display:block;width:100%;padding:6px 12px;margin-top:4px;background:#dc143c;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:'EB Garamond',serif;`;
+        del.style.cssText = `display:block;width:100%;padding:6px 12px;margin-top:4px;background:#dc143c;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);`;
         del.onclick = () => {
             stickers.splice(stickers.findIndex(s=>s.id===sticker.id), 1);
             stickersContainer.querySelector(`[data-id="${sticker.id}"]`).remove();
@@ -1153,9 +1170,9 @@
 
     function showTokenContextMenu(x, y, token, div) {
         const menu = document.createElement('div');
-        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:'EB Garamond',serif;`;
+        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:var(--font-serif);`;
         const flip = document.createElement('button'); flip.textContent = 'Flip';
-        flip.style.cssText = `display:block;width:100%;padding:6px 12px;margin:2px 0;background:#1a4d7a;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:'EB Garamond',serif;`;
+        flip.style.cssText = `display:block;width:100%;padding:6px 12px;margin:2px 0;background:#1a4d7a;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);`;
         flip.onclick = () => {
             token.flipped = !token.flipped;
             tokensContainer.querySelector(`[data-id="${token.id}"]`).remove();
@@ -1165,7 +1182,7 @@
             menu.remove();
         };
         const del = document.createElement('button'); del.textContent = 'Delete';
-        del.style.cssText = `display:block;width:100%;padding:6px 12px;margin-top:4px;background:#dc143c;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:'EB Garamond',serif;`;
+        del.style.cssText = `display:block;width:100%;padding:6px 12px;margin-top:4px;background:#dc143c;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);`;
         del.onclick = () => {
             tokens = tokens.filter(t=>t.id!==token.id);
             tokensContainer.querySelector(`[data-id="${token.id}"]`).remove();
