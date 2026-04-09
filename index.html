@@ -29,19 +29,41 @@
         .token.dragging { z-index: 300; cursor: grabbing; }
         .sticker { position: absolute; cursor: grab; pointer-events: auto; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); z-index: 150; }
         .sticker.dragging { cursor: grabbing; z-index: 300; }
-        .text-label { position: absolute; font-family: var(--font-serif); font-size: 18px; color: var(--ink-dark); white-space: nowrap; pointer-events: auto; cursor: grab; z-index: 150; text-shadow: 1px 1px 0 rgba(255,255,255,0.8), -1px -1px 0 rgba(255,255,255,0.8), 1px -1px 0 rgba(255,255,255,0.8), -1px 1px 0 rgba(255,255,255,0.8); }
+        .text-label { position: absolute; font-family: var(--font-serif); color: var(--ink-dark); white-space: nowrap; pointer-events: auto; cursor: grab; z-index: 150; text-shadow: 1px 1px 0 rgba(255,255,255,0.8), -1px -1px 0 rgba(255,255,255,0.8), 1px -1px 0 rgba(255,255,255,0.8), -1px 1px 0 rgba(255,255,255,0.8); transform-origin: center center; }
         .text-label.dragging { cursor: grabbing; z-index: 300; }
+        .text-label.selected { outline: 2px dashed rgba(139,69,19,0.6); outline-offset: 2px; }
         #text-input-dialog { position: fixed; background: rgba(42,42,42,0.95); border: 2px solid var(--ink-dark); border-radius: 8px; padding: 16px; z-index: 10000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: none; }
         #text-input-dialog input { font-family: var(--font-serif); font-size: 18px; padding: 8px 12px; border: 2px solid var(--ink-dark); border-radius: 4px; background: #1a1a1a; color: white; min-width: 250px; outline: none; }
         #text-input-dialog button { font-family: var(--font-serif); font-size: 16px; padding: 6px 16px; margin-left: 8px; background: var(--saddle-brown); color: white; border: none; border-radius: 4px; cursor: pointer; }
         #text-input-dialog button:hover { background: #6d3510; }
-        #toolbar { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(81,81,81,0.95); border: 2px solid var(--ink-dark); border-radius: 8px; padding: 12px 16px; display: flex; gap: 12px; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000; backdrop-filter: blur(4px); }
-        .tool-btn { background: var(--parchment-dark); border: 2px solid var(--ink-medium); border-radius: 6px; padding: 8px 14px; font-family: var(--font-serif); font-size: 15px; font-weight: 600; color: var(--ink-dark); cursor: pointer; transition: all 0.2s; min-width: 36px; text-align: center; }
+        #toolbar {
+            position: fixed; right: 0; top: 50%; transform: translateY(-50%);
+            background: rgba(81,81,81,0.95); border: 2px solid var(--ink-dark);
+            border-radius: 8px 0 0 8px; padding: 12px 10px;
+            display: flex; flex-direction: column; gap: 8px; align-items: center;
+            box-shadow: -4px 0 12px rgba(0,0,0,0.2); z-index: 1000;
+            backdrop-filter: blur(4px); transition: transform 0.25s ease;
+        }
+        #toolbar.hidden { transform: translateY(-50%) translateX(100%); }
+        .tool-btn { background: var(--parchment-dark); border: 2px solid var(--ink-medium); border-radius: 6px; padding: 8px 10px; font-family: var(--font-serif); font-size: 15px; font-weight: 600; color: var(--ink-dark); cursor: pointer; transition: all 0.2s; min-width: 36px; text-align: center; width: 42px; }
         .tool-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
         .tool-btn.active { background: var(--accent); color: white; border-color: var(--accent-hover); }
         .tool-btn.clear-btn { background: #a07850; color: white; border-color: #7a5c38; }
         .tool-btn.clear-btn:hover { background: #8b6540; color: white; border-color: #6a4c2a; }
-        #icon-palette { position: fixed; top: 80px; right: 20px; width: 320px; max-height: 600px; background: var(--parchment-light); border: 3px solid var(--ink-dark); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); z-index: 2000; overflow: hidden; }
+        .divider { width: 80%; height: 2px; background: var(--ink-medium); opacity: 0.3; }
+        .color-picker { display: flex; flex-direction: column; gap: 5px; align-items: center; }
+        .color-row { display: flex; gap: 5px; }
+        #toolbar-toggle {
+            position: fixed; right: 0; top: 50%; transform: translateY(-50%) translateX(0);
+            background: rgba(81,81,81,0.95); border: 2px solid var(--ink-dark);
+            border-radius: 8px 0 0 8px; width: 20px; padding: 20px 3px;
+            font-size: 13px; color: white; cursor: pointer; z-index: 999;
+            backdrop-filter: blur(4px); user-select: none; writing-mode: vertical-rl;
+            box-shadow: -4px 0 12px rgba(0,0,0,0.15); transition: right 0.25s ease;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #toolbar-toggle:hover { background: rgba(100,100,100,0.95); }
+        #icon-palette { position: fixed; top: 80px; right: 80px; width: 320px; max-height: 600px; background: var(--parchment-light); border: 3px solid var(--ink-dark); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); z-index: 2000; overflow: hidden; }
         .palette-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--parchment-mid); border-bottom: 2px solid var(--ink-dark); }
         .palette-header h3 { margin: 0; font-family: var(--font-serif); font-size: 20px; color: var(--ink-dark); }
         .palette-header button { background: transparent; border: none; font-size: 24px; cursor: pointer; color: var(--ink-dark); padding: 0; width: 30px; height: 30px; line-height: 1; }
@@ -53,9 +75,6 @@
         .icon-item:hover { border-color: var(--saddle-brown); transform: scale(1.1); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
         .icon-item.selected { border-color: var(--saddle-brown); background: #f5e6d3; box-shadow: inset 0 0 0 2px var(--saddle-brown); }
         .icon-item img { width: 32px; height: 32px; }
-        .divider { width: 2px; height: 24px; background: var(--ink-medium); opacity: 0.3; }
-        #toolbar-toggle { position: fixed; top: 0px; left: calc(50% + 0px); background: rgba(81,81,81,0.95); border: 2px solid var(--ink-dark); border-radius: 8px; padding: 5px 5px; font-size: 16px; color: white; cursor: pointer; z-index: 1000; backdrop-filter: blur(4px); user-select: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        #toolbar-toggle:hover { background: rgba(100,100,100,0.95); }
         #context-menu { position: fixed; background: rgba(195,186,166,0.98); border: 2px solid var(--ink-dark); border-radius: 8px; padding: 8px 0; display: none; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 2000; min-width: 160px; backdrop-filter: blur(4px); }
         .context-item { padding: 10px 16px; font-family: var(--font-serif); font-size: 16px; color: var(--ink-dark); cursor: pointer; transition: background 0.15s; }
         .context-item:hover { background: var(--accent); color: white; }
@@ -153,34 +172,43 @@
     </div>
 
     <div id="toolbar">
-        <button class="tool-btn" id="btn-token-upload" title="Upload Token Images">➕ Token</button>
-        <input type="file" id="token-upload" accept="image/*" multiple style="display: none;">
+        <button class="tool-btn" id="btn-token-upload" title="Upload Token Images">➕</button>
         <div class="divider"></div>
-        <button class="tool-btn" id="btn-pen"      title="Pen">✏️</button>
-        <button class="tool-btn" id="btn-line"     title="Line">╱</button>
-        <button class="tool-btn" id="btn-rect"     title="Rectangle">▭</button>
-        <button class="tool-btn" id="btn-circle"   title="Circle">○</button>
-        <button class="tool-btn" id="btn-triangle" title="Triangle">△</button>
-        <button class="tool-btn" id="btn-text"     title="Text">T</button>
-        <button class="tool-btn" id="btn-eraser"   title="Eraser">🧹</button>
+        <button class="tool-btn" id="btn-pen"      data-tool="pen"      title="Pen">✏️</button>
+        <button class="tool-btn" id="btn-line"     data-tool="line"     title="Line">╱</button>
+        <button class="tool-btn" id="btn-rect"     data-tool="rect"     title="Rectangle">▭</button>
+        <button class="tool-btn" id="btn-circle"   data-tool="circle"   title="Circle">○</button>
+        <button class="tool-btn" id="btn-triangle" data-tool="triangle" title="Triangle">△</button>
+        <button class="tool-btn" id="btn-text"     data-tool="text"     title="Text">T</button>
+        <button class="tool-btn" id="btn-eraser"   data-tool="eraser"   title="Eraser">🧹</button>
         <div class="divider"></div>
         <button class="tool-btn" id="bold-toggle" title="Bold Lines">B</button>
         <div class="divider"></div>
         <div class="color-picker">
-            <div class="color-swatch active" id="sw-ink"    style="background:#2a2522" data-color="#2a2522"></div>
-            <div class="color-swatch"        id="sw-brown"  style="background:#8b4513" data-color="#8b4513"></div>
-            <div class="color-swatch"        id="sw-red"    style="background:#cc0000" data-color="#cc0000"></div>
-            <div class="color-swatch"        id="sw-green"  style="background:#1e4d2b" data-color="#1e4d2b"></div>
-            <div class="color-swatch"        id="sw-blue"   style="background:#1a4d7a" data-color="#1a4d7a"></div>
-            <div class="color-swatch"        id="sw-white"  style="background:#ffffff;border:1px solid #666" data-color="#ffffff"></div>
+            <div class="color-row">
+                <div class="color-swatch active" id="sw-ink"   style="background:#2a2522" data-color="#2a2522"></div>
+                <div class="color-swatch"        id="sw-brown" style="background:#8b4513" data-color="#8b4513"></div>
+            </div>
+            <div class="color-row">
+                <div class="color-swatch" id="sw-red"   style="background:#cc0000" data-color="#cc0000"></div>
+                <div class="color-swatch" id="sw-green" style="background:#1e4d2b" data-color="#1e4d2b"></div>
+            </div>
+            <div class="color-row">
+                <div class="color-swatch" id="sw-blue"  style="background:#1a4d7a" data-color="#1a4d7a"></div>
+                <div class="color-swatch" id="sw-white" style="background:#ffffff;border:1px solid #666" data-color="#ffffff"></div>
+            </div>
         </div>
         <div class="divider"></div>
-        <button class="tool-btn" id="btn-icons" title="Icon Palette">🎨 Icons</button>
+        <button class="tool-btn" id="btn-undo" title="Undo (Ctrl+Z)">↩</button>
+        <button class="tool-btn" id="btn-redo" title="Redo (Ctrl+Y)">↪</button>
+        <div class="divider"></div>
+        <button class="tool-btn" id="btn-icons" title="Icon Palette">🎨</button>
         <div class="divider"></div>
         <button class="tool-btn clear-btn" id="btn-clear" title="Clear All Drawings">🗑️</button>
     </div>
 
-    <div id="toolbar-toggle">▲</div>
+    <div id="toolbar-toggle">◀</div>
+    <input type="file" id="token-upload" accept="image/*" multiple style="display: none;">
     <div id="context-menu"><div class="context-item" data-action="delete">Delete</div></div>
 
     <div id="icon-palette" style="display: none;">
@@ -251,6 +279,30 @@
     let stickers = [], nextStickerId = 1, draggedSticker = null;
     let stickerDragOffsetX = 0, stickerDragOffsetY = 0;
     let selectedIconUrl = null;
+
+    // ── Undo / Redo ────────────────────────────────────────────────────────────
+    const undoStack = [], redoStack = [];
+    let canvasSnapshotBeforeDraw = null;
+
+    function pushUndo(undo, redo) {
+        undoStack.push({ undo, redo });
+        if (undoStack.length > 40) undoStack.shift();
+        redoStack.length = 0;
+    }
+
+    function doUndo() {
+        if (!undoStack.length) return;
+        const act = undoStack.pop();
+        act.undo();
+        redoStack.push(act);
+    }
+
+    function doRedo() {
+        if (!redoStack.length) return;
+        const act = redoStack.pop();
+        act.redo();
+        undoStack.push(act);
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // P2P STATE
@@ -639,7 +691,7 @@
 
             // ── Text ──
             case 'text_add': {
-                const lbl = { id: msg.id, text: msg.text, x: msg.x, y: msg.y, color: msg.color };
+                const lbl = { id: msg.id, text: msg.text, x: msg.x, y: msg.y, color: msg.color, fontSize: msg.fontSize||18, rotation: msg.rotation||0 };
                 textLabels.push(lbl);
                 renderTextLabel(lbl);
                 if (msg.id >= nextTextId) nextTextId = msg.id + 1;
@@ -650,7 +702,16 @@
                 if (lbl) {
                     lbl.x = msg.x; lbl.y = msg.y;
                     const el = document.querySelector(`.text-label[data-id="${msg.id}"]`);
-                    if (el) { el.style.left = msg.x + 'px'; el.style.top = msg.y + 'px'; }
+                    if (el) updateObjDiv(lbl, el);
+                }
+                break;
+            }
+            case 'text_update': {
+                const lbl = textLabels.find(l => l.id === msg.id);
+                if (lbl) {
+                    Object.assign(lbl, msg.data);
+                    const el = document.querySelector(`.text-label[data-id="${msg.id}"]`);
+                    if (el) { if (msg.data.text) el.textContent = msg.data.text; updateObjDiv(lbl, el); }
                 }
                 break;
             }
@@ -798,8 +859,11 @@
     let toolbarVisible = true;
     function toggleToolbar() {
         toolbarVisible = !toolbarVisible;
-        document.getElementById('toolbar').style.display = toolbarVisible ? 'flex' : 'none';
-        document.getElementById('toolbar-toggle').textContent = toolbarVisible ? '▲' : '▼';
+        const tb = document.getElementById('toolbar');
+        const tog = document.getElementById('toolbar-toggle');
+        tb.classList.toggle('hidden', !toolbarVisible);
+        tog.textContent = toolbarVisible ? '◀' : '▶';
+        tog.style.right = toolbarVisible ? '0' : '0';
     }
 
     function toggleBold() {
@@ -934,17 +998,27 @@
 
     function updateObjDiv(obj, div) {
         if (!div) return;
-        const { w, h } = getObjSize(obj);
-        div.style.width  = w + 'px'; div.style.height = h + 'px';
-        div.style.left   = Math.round(obj.x - w/2 + 8) + 'px';
-        div.style.top    = Math.round(obj.y - h/2 + 8) + 'px';
-        updateObjTransform(obj, div);
+        if (obj.type === 'text') {
+            div.style.left     = Math.round(obj.x + 8) + 'px';
+            div.style.top      = Math.round(obj.y + 8) + 'px';
+            div.style.fontSize = (obj.fontSize || 18) + 'px';
+            div.style.width = ''; div.style.height = '';
+            updateObjTransform(obj, div);
+        } else {
+            const { w, h } = getObjSize(obj);
+            div.style.width  = w + 'px'; div.style.height = h + 'px';
+            div.style.left   = Math.round(obj.x - w/2 + 8) + 'px';
+            div.style.top    = Math.round(obj.y - h/2 + 8) + 'px';
+            updateObjTransform(obj, div);
+        }
     }
 
     function updateObjTransform(obj, div) {
         const rot = obj.rotation || 0;
         if (obj.type === 'token') {
             div.style.transform = `rotate(${rot}deg)${obj.flipped ? ' scaleX(-1)' : ''}`;
+        } else if (obj.type === 'text') {
+            div.style.transform = rot ? `rotate(${rot}deg)` : '';
         } else {
             div.style.transform = `rotate(${rot}deg)`;
             const img = div.querySelector('img');
@@ -982,7 +1056,7 @@
             isResizing = true; resizeCorner = handle.dataset.corner;
             resizeStartMouse = { x: e.clientX, y: e.clientY };
             const { w, h } = getObjSize(selectedObject.data);
-            resizeStartObj = { x: selectedObject.data.x, y: selectedObject.data.y, w, h };
+            resizeStartObj = { x: selectedObject.data.x, y: selectedObject.data.y, w, h, fontSize: selectedObject.data.fontSize || 18 };
         });
     });
 
@@ -998,14 +1072,19 @@
     });
 
     document.addEventListener('keydown', e => {
+        if (e.target.tagName === 'INPUT') return;
+
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); doUndo(); return; }
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); doRedo(); return; }
+
         if (e.key === 'Delete' || e.key === 'Backspace') {
-            if (e.target.tagName === 'INPUT') return;
             if (!selectedObject) return;
             const { type, data, div } = selectedObject;
             deselectObject(); div.remove();
             if (type === 'token')   { tokens   = tokens.filter(t=>t.id!==data.id);   broadcast({type:'token_delete',   id:data.id}); }
             if (type === 'sticker') { const i=stickers.findIndex(s=>s.id===data.id); if(i>-1) stickers.splice(i,1); broadcast({type:'sticker_delete', id:data.id}); }
             if (type === 'shape')   { shapes   = shapes.filter(s=>s.id!==data.id);   broadcast({type:'shape_delete',   id:data.id}); }
+            if (type === 'text')    { const i=textLabels.findIndex(l=>l.id===data.id); if(i>-1) textLabels.splice(i,1); broadcast({type:'text_delete', id:data.id}); }
         }
         if (e.key === 'Escape') deselectObject();
     });
@@ -1028,6 +1107,10 @@
         const shape = { id: nextShapeId++, shapeType, x, y, w, h, color, lineWidth, rotation: 0, type: 'shape' };
         shapes.push(shape); renderShape(shape);
         broadcast({ type: 'shape_add', shape: { ...shape } });
+        pushUndo(
+            () => { shapes = shapes.filter(s=>s.id!==shape.id); shapesContainer.querySelector(`[data-id="${shape.id}"]`)?.remove(); if(selectedObject?.data.id===shape.id) deselectObject(); broadcast({type:'shape_delete',id:shape.id}); },
+            () => { shapes.push(shape); renderShape(shape); broadcast({type:'shape_add',shape:{...shape}}); }
+        );
         return shape;
     }
 
@@ -1217,27 +1300,64 @@
     // TEXT LABELS
     // ═══════════════════════════════════════════════════════════════════════════
     function renderTextLabel(lbl) {
-        const el = document.createElement('div');
-        el.className = 'text-label'; el.textContent = lbl.text;
-        el.style.left = lbl.x + 'px'; el.style.top = lbl.y + 'px'; el.style.color = lbl.color;
-        el.setAttribute('data-id', lbl.id);
+        lbl.type = 'text';
+        if (!lbl.fontSize) lbl.fontSize = 18;
+        if (!lbl.rotation) lbl.rotation = 0;
 
+        const el = document.createElement('div');
+        el.className = 'text-label';
+        el.textContent = lbl.text;
+        el.style.color = lbl.color;
+        el.setAttribute('data-id', lbl.id);
+        updateObjDiv(lbl, el);
+
+        // Select on click
+        el.addEventListener('mousedown', e => {
+            if (e.button !== 0 || currentTool) return;
+            e.stopPropagation();
+            selectObject('text', lbl, el);
+            draggedText = el;
+            el.classList.add('dragging');
+            const p = viewportToGrid(e.clientX, e.clientY);
+            textDragOffsetX = p.x - lbl.x;
+            textDragOffsetY = p.y - lbl.y;
+        });
+
+        // Double-click to edit
+        el.addEventListener('dblclick', e => {
+            e.stopPropagation();
+            deselectObject();
+            const dialog = document.getElementById('text-input-dialog');
+            const input  = document.getElementById('text-input-field');
+            dialog.style.left = e.clientX + 'px';
+            dialog.style.top  = e.clientY + 'px';
+            dialog.style.display = 'block';
+            input.value = lbl.text;
+            input.focus(); input.select();
+            window.pendingTextPosition = { x: lbl.x, y: lbl.y, color: lbl.color, editId: lbl.id };
+        });
+
+        // Eraser click or right-click deletes
+        el.addEventListener('click', e => {
+            if (currentTool === 'eraser') {
+                e.stopPropagation();
+                deleteTextLabel(lbl, el);
+            }
+        });
         el.addEventListener('contextmenu', e => {
             e.preventDefault(); e.stopPropagation();
-            const i = textLabels.findIndex(l=>l.id===lbl.id);
-            if (i>-1) textLabels.splice(i,1);
-            broadcast({ type: 'text_delete', id: lbl.id });
-            el.remove();
+            deleteTextLabel(lbl, el);
         });
-        el.addEventListener('click', e => { if (currentTool==='eraser') { e.stopPropagation(); const i=textLabels.findIndex(l=>l.id===lbl.id); if(i>-1) textLabels.splice(i,1); broadcast({type:'text_delete',id:lbl.id}); el.remove(); } });
-        el.addEventListener('mousedown', e => {
-            if (e.button!==0 || currentTool) return;
-            e.stopPropagation(); draggedText = el; el.classList.add('dragging');
-            const cl = parseInt(el.style.left)||0, ct = parseInt(el.style.top)||0;
-            const p = viewportToGrid(e.clientX,e.clientY);
-            textDragOffsetX = p.x-cl; textDragOffsetY = p.y-ct;
-        });
+
         document.getElementById('text-container').appendChild(el);
+    }
+
+    function deleteTextLabel(lbl, el) {
+        const i = textLabels.findIndex(l => l.id === lbl.id);
+        if (i > -1) textLabels.splice(i, 1);
+        if (selectedObject?.data.id === lbl.id) deselectObject();
+        broadcast({ type: 'text_delete', id: lbl.id });
+        el.remove();
     }
 
     function confirmTextInput() {
@@ -1245,9 +1365,26 @@
         const text  = input.value.trim();
         if (text && window.pendingTextPosition) {
             const pos = window.pendingTextPosition;
-            const lbl = { id: nextTextId++, text, x: Math.round(pos.x+8), y: Math.round(pos.y+8), color: pos.color };
-            textLabels.push(lbl); renderTextLabel(lbl);
-            broadcast({ type: 'text_add', ...lbl });
+
+            if (pos.editId !== undefined) {
+                // Editing existing label
+                const lbl = textLabels.find(l => l.id === pos.editId);
+                if (lbl) {
+                    lbl.text = text;
+                    const el = document.querySelector(`.text-label[data-id="${lbl.id}"]`);
+                    if (el) el.textContent = text;
+                    broadcast({ type: 'text_update', id: lbl.id, data: { text } });
+                }
+            } else {
+                // New label
+                const lbl = { id: nextTextId++, text, x: Math.round(pos.x), y: Math.round(pos.y), color: pos.color, fontSize: 18, rotation: 0 };
+                textLabels.push(lbl); renderTextLabel(lbl);
+                broadcast({ type: 'text_add', ...lbl });
+                pushUndo(
+                    () => { deleteTextLabel(lbl, document.querySelector(`.text-label[data-id="${lbl.id}"]`)); broadcast({type:'text_delete',id:lbl.id}); },
+                    () => { textLabels.push(lbl); renderTextLabel(lbl); broadcast({type:'text_add',...lbl}); }
+                );
+            }
         }
         document.getElementById('text-input-dialog').style.display = 'none';
         window.pendingTextPosition = null;
@@ -1284,6 +1421,8 @@
         }
 
         isDrawing = true; drawStartX = pos.x; drawStartY = pos.y;
+        // Snapshot canvas state before this stroke for undo
+        canvasSnapshotBeforeDraw = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
         if (currentTool === 'pen') {
             penPath = [pos];
@@ -1340,7 +1479,6 @@
         if (currentTool === 'eraser') {
             ctx.globalCompositeOperation = 'source-over';
         } else if (currentTool === 'pen') {
-            // Flush remaining pen points
             if (penBatchTimer) { clearInterval(penBatchTimer); penBatchTimer=null; }
             if (penBatchPoints.length > 1) broadcast({ type:'pen_points', points:[...penBatchPoints], color:penBatchColor, lineWidth:penBatchWidth });
             broadcast({ type:'pen_commit' });
@@ -1354,6 +1492,16 @@
             if (savedImageData) { ctx.putImageData(savedImageData,0,0); savedImageData=null; }
             const rawW=pos.x-drawStartX, rawH=pos.y-drawStartY;
             addShape(currentTool, drawStartX+rawW/2, drawStartY+rawH/2, Math.abs(rawW), Math.abs(rawH), drawColor, boldLines?12:3);
+        }
+
+        // Push canvas undo for pen, eraser, and line (shapes have their own undo via addShape)
+        if (currentTool === 'pen' || currentTool === 'eraser' || currentTool === 'line') {
+            const before = canvasSnapshotBeforeDraw;
+            const after  = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            if (before) pushUndo(
+                () => ctx.putImageData(before, 0, 0),
+                () => ctx.putImageData(after,  0, 0)
+            );
         }
 
         isDrawing=false; penPath=[];
@@ -1391,17 +1539,27 @@
                 if (resizeCorner==='sw'){newX=ox-dw/2;newY=oy+dh/2;}
                 if (resizeCorner==='ne'){newX=ox+dw/2;newY=oy-dh/2;}
                 if (resizeCorner==='nw'){newX=ox-dw/2;newY=oy-dh/2;}
+                applyObjSize(obj,newW,newH); obj.x=newX; obj.y=newY;
+                updateObjDiv(obj, selectedObject.div); updateSelectionOverlay();
+                broadcastMove('resize_'+obj.id, { type:'token_update', id:obj.id, data:{ w:obj.w, h:obj.h, x:obj.x, y:obj.y } });
+            } else if (selectedObject.type === 'text') {
+                // Text resize: scale fontSize by height delta
+                const ySign = (resizeCorner==='se'||resizeCorner==='sw') ? 1 : -1;
+                const baseFontSize = resizeStartObj.fontSize || 18;
+                obj.fontSize = Math.max(8, baseFontSize + ySign * dy);
+                updateObjDiv(obj, selectedObject.div); updateSelectionOverlay();
+                broadcastMove('resize_'+obj.id, { type:'text_update', id:obj.id, data:{ fontSize:obj.fontSize } });
             } else {
-                newW=ow; newH=oh;
-                if(resizeCorner==='se'){newW=ow+dx;newH=oh+dy;}
-                if(resizeCorner==='sw'){newW=ow-dx;newH=oh+dy;newX=ox+dx/2;}
-                if(resizeCorner==='ne'){newW=ow+dx;newH=oh-dy;newY=oy+dy/2;}
-                if(resizeCorner==='nw'){newW=ow-dx;newH=oh-dy;newX=ox+dx/2;newY=oy+dy/2;}
+                // Free resize — opposite corner anchored
+                newW = ow; newH = oh;
+                if(resizeCorner==='se'){newW=ow+dx; newH=oh+dy; newX=ox+dx/2; newY=oy+dy/2;}
+                if(resizeCorner==='sw'){newW=ow-dx; newH=oh+dy; newX=ox+dx/2; newY=oy+dy/2;}
+                if(resizeCorner==='ne'){newW=ow+dx; newH=oh-dy; newX=ox+dx/2; newY=oy+dy/2;}
+                if(resizeCorner==='nw'){newW=ow-dx; newH=oh-dy; newX=ox+dx/2; newY=oy+dy/2;}
+                applyObjSize(obj,newW,newH); obj.x=newX; obj.y=newY;
+                updateObjDiv(obj, selectedObject.div); updateSelectionOverlay();
+                broadcastMove('resize_'+obj.id, { type: selectedObject.type+'_update', id:obj.id, data:{ w:obj.w, h:obj.h, x:obj.x, y:obj.y } });
             }
-
-            applyObjSize(obj,newW,newH); obj.x=newX; obj.y=newY;
-            updateObjDiv(obj, selectedObject.div); updateSelectionOverlay();
-            broadcastMove('resize_'+obj.id, { type: selectedObject.type+'_update', id: obj.id, data:{ w:obj.w, h:obj.h, x:obj.x, y:obj.y } });
             return;
         }
 
@@ -1417,11 +1575,16 @@
         // Text drag
         if (draggedText) {
             const pos = viewportToGrid(e.clientX,e.clientY);
-            const nx=Math.round(pos.x-textDragOffsetX), ny=Math.round(pos.y-textDragOffsetY);
-            draggedText.style.left=nx+'px'; draggedText.style.top=ny+'px';
+            const nx = Math.round(pos.x - textDragOffsetX);
+            const ny = Math.round(pos.y - textDragOffsetY);
             const id = parseInt(draggedText.getAttribute('data-id'));
             const lbl = textLabels.find(l=>l.id===id);
-            if (lbl) { lbl.x=nx; lbl.y=ny; broadcastMove('text_'+id, {type:'text_move',id,x:nx,y:ny}); }
+            if (lbl) {
+                lbl.x = nx; lbl.y = ny;
+                updateObjDiv(lbl, draggedText);
+                updateSelectionOverlay();
+                broadcastMove('text_'+id, {type:'text_move',id,x:nx,y:ny});
+            }
         }
 
         // Sticker drag
@@ -1504,6 +1667,8 @@
     document.getElementById('btn-icons')?.addEventListener('click', toggleIconPalette);
     document.getElementById('btn-close-palette')?.addEventListener('click', toggleIconPalette);
     document.getElementById('btn-clear')?.addEventListener('click', clearDrawings);
+    document.getElementById('btn-undo')?.addEventListener('click', doUndo);
+    document.getElementById('btn-redo')?.addEventListener('click', doRedo);
     document.getElementById('toolbar-toggle')?.addEventListener('click', toggleToolbar);
     document.getElementById('p2p-header')?.addEventListener('click', toggleP2PPanel);
     document.getElementById('btn-host')?.addEventListener('click', hostSession);
