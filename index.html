@@ -283,7 +283,7 @@
     // Throttled broadcast for high-frequency moves (~10/sec per object)
     function broadcastMove(key, msg) {
         const now = Date.now();
-        if (!lastMoveBroadcast[key] || now - lastMoveBroadcast[key] >= 100) {
+        if (!lastMoveBroadcast[key] || now - lastMoveBroadcast[key] >= 50) {
             lastMoveBroadcast[key] = now;
             broadcast(msg);
         }
@@ -1204,7 +1204,7 @@
                     broadcast({ type:'pen_points', points:[...penBatchPoints], color:penBatchColor, lineWidth:penBatchWidth });
                     penBatchPoints = [penBatchPoints[penBatchPoints.length-1]]; // keep last as anchor for continuity
                 }
-            }, 100);
+            }, 50);
         } else if (currentTool === 'eraser') {
             ctx.globalCompositeOperation = 'destination-out';
             ctx.beginPath(); ctx.arc(pos.x,pos.y,50,0,Math.PI*2); ctx.fill();
