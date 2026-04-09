@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    
-<link rel="icon" type="image/png" sizes="32x32" href="favicon.webp">
-    <link rel="icon" type="image/png" sizes="16x16" href="favicon.webp">
-    <link rel="shortcut icon" type="image/png" href="favicon.webp">
+
+    <link rel="icon" type="image/webp" sizes="32x32" href="favicon.webp">
+    <link rel="icon" type="image/webp" sizes="16x16" href="favicon.webp">
+    <link rel="shortcut icon" type="image/webp" href="favicon.webp">
     <link rel="apple-touch-icon" href="favicon.webp">
-   
+    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Grid VTT</title>
@@ -949,8 +949,9 @@
             }
         });
         
-        // Suppress default context menu on viewport
-        viewport.addEventListener('contextmenu', (e) => {
+        // Suppress default context menu everywhere except the logo (top-left)
+        document.addEventListener('contextmenu', (e) => {
+            if (e.target.closest('#vtt-logo')) return; // allow on logo
             e.preventDefault();
         });
         
