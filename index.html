@@ -56,13 +56,12 @@
         .color-swatch:hover { transform: scale(1.15); }
         .color-swatch.active { border: 2px solid white; box-shadow: 0 0 6px rgba(255,255,255,0.9); transform: scale(1.2); }
         #toolbar-toggle {
-            position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+            position: fixed; left: 50%; transform: translateX(-50%);
             background: rgba(81,81,81,0.95); border: 2px solid var(--ink-dark);
             border-radius: 8px 8px 0 0; border-bottom: none;
             padding: 4px 14px; font-size: 12px; color: white; cursor: pointer;
-            z-index: 999; backdrop-filter: blur(4px); user-select: none;
-            box-shadow: 0 -2px 8px rgba(0,0,0,0.15);
-            margin-bottom: 0; line-height: 1.2;
+            z-index: 1001; backdrop-filter: blur(4px); user-select: none;
+            bottom: 0; transition: bottom 0.25s ease;
         }
         #toolbar-toggle:hover { background: rgba(100,100,100,0.95); }
         #icon-palette { position: fixed; bottom: 60px; right: 20px; width: 320px; max-height: 500px; background: var(--parchment-light); border: 3px solid var(--ink-dark); border-radius: 8px; box-shadow: 0 -8px 24px rgba(0,0,0,0.3); z-index: 2000; overflow: hidden; }
@@ -419,6 +418,7 @@
 
         peer.on('open', id => {
             myPeerId = id; peerNames[id] = myName; isHost = true;
+            myColor = assignColor(id); peerColors[id] = myColor;
             peer.on('connection', conn => wireConnection(conn, true));
             setStatus('Hosting', '#8bc34a');
             updatePeerUI();
@@ -426,10 +426,10 @@
 
         peer.on('error', err => {
             if (err.type === 'unavailable-id') {
-                // Host already claimed slot — create fresh peer and join
                 peer = new Peer(undefined, config);
                 peer.on('open', id => {
                     myPeerId = id; peerNames[id] = myName; isHost = false;
+                    myColor = assignColor(id); peerColors[id] = myColor;
                     peer.on('connection', conn => wireConnection(conn, true));
                     const conn = peer.connect(roomCode, { reliable: true });
                     conn.on('open', () => {
@@ -870,9 +870,20 @@
     let toolbarVisible = true;
     function toggleToolbar() {
         toolbarVisible = !toolbarVisible;
-        document.getElementById('toolbar').classList.toggle('hidden', !toolbarVisible);
-        document.getElementById('toolbar-toggle').textContent = toolbarVisible ? '▲ tools' : '▼ tools';
+        const tb  = document.getElementById('toolbar');
+        const tog = document.getElementById('toolbar-toggle');
+        tb.classList.toggle('hidden', !toolbarVisible);
+        tog.textContent = toolbarVisible ? '▲ tools' : '▼ tools';
+        // Sit above toolbar when visible, at screen bottom when hidden
+        tog.style.bottom = toolbarVisible ? (tb.offsetHeight) + 'px' : '0';
     }
+
+    // Position toggle above toolbar on load
+    window.addEventListener('load', () => {
+        const tb  = document.getElementById('toolbar');
+        const tog = document.getElementById('toolbar-toggle');
+        if (tb && tog) tog.style.bottom = tb.offsetHeight + 'px';
+    });
 
     function toggleBold() {
         boldLines = !boldLines;
