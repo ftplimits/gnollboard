@@ -9,6 +9,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Grid VTT</title>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script src="https://www.unpkg.com/@discord/embedded-app-sdk@1.4.0/output/discord-embedded-app-sdk.iife.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;600;700&family=EB+Garamond:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -138,11 +139,18 @@
         </div>
         <div id="p2p-body">
             <div id="p2p-status-text">Not connected</div>
-            <button class="p2p-btn" id="btn-host" onclick="hostSession()">Host Session</button>
-            <div class="p2p-label">— or join —</div>
-            <input id="p2p-code-input" type="text" placeholder="Paste room code...">
-            <button class="p2p-btn secondary" id="btn-join" onclick="joinSessionFromInput()">Join Session</button>
-            <div id="p2p-room-display"></div>
+            <!-- Manual mode controls (hidden when inside Discord) -->
+            <div id="p2p-manual-controls">
+                <button class="p2p-btn" id="btn-host" onclick="hostSession()">Host Session</button>
+                <div class="p2p-label">— or join —</div>
+                <input id="p2p-code-input" type="text" placeholder="Paste room code...">
+                <button class="p2p-btn secondary" id="btn-join" onclick="joinSessionFromInput()">Join Session</button>
+                <div id="p2p-room-display"></div>
+            </div>
+            <!-- Discord mode indicator (hidden when in browser) -->
+            <div id="p2p-discord-status" style="display:none;font-size:12px;color:#888;text-align:center;padding:4px 0 6px;">
+                ⚔ Discord Activity
+            </div>
             <div id="p2p-peers"></div>
         </div>
     </div>
@@ -250,6 +258,10 @@
     // ═══════════════════════════════════════════════════════════════════════════
     // P2P STATE
     // ═══════════════════════════════════════════════════════════════════════════
+    const CLIENT_ID = '1491605237109100574';
+    let discordSdk = null;
+    let inDiscord   = false;
+
     let peer = null;
     let connections = {};       // peerId → DataConnection
     let myPeerId = null;
@@ -290,12 +302,82 @@
     }
 
     // ── Connection handling ───────────────────────────────────────────────────
-    function initPeer(onReady) {
-        myName = generateName();
-        peer = new Peer(undefined, { debug: 0 });
+
+    // When inside Discord, route PeerJS signaling through Discord's CSP proxy
+    function getDiscordPeerConfig() {
+        if (!inDiscord) return {};
+        return { host: window.location.hostname, path: '/peerjs', port: 443, secure: true };
+    }
+
+    function initPeer(onReady, customId = undefined) {
+        myName = myName || generateName();
+        const config = { debug: 0, ...getDiscordPeerConfig() };
+        peer = customId ? new Peer(customId, config) : new Peer(undefined, config);
         peer.on('open', id => { myPeerId = id; peerNames[id] = myName; onReady(id); });
         peer.on('connection', conn => wireConnection(conn, true));
-        peer.on('error', err => { console.error('PeerJS:', err); setStatus('Error: ' + err.type, 'red'); });
+        peer.on('error', err => { console.error('PeerJS:', err); setStatus('Error: ' + err.type, '#e55'); });
+    }
+
+    // ── Discord auto-session ──────────────────────────────────────────────────
+    async function initApp() {
+        if (window.DiscordSDK) {
+            try {
+                const { DiscordSDK } = window.DiscordSDK;
+                discordSdk = new DiscordSDK(CLIENT_ID);
+                await discordSdk.ready();
+                inDiscord = true;
+                document.getElementById('p2p-manual-controls').style.display = 'none';
+                document.getElementById('p2p-discord-status').style.display  = 'block';
+                await startDiscordSession();
+                return;
+            } catch(e) {
+                console.log('Not in Discord, using manual mode:', e.message);
+            }
+        }
+        // Manual mode — panel already visible, nothing to do
+    }
+
+    async function startDiscordSession() {
+        myName = generateName();
+        // Sanitise instanceId → valid PeerJS custom ID (alphanumeric, max 30 chars)
+        const roomCode = discordSdk.instanceId.replace(/-/g, '').substring(0, 30);
+        const config   = { debug: 0, ...getDiscordPeerConfig() };
+
+        setStatus('Connecting...', '#aaa');
+
+        // Try to claim the host slot by registering with the room code as peer ID
+        peer = new Peer(roomCode, config);
+
+        peer.on('open', id => {
+            myPeerId = id; peerNames[id] = myName; isHost = true;
+            // peer.on('connection') already wired in initPeer equiv below
+            peer.on('connection', conn => wireConnection(conn, true));
+            setStatus('Hosting', '#8bc34a');
+            updatePeerUI();
+        });
+
+        peer.on('error', err => {
+            if (err.type === 'unavailable-id') {
+                // Host already claimed slot — create fresh peer and join
+                peer = new Peer(undefined, config);
+                peer.on('open', id => {
+                    myPeerId = id; peerNames[id] = myName; isHost = false;
+                    peer.on('connection', conn => wireConnection(conn, true)); // accept mesh connections
+                    const conn = peer.connect(roomCode, { reliable: true });
+                    conn.on('open', () => {
+                        conn.send(JSON.stringify({ type: 'announce', name: myName }));
+                        wireConnection(conn, false, true);
+                        setStatus('Connected', '#8bc34a');
+                        updatePeerUI();
+                    });
+                    conn.on('error', e => { setStatus('Join failed', '#e55'); console.error(e); });
+                });
+                peer.on('error', e => { setStatus('Error: ' + e.type, '#e55'); console.error(e); });
+            } else {
+                setStatus('Error: ' + err.type, '#e55');
+                console.error('PeerJS Discord error:', err);
+            }
+        });
     }
 
     function wireConnection(conn, incoming, alreadyOpen = false) {
@@ -1406,6 +1488,9 @@
     panX = window.innerWidth/2 - 2500*zoom;
     panY = window.innerHeight/2 - 2500*zoom;
     updateTransform();
+
+    // Start Discord SDK if available, otherwise stay in manual mode
+    initApp();
     </script>
 </body>
 </html>
