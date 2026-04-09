@@ -38,7 +38,7 @@
         #text-input-dialog button:hover { background: #6d3510; }
         #toolbar {
             position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-            background: rgba(81,81,81,0.95); border: 2px solid var(--ink-dark);
+            background: rgba(81,81,81,0.50); border: 2px solid var(--ink-dark);
             border-radius: 8px 8px 0 0; padding: 10px 16px;
             display: flex; flex-direction: row; gap: 10px; align-items: center;
             box-shadow: 0 -4px 12px rgba(0,0,0,0.2); z-index: 1000;
@@ -57,7 +57,7 @@
         .color-swatch.active { border: 2px solid white; box-shadow: 0 0 6px rgba(255,255,255,0.9); transform: scale(1.2); }
         #toolbar-toggle {
             position: fixed; left: 50%; transform: translateX(-50%);
-            background: rgba(81,81,81,0.95); border: 2px solid var(--ink-dark);
+            background: rgba(81,81,81,0.50); border: 2px solid var(--ink-dark);
             border-radius: 8px 8px 0 0; border-bottom: none;
             padding: 4px 14px; font-size: 12px; color: white; cursor: pointer;
             z-index: 1001; backdrop-filter: blur(4px); user-select: none;
@@ -190,7 +190,7 @@
         <button class="tool-btn" id="btn-undo" title="Undo (Ctrl+Z)">↩</button>
         <button class="tool-btn" id="btn-redo" title="Redo (Ctrl+Y)">↪</button>
         <div class="divider"></div>
-        <button class="tool-btn" id="btn-icons" title="Icons">🎨</button>
+        <button class="tool-btn" id="btn-icons" title="Icons">⚜️</button>
         <div class="divider"></div>
         <button class="tool-btn clear-btn" id="btn-clear" title="Clear Drawings">🗑️</button>
     </div>
@@ -393,16 +393,31 @@
     async function initApp() {
         const instanceId = getDiscordInstanceId();
         console.log('initApp — instanceId:', instanceId, '| full search:', window.location.search);
-        if (instanceId) {
-            // We are inside Discord
-            inDiscord = true;
-            discordReady();
-            document.getElementById('p2p-manual-controls')?.style && (document.getElementById('p2p-manual-controls').style.display = 'none');
-            document.getElementById('session-toggle-btn')?.style && (document.getElementById('session-toggle-btn').style.display = 'none');
-            document.getElementById('p2p-discord-status')?.style && (document.getElementById('p2p-discord-status').style.display  = 'block');
-            await startDiscordSession(instanceId);
+
+        if (!instanceId) {
+            // Not running inside Discord — show block screen
+            document.body.innerHTML = `
+                <div style="
+                    position:fixed;inset:0;background:#1a1a2e;
+                    display:flex;flex-direction:column;align-items:center;justify-content:center;
+                    font-family:Georgia,serif;color:#c3baa6;text-align:center;padding:40px;
+                ">
+                    <div style="font-size:64px;margin-bottom:24px;">⚔</div>
+                    <div style="font-size:28px;font-weight:700;margin-bottom:16px;color:#e0d5c5;">Gnollboard</div>
+                    <div style="font-size:16px;color:#8a8090;max-width:380px;line-height:1.7;">
+                        This application is designed to run as a Discord Activity.<br><br>
+                        Launch it from inside a Discord voice channel to begin your session.
+                    </div>
+                </div>`;
+            return;
         }
-        // else: manual mode, panel already visible
+
+        inDiscord = true;
+        discordReady();
+        document.getElementById('p2p-manual-controls')?.style && (document.getElementById('p2p-manual-controls').style.display = 'none');
+        document.getElementById('session-toggle-btn')?.style && (document.getElementById('session-toggle-btn').style.display = 'none');
+        document.getElementById('p2p-discord-status')?.style && (document.getElementById('p2p-discord-status').style.display  = 'block');
+        await startDiscordSession(instanceId);
     }
 
     async function startDiscordSession(instanceId) {
