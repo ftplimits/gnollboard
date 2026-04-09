@@ -129,7 +129,7 @@
 
     <!-- P2P Test Panel -->
     <div id="p2p-panel">
-        <div id="p2p-header" onclick="toggleP2PPanel()">
+        <div id="p2p-header">
             <span>⚔ SESSION</span>
             <div style="display:flex;align-items:center;gap:6px;">
                 <div id="p2p-status-dot"></div>
@@ -138,15 +138,13 @@
         </div>
         <div id="p2p-body">
             <div id="p2p-status-text">Not connected</div>
-            <!-- Manual mode controls (hidden when inside Discord) -->
             <div id="p2p-manual-controls">
-                <button class="p2p-btn" id="btn-host" onclick="hostSession()">Host Session</button>
+                <button class="p2p-btn" id="btn-host">Host Session</button>
                 <div class="p2p-label">— or join —</div>
                 <input id="p2p-code-input" type="text" placeholder="Paste room code...">
-                <button class="p2p-btn secondary" id="btn-join" onclick="joinSessionFromInput()">Join Session</button>
+                <button class="p2p-btn secondary" id="btn-join">Join Session</button>
                 <div id="p2p-room-display"></div>
             </div>
-            <!-- Discord mode indicator (hidden when in browser) -->
             <div id="p2p-discord-status" style="display:none;font-size:12px;color:#888;text-align:center;padding:4px 0 6px;">
                 ⚔ Discord Activity
             </div>
@@ -155,48 +153,48 @@
     </div>
 
     <div id="toolbar">
-        <button class="tool-btn" onclick="document.getElementById('token-upload').click()" title="Upload Token Images">➕ Token</button>
+        <button class="tool-btn" id="btn-token-upload" title="Upload Token Images">➕ Token</button>
         <input type="file" id="token-upload" accept="image/*" multiple style="display: none;">
         <div class="divider"></div>
-        <button class="tool-btn" onclick="setTool('pen')" title="Pen">✏️</button>
-        <button class="tool-btn" onclick="setTool('line')" title="Line">╱</button>
-        <button class="tool-btn" onclick="setTool('rect')" title="Rectangle">▭</button>
-        <button class="tool-btn" onclick="setTool('circle')" title="Circle">○</button>
-        <button class="tool-btn" onclick="setTool('triangle')" title="Triangle">△</button>
-        <button class="tool-btn" onclick="setTool('text')" title="Text">T</button>
-        <button class="tool-btn" onclick="setTool('eraser')" title="Eraser">🧹</button>
+        <button class="tool-btn" id="btn-pen"      title="Pen">✏️</button>
+        <button class="tool-btn" id="btn-line"     title="Line">╱</button>
+        <button class="tool-btn" id="btn-rect"     title="Rectangle">▭</button>
+        <button class="tool-btn" id="btn-circle"   title="Circle">○</button>
+        <button class="tool-btn" id="btn-triangle" title="Triangle">△</button>
+        <button class="tool-btn" id="btn-text"     title="Text">T</button>
+        <button class="tool-btn" id="btn-eraser"   title="Eraser">🧹</button>
         <div class="divider"></div>
-        <button class="tool-btn" id="bold-toggle" onclick="toggleBold()" title="Bold Lines">B</button>
+        <button class="tool-btn" id="bold-toggle" title="Bold Lines">B</button>
         <div class="divider"></div>
         <div class="color-picker">
-            <div class="color-swatch active" style="background:#2a2522" onclick="setColor('#2a2522')"></div>
-            <div class="color-swatch" style="background:#8b4513" onclick="setColor('#8b4513')"></div>
-            <div class="color-swatch" style="background:#cc0000" onclick="setColor('#cc0000')"></div>
-            <div class="color-swatch" style="background:#1e4d2b" onclick="setColor('#1e4d2b')"></div>
-            <div class="color-swatch" style="background:#1a4d7a" onclick="setColor('#1a4d7a')"></div>
-            <div class="color-swatch" style="background:#ffffff;border:1px solid #666" onclick="setColor('#ffffff')"></div>
+            <div class="color-swatch active" id="sw-ink"    style="background:#2a2522" data-color="#2a2522"></div>
+            <div class="color-swatch"        id="sw-brown"  style="background:#8b4513" data-color="#8b4513"></div>
+            <div class="color-swatch"        id="sw-red"    style="background:#cc0000" data-color="#cc0000"></div>
+            <div class="color-swatch"        id="sw-green"  style="background:#1e4d2b" data-color="#1e4d2b"></div>
+            <div class="color-swatch"        id="sw-blue"   style="background:#1a4d7a" data-color="#1a4d7a"></div>
+            <div class="color-swatch"        id="sw-white"  style="background:#ffffff;border:1px solid #666" data-color="#ffffff"></div>
         </div>
         <div class="divider"></div>
-        <button class="tool-btn" onclick="toggleIconPalette()" title="Icon Palette">🎨 Icons</button>
+        <button class="tool-btn" id="btn-icons" title="Icon Palette">🎨 Icons</button>
         <div class="divider"></div>
-        <button class="tool-btn clear-btn" onclick="clearDrawings()" title="Clear All Drawings">🗑️</button>
+        <button class="tool-btn clear-btn" id="btn-clear" title="Clear All Drawings">🗑️</button>
     </div>
 
-    <div id="toolbar-toggle" onclick="toggleToolbar()">▲</div>
+    <div id="toolbar-toggle">▲</div>
     <div id="context-menu"><div class="context-item" data-action="delete">Delete</div></div>
 
     <div id="icon-palette" style="display: none;">
         <div class="palette-header">
             <h3>Icon Palette</h3>
-            <button onclick="toggleIconPalette()">✕</button>
+            <button id="btn-close-palette">✕</button>
         </div>
         <div id="icon-palette-content"></div>
     </div>
 
     <div id="text-input-dialog">
         <input type="text" id="text-input-field" placeholder="Enter text...">
-        <button onclick="confirmTextInput()">OK</button>
-        <button onclick="cancelTextInput()">Cancel</button>
+        <button id="btn-text-ok">OK</button>
+        <button id="btn-text-cancel">Cancel</button>
     </div>
 
     <div id="selection-overlay">
@@ -326,21 +324,17 @@
     }
 
     function discordReady() {
-        // Exact handshake format Discord's iframe protocol expects
-        window.parent.postMessage({
-            v: 1,
-            encoding: 'json',
-            cmd: 'HANDSHAKE',
-            args: { v: 1, client_id: CLIENT_ID }
-        }, '*');
-
-        // Listen for Discord's READY response
+        // Discord's PostMessageTransport expects a JSON-stringified array
+        // [opcode, payload] — opcode 0 = HANDSHAKE
+        window.parent.postMessage(
+            JSON.stringify([0, { v: 1, client_id: CLIENT_ID }]),
+            '*'
+        );
         window.addEventListener('message', e => {
-            if (!e.data) return;
-            const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-            if (data.evt === 'READY' || data.cmd === 'DISPATCH') {
-                console.log('Discord ready confirmed');
-            }
+            try {
+                const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+                if (Array.isArray(data)) console.log('Discord msg:', data[0], data[1]);
+            } catch(_) {}
         });
     }
 
@@ -433,7 +427,8 @@
             setStatus('Hosting', '#8bc34a');
             const display = document.getElementById('p2p-room-display');
             display.style.display = 'block';
-            display.innerHTML = `<span style="color:#888">Room code:</span><br><b style="color:#fff;font-size:12px">${id}</b><br><button class="p2p-btn" style="margin-top:6px;font-size:12px" onclick="navigator.clipboard.writeText('${id}')">Copy Code</button>`;
+            display.innerHTML = `<span style="color:#888">Room code:</span><br><b style="color:#fff;font-size:12px">${id}</b><br><button class="p2p-btn" id="btn-copy-code" style="margin-top:6px;font-size:12px">Copy Code</button>`;
+            document.getElementById('btn-copy-code')?.addEventListener('click', () => navigator.clipboard.writeText(id));
             updatePeerUI();
         });
     }
@@ -816,17 +811,16 @@
         currentTool = currentTool === tool ? null : tool;
         document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
         if (currentTool) {
-            document.querySelectorAll('.tool-btn').forEach(btn => {
-                if (btn.getAttribute('onclick')?.includes(`'${tool}'`)) btn.classList.add('active');
-            });
+            const btn = document.querySelector(`.tool-btn[data-tool="${tool}"]`);
+            if (btn) btn.classList.add('active');
             canvas.classList.add('drawing');
         } else { canvas.classList.remove('drawing'); }
     }
 
-    function setColor(color) {
+    function setColor(color, swatchEl) {
         drawColor = color;
         document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
-        event.target.classList.add('active');
+        if (swatchEl) swatchEl.classList.add('active');
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1261,12 +1255,6 @@
 
     function cancelTextInput() { document.getElementById('text-input-dialog').style.display='none'; window.pendingTextPosition=null; }
 
-    document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('text-input-field').addEventListener('keydown', e => {
-            if (e.key==='Enter') confirmTextInput(); else if (e.key==='Escape') cancelTextInput();
-        });
-    });
-
     // ═══════════════════════════════════════════════════════════════════════════
     // CANVAS DRAWING
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1502,6 +1490,39 @@
     document.addEventListener('click', () => { contextMenu.style.display='none'; });
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // WIRE UP ALL BUTTONS (replaces removed inline onclick handlers)
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Tool buttons — add data-tool attribute so setTool can find them
+    const toolMap = { 'btn-pen':'pen', 'btn-line':'line', 'btn-rect':'rect', 'btn-circle':'circle', 'btn-triangle':'triangle', 'btn-text':'text', 'btn-eraser':'eraser' };
+    Object.entries(toolMap).forEach(([id, tool]) => {
+        const btn = document.getElementById(id);
+        if (btn) { btn.dataset.tool = tool; btn.addEventListener('click', () => setTool(tool)); }
+    });
+
+    document.getElementById('btn-token-upload')?.addEventListener('click', () => document.getElementById('token-upload').click());
+    document.getElementById('bold-toggle')?.addEventListener('click', toggleBold);
+    document.getElementById('btn-icons')?.addEventListener('click', toggleIconPalette);
+    document.getElementById('btn-close-palette')?.addEventListener('click', toggleIconPalette);
+    document.getElementById('btn-clear')?.addEventListener('click', clearDrawings);
+    document.getElementById('toolbar-toggle')?.addEventListener('click', toggleToolbar);
+    document.getElementById('p2p-header')?.addEventListener('click', toggleP2PPanel);
+    document.getElementById('btn-host')?.addEventListener('click', hostSession);
+    document.getElementById('btn-join')?.addEventListener('click', joinSessionFromInput);
+    document.getElementById('btn-text-ok')?.addEventListener('click', confirmTextInput);
+    document.getElementById('btn-text-cancel')?.addEventListener('click', cancelTextInput);
+
+    // Color swatches
+    document.querySelectorAll('.color-swatch').forEach(swatch => {
+        swatch.addEventListener('click', () => setColor(swatch.dataset.color, swatch));
+    });
+
+    // Text input keyboard shortcuts
+    document.getElementById('text-input-field')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') confirmTextInput();
+        else if (e.key === 'Escape') cancelTextInput();
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // INIT
     // ═══════════════════════════════════════════════════════════════════════════
     zoom = 1.3;
@@ -1509,7 +1530,6 @@
     panY = window.innerHeight/2 - 2500*zoom;
     updateTransform();
 
-    // Start Discord SDK if available, otherwise stay in manual mode
     initApp();
     </script>
 </body>
