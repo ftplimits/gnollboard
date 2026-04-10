@@ -100,6 +100,17 @@
         .shape-obj.selected { outline: 2px dashed rgba(139,69,19,0.6); outline-offset: 4px; pointer-events: auto; }
         .shape-obj.dragging { cursor: grabbing; z-index: 300; }
 
+        /* ── Measure tool ── */
+        #measure-toggle {
+            position: fixed; top: 12px; right: 12px; z-index: 1001;
+            background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px; padding: 6px 10px; color: #ccc; font-family: var(--font-serif);
+            font-size: 13px; cursor: pointer; backdrop-filter: blur(4px);
+            user-select: none; transition: all 0.15s;
+        }
+        #measure-toggle:hover { background: rgba(60,60,60,0.8); color: white; }
+        #measure-toggle.active { background: rgba(139,69,19,0.7); border-color: rgba(180,100,40,0.6); color: white; }
+
         #fog-toolbar { display: none; }
         #fog-toggle  { display: none; }
         #fog-toolbar {
@@ -173,6 +184,7 @@
 </head>
 <body>
     <img id="vtt-logo" src="./icons/Logo.webp" alt="Logo">
+    <button id="measure-toggle" title="Measure Tool">📏 Measure</button>
 
     <!-- Floating player name overlay -->
     <div id="player-overlay">
@@ -264,7 +276,8 @@
             <div id="tokens-container"></div>
             <div id="text-container"></div>
             <canvas id="fog-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:350;"></canvas>
-            <canvas id="ping-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:400;"></canvas>
+            <canvas id="ping-canvas"    width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:400;"></canvas>
+            <canvas id="measure-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:500;"></canvas>
         </div>
     </div>
 
@@ -1179,8 +1192,112 @@
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // GRID HELPERS
+    // MEASURE TOOL  (local only — no broadcast)
     // ═══════════════════════════════════════════════════════════════════════════
+    const measureCanvas = document.getElementById('measure-canvas');
+    const measureCtx    = measureCanvas.getContext('2d');
+    let measureActive   = false;
+    let measureStart    = null;  // {x, y} grid coords
+    let measureEnd      = null;
+
+    function toggleMeasure() {
+        measureActive = !measureActive;
+        document.getElementById('measure-toggle').classList.toggle('active', measureActive);
+        if (!measureActive) clearMeasure();
+    }
+
+    function clearMeasure() {
+        measureCtx.clearRect(0, 0, measureCanvas.width, measureCanvas.height);
+        measureStart = measureEnd = null;
+    }
+
+    function drawMeasure(x1, y1, x2, y2) {
+        measureCtx.clearRect(0, 0, measureCanvas.width, measureCanvas.height);
+
+        // Snap both endpoints to cell centers
+        const snap1 = snapToGrid(x1, y1);
+        const snap2 = snapToGrid(x2, y2);
+
+        // Distance in cells (Chebyshev — diagonal counts as 1 square like D&D/OSR)
+        const dcx = Math.abs(Math.round((snap2.x - snap1.x) / 50));
+        const dcy = Math.abs(Math.round((snap2.y - snap1.y) / 50));
+        const cells = Math.max(dcx, dcy);
+        const feet  = cells * 5;
+
+        // Draw line
+        measureCtx.save();
+        measureCtx.strokeStyle = 'rgba(255,200,50,0.9)';
+        measureCtx.lineWidth   = 2 / zoom;
+        measureCtx.setLineDash([8 / zoom, 4 / zoom]);
+        measureCtx.lineCap     = 'round';
+        measureCtx.beginPath();
+        measureCtx.moveTo(snap1.x, snap1.y);
+        measureCtx.lineTo(snap2.x, snap2.y);
+        measureCtx.stroke();
+        measureCtx.setLineDash([]);
+
+        // Draw endpoint dots
+        measureCtx.fillStyle = 'rgba(255,200,50,0.95)';
+        [snap1, snap2].forEach(p => {
+            measureCtx.beginPath();
+            measureCtx.arc(p.x, p.y, 5 / zoom, 0, Math.PI * 2);
+            measureCtx.fill();
+        });
+
+        // Draw label at midpoint
+        const mx = (snap1.x + snap2.x) / 2;
+        const my = (snap1.y + snap2.y) / 2;
+        const label = `${cells} sq · ${feet} ft`;
+        const fs = Math.max(14, 16 / zoom);
+        measureCtx.font         = `bold ${fs}px Georgia, serif`;
+        measureCtx.textAlign     = 'center';
+        measureCtx.textBaseline  = 'middle';
+
+        // Background pill
+        const tw = measureCtx.measureText(label).width;
+        const pad = 6 / zoom;
+        measureCtx.fillStyle = 'rgba(0,0,0,0.65)';
+        roundRect(measureCtx, mx - tw/2 - pad, my - fs/2 - pad, tw + pad*2, fs + pad*2, 4/zoom);
+        measureCtx.fill();
+
+        // Label text
+        measureCtx.fillStyle = '#ffe060';
+        measureCtx.fillText(label, mx, my);
+        measureCtx.restore();
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x+r, y);
+        ctx.lineTo(x+w-r, y); ctx.arcTo(x+w, y, x+w, y+r, r);
+        ctx.lineTo(x+w, y+h-r); ctx.arcTo(x+w, y+h, x+w-r, y+h, r);
+        ctx.lineTo(x+r, y+h); ctx.arcTo(x, y+h, x, y+h-r, r);
+        ctx.lineTo(x, y+r); ctx.arcTo(x, y, x+r, y, r);
+        ctx.closePath();
+    }
+
+    // Measure tool viewport events
+    viewport.addEventListener('mousedown', e => {
+        if (e.button === 0 && measureActive && !currentFogTool) {
+            e.stopPropagation();
+            const pos = viewportToGrid(e.clientX, e.clientY);
+            measureStart = pos; measureEnd = pos;
+        }
+    });
+    window.addEventListener('mousemove', e => {
+        if (measureActive && measureStart) {
+            measureEnd = viewportToGrid(e.clientX, e.clientY);
+            drawMeasure(measureStart.x, measureStart.y, measureEnd.x, measureEnd.y);
+        }
+    });
+    window.addEventListener('mouseup', e => {
+        if (e.button === 0 && measureActive && measureStart) {
+            // Keep the last measurement visible until next click or toggle
+            measureStart = null;
+        }
+    });
+
+    document.getElementById('measure-toggle')?.addEventListener('click', toggleMeasure);
     function viewportToGrid(cx, cy) {
         const rect = gridContainer.getBoundingClientRect();
         return { x: (cx-rect.left)/zoom, y: (cy-rect.top)/zoom };
@@ -1296,7 +1413,7 @@
             if (type === 'shape')   { shapes   = shapes.filter(s=>s.id!==data.id);   broadcast({type:'shape_delete',   id:data.id}); }
             if (type === 'text')    { const i=textLabels.findIndex(l=>l.id===data.id); if(i>-1) textLabels.splice(i,1); broadcast({type:'text_delete', id:data.id}); }
         }
-        if (e.key === 'Escape') deselectObject();
+        if (e.key === 'Escape') { deselectObject(); if (measureActive) clearMeasure(); }
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
