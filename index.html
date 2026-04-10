@@ -168,11 +168,13 @@
         <div class="divider"></div>
         <button class="tool-btn" id="btn-pen"      data-tool="pen"      title="Pen">✏️</button>
         <button class="tool-btn" id="btn-line"     data-tool="line"     title="Line">╱</button>
-        <button class="tool-btn" id="btn-rect"     data-tool="rect"     title="Rect">▭</button>
         <button class="tool-btn" id="btn-circle"   data-tool="circle"   title="Circle">○</button>
         <button class="tool-btn" id="btn-triangle" data-tool="triangle" title="Triangle">△</button>
         <button class="tool-btn" id="btn-text"     data-tool="text"     title="Text">T</button>
         <button class="tool-btn" id="btn-eraser"   data-tool="eraser"   title="Eraser">🧹</button>
+        <div class="divider"></div>
+        <button class="tool-btn" id="btn-fog"    data-tool="fog"    title="Paint Fog">🌫️</button>
+        <button class="tool-btn" id="btn-reveal" data-tool="reveal" title="Reveal">👁️</button>
         <div class="divider"></div>
         <button class="tool-btn" id="bold-toggle" title="Bold">B</button>
         <div class="divider"></div>
@@ -227,6 +229,7 @@
             <div id="stickers-container"></div>
             <div id="tokens-container"></div>
             <div id="text-container"></div>
+            <canvas id="fog-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:350;"></canvas>
             <canvas id="ping-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:400;"></canvas>
         </div>
     </div>
@@ -536,13 +539,13 @@
             stickers:    stickers.map(s => ({ ...s })),
             shapes:      shapes.map(s => ({ ...s })),
             textLabels:  textLabels.map(t => ({ ...t })),
-            canvasData:  canvas.toDataURL('image/png')
+            canvasData:  canvas.toDataURL('image/png'),
+            fogCellData: [...fogCells].map(key => { const [cx,cy] = key.split(',').map(Number); return {cx,cy}; })
         };
         conn.send(JSON.stringify(snap));
     }
 
     function applySnapshot(snap) {
-        // Clear all current state
         tokensContainer.innerHTML   = '';
         stickersContainer.innerHTML = '';
         shapesContainer.innerHTML   = '';
@@ -562,11 +565,12 @@
             img.src = snap.canvasData;
         }
 
-        // Sync ID counters to avoid collisions
-        if (tokens.length)    nextTokenId   = Math.max(...tokens.map(t=>t.id))   + 1;
-        if (stickers.length)  nextStickerId = Math.max(...stickers.map(s=>s.id)) + 1;
-        if (shapes.length)    nextShapeId   = Math.max(...shapes.map(s=>s.id))   + 1;
-        if (textLabels.length) nextTextId   = Math.max(...textLabels.map(t=>t.id)) + 1;
+        if (snap.fogCellData) applyFogSnapshot(snap.fogCellData);
+
+        if (tokens.length)     nextTokenId   = Math.max(...tokens.map(t=>t.id))   + 1;
+        if (stickers.length)   nextStickerId = Math.max(...stickers.map(s=>s.id)) + 1;
+        if (shapes.length)     nextShapeId   = Math.max(...shapes.map(s=>s.id))   + 1;
+        if (textLabels.length) nextTextId    = Math.max(...textLabels.map(t=>t.id)) + 1;
     }
 
     // ── Message handler ──────────────────────────────────────────────────────
@@ -743,6 +747,14 @@
 
             case 'ping':
                 triggerPingLocal(msg.x, msg.y, msg.color);
+                break;
+
+            case 'fog_cells':
+                msg.cells.forEach(({ cx, cy, fog }) => {
+                    const key = `${cx},${cy}`;
+                    if (fog) { fogCells.add(key); drawFogCell(cx, cy); }
+                    else     { fogCells.delete(key); eraseFogCell(cx, cy); }
+                });
                 break;
         }
     }
@@ -1002,6 +1014,61 @@
         if (e.button === 1) { e.preventDefault(); const pos = viewportToGrid(e.clientX,e.clientY); triggerPing(pos.x,pos.y); }
     });
     viewport.addEventListener('auxclick', e => { if (e.button===1) e.preventDefault(); });
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FOG OF WAR SYSTEM
+    // ═══════════════════════════════════════════════════════════════════════════
+    const fogCanvas = document.getElementById('fog-canvas');
+    const fogCtx    = fogCanvas.getContext('2d');
+    const CELL      = 50;   // grid cell size in px
+    const FOG_COLOR = '#c8be9e'; // matches parchment mid-tone
+    let fogCells    = new Set(); // "cellX,cellY" strings — cells that ARE fogged
+
+    // Draw the grid line pattern on a fogged cell to match the background
+    function drawFogCell(cx, cy) {
+        const x = cx * CELL, y = cy * CELL;
+        fogCtx.fillStyle = FOG_COLOR;
+        fogCtx.fillRect(x, y, CELL, CELL);
+        // Draw grid lines on top to match background
+        fogCtx.strokeStyle = 'rgba(42,37,34,0.25)';
+        fogCtx.lineWidth = 1;
+        fogCtx.beginPath();
+        fogCtx.moveTo(x, y); fogCtx.lineTo(x + CELL, y);      // top
+        fogCtx.moveTo(x, y); fogCtx.lineTo(x, y + CELL);      // left
+        fogCtx.stroke();
+    }
+
+    function eraseFogCell(cx, cy) {
+        fogCtx.clearRect(cx * CELL, cy * CELL, CELL, CELL);
+    }
+
+    function applyFogBrush(gridX, gridY, painting) {
+        // Convert grid coords to cell coords, then apply 3×3 brush
+        const centerCX = Math.floor(gridX / CELL);
+        const centerCY = Math.floor(gridY / CELL);
+        const changed = [];
+
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                const cx = centerCX + dx, cy = centerCY + dy;
+                if (cx < 0 || cy < 0 || cx >= 100 || cy >= 100) continue;
+                const key = `${cx},${cy}`;
+                if (painting) {
+                    if (!fogCells.has(key)) { fogCells.add(key); drawFogCell(cx, cy); changed.push({ cx, cy, fog: true }); }
+                } else {
+                    if (fogCells.has(key)) { fogCells.delete(key); eraseFogCell(cx, cy); changed.push({ cx, cy, fog: false }); }
+                }
+            }
+        }
+        if (changed.length) broadcastMove('fog', { type: 'fog_cells', cells: changed });
+    }
+
+    function applyFogSnapshot(cells) {
+        // Apply full fog state from snapshot
+        fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
+        fogCells = new Set();
+        cells.forEach(({ cx, cy }) => { fogCells.add(`${cx},${cy}`); drawFogCell(cx, cy); });
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // GRID HELPERS
@@ -1472,6 +1539,12 @@
             window.pendingTextPosition = { x: pos.x, y: pos.y, color: drawColor }; return;
         }
 
+        if (currentTool === 'fog' || currentTool === 'reveal') {
+            isDrawing = true;
+            applyFogBrush(pos.x, pos.y, currentTool === 'fog');
+            return;
+        }
+
         isDrawing = true; drawStartX = pos.x; drawStartY = pos.y;
         // Snapshot canvas state before this stroke for undo
         canvasSnapshotBeforeDraw = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -1496,6 +1569,11 @@
 
     canvas.addEventListener('mousemove', e => {
         if (!isDrawing || !currentTool) return;
+        if (currentTool === 'fog' || currentTool === 'reveal') {
+            const pos = viewportToGrid(e.clientX, e.clientY);
+            applyFogBrush(pos.x, pos.y, currentTool === 'fog');
+            return;
+        }
         if (drawingFrameId) return;
         drawingFrameId = requestAnimationFrame(() => {
             drawingFrameId = null;
@@ -1516,7 +1594,6 @@
                 const w=pos.x-drawStartX, h=pos.y-drawStartY;
                 ctx.globalCompositeOperation='source-over'; ctx.strokeStyle=drawColor; ctx.lineWidth=boldLines?12:3; ctx.setLineDash([5,5]);
                 if (currentTool==='line') { ctx.beginPath(); ctx.moveTo(drawStartX,drawStartY); ctx.lineTo(pos.x,pos.y); ctx.stroke(); }
-                else if (currentTool==='rect') { ctx.strokeRect(drawStartX,drawStartY,w,h); }
                 else if (currentTool==='circle') { const r=Math.sqrt(w*w+h*h)/2; ctx.beginPath(); ctx.arc(drawStartX+w/2,drawStartY+h/2,r,0,Math.PI*2); ctx.stroke(); }
                 else if (currentTool==='triangle') { ctx.beginPath(); ctx.moveTo(drawStartX+w/2,drawStartY); ctx.lineTo(drawStartX+w,drawStartY+h); ctx.lineTo(drawStartX,drawStartY+h); ctx.closePath(); ctx.stroke(); }
                 ctx.setLineDash([]);
@@ -1526,6 +1603,7 @@
 
     canvas.addEventListener('mouseup', e => {
         if (!isDrawing || !currentTool) return;
+        if (currentTool === 'fog' || currentTool === 'reveal') { isDrawing = false; return; }
         const pos = viewportToGrid(e.clientX, e.clientY);
 
         if (currentTool === 'eraser') {
@@ -1540,7 +1618,7 @@
             ctx.globalCompositeOperation='source-over'; ctx.strokeStyle=drawColor; ctx.lineWidth=boldLines?12:3; ctx.setLineDash([]);
             ctx.beginPath(); ctx.moveTo(drawStartX,drawStartY); ctx.lineTo(pos.x,pos.y); ctx.stroke();
             broadcast({ type:'line_commit', x1:drawStartX, y1:drawStartY, x2:pos.x, y2:pos.y, color:drawColor, lineWidth:boldLines?12:3 });
-        } else if (currentTool==='rect' || currentTool==='circle' || currentTool==='triangle') {
+        } else if (currentTool==='circle' || currentTool==='triangle') {
             if (savedImageData) { ctx.putImageData(savedImageData,0,0); savedImageData=null; }
             const rawW=pos.x-drawStartX, rawH=pos.y-drawStartY;
             addShape(currentTool, drawStartX+rawW/2, drawStartY+rawH/2, Math.abs(rawW), Math.abs(rawH), drawColor, boldLines?12:3);
@@ -1704,7 +1782,7 @@
     // WIRE UP ALL BUTTONS (replaces removed inline onclick handlers)
     // ═══════════════════════════════════════════════════════════════════════════
     // Tool buttons — add data-tool attribute so setTool can find them
-    const toolMap = { 'btn-pen':'pen', 'btn-line':'line', 'btn-rect':'rect', 'btn-circle':'circle', 'btn-triangle':'triangle', 'btn-text':'text', 'btn-eraser':'eraser' };
+    const toolMap = { 'btn-pen':'pen', 'btn-line':'line', 'btn-circle':'circle', 'btn-triangle':'triangle', 'btn-text':'text', 'btn-eraser':'eraser', 'btn-fog':'fog', 'btn-reveal':'reveal' };
     Object.entries(toolMap).forEach(([id, tool]) => {
         const btn = document.getElementById(id);
         if (btn) { btn.dataset.tool = tool; btn.addEventListener('click', () => setTool(tool)); }
