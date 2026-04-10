@@ -1081,10 +1081,21 @@
     });
     viewport.addEventListener('auxclick', e => { if (e.button===1) e.preventDefault(); });
 
-    // Right-click on empty viewport clears fog tool and measure
+    // Right-click clears fog tool and deactivates measure
     viewport.addEventListener('contextmenu', e => {
         if (currentFogTool) { setFogTool(null); e.preventDefault(); }
-        if (measureActive)  { clearMeasure(); e.preventDefault(); }
+        if (measureActive)  { measureActive = false; clearMeasure(); document.getElementById('measure-toggle').classList.remove('active'); e.preventDefault(); }
+    });
+
+    // Left-click on empty viewport (no tool, no fog, no measure drag) deselects everything
+    viewport.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
+        if (currentTool || currentFogTool || selectedIconUrl || measureActive) return;
+        // Only deselect if the click target is the viewport or grid background itself
+        if (e.target === viewport || e.target === document.getElementById('grid-background') ||
+            e.target === document.getElementById('grid-container') || e.target.id === 'drawing-canvas') {
+            deselectObject();
+        }
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
