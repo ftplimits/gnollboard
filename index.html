@@ -315,6 +315,7 @@
     let stickers = [], nextStickerId = 1, draggedSticker = null;
     let stickerDragOffsetX = 0, stickerDragOffsetY = 0;
     let selectedIconUrl = null;
+    let copiedObject    = null; // { type, data } for copy/paste
 
     // ── Undo / Redo ────────────────────────────────────────────────────────────
     const undoStack = [], redoStack = [];
@@ -1214,9 +1215,13 @@
     function drawMeasure(x1, y1, x2, y2) {
         measureCtx.clearRect(0, 0, measureCanvas.width, measureCanvas.height);
 
-        // Snap both endpoints to cell centers
-        const snap1 = snapToGrid(x1, y1);
-        const snap2 = snapToGrid(x2, y2);
+        // Snap to nearest cell center: centers at 33, 83, 133... (= 8 + n*50 + 25)
+        function snapCell(v) {
+            const cell = Math.round((v - FOG_OFFSET - CELL/2) / CELL);
+            return FOG_OFFSET + Math.max(0, cell) * CELL + CELL/2;
+        }
+        const snap1 = { x: snapCell(x1), y: snapCell(y1) };
+        const snap2 = { x: snapCell(x2), y: snapCell(y2) };
 
         // Distance in cells (Chebyshev — diagonal = 1 square)
         const dcx = Math.abs(Math.round((snap2.x - snap1.x) / 50));
@@ -1382,6 +1387,31 @@
 
         if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); doUndo(); return; }
         if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); doRedo(); return; }
+
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+            e.preventDefault();
+            if (!selectedObject) return;
+            copiedObject = { type: selectedObject.type, data: { ...selectedObject.data } };
+            return;
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+            e.preventDefault();
+            if (!copiedObject) return;
+            const offset = 50;
+            if (copiedObject.type === 'token') {
+                const src = copiedObject.data;
+                const t = { id: nextTokenId++, image: src.image, x: src.x + offset, y: src.y + offset, w: src.w, h: src.h, rotation: 0, flipped: false, type: 'token' };
+                tokens.push(t); renderToken(t);
+                broadcast({ type: 'token_add', token: { ...t } });
+            } else if (copiedObject.type === 'sticker') {
+                const src = copiedObject.data;
+                const s = { id: nextStickerId++, iconUrl: src.iconUrl, x: src.x + offset, y: src.y + offset, w: src.w, h: src.h, size: src.size || 'small', flipped: false, type: 'sticker' };
+                stickers.push(s); renderSticker(s);
+                broadcast({ type: 'sticker_add', sticker: { ...s } });
+            }
+            return;
+        }
 
         if (e.key === 'Delete' || e.key === 'Backspace') {
             if (!selectedObject) return;
