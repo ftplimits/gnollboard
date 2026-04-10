@@ -1081,6 +1081,12 @@
     });
     viewport.addEventListener('auxclick', e => { if (e.button===1) e.preventDefault(); });
 
+    // Right-click on empty viewport clears fog tool and measure
+    viewport.addEventListener('contextmenu', e => {
+        if (currentFogTool) { setFogTool(null); e.preventDefault(); }
+        if (measureActive)  { clearMeasure(); e.preventDefault(); }
+    });
+
     // ═══════════════════════════════════════════════════════════════════════════
     // FOG OF WAR SYSTEM
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1750,7 +1756,12 @@
     // ═══════════════════════════════════════════════════════════════════════════
     canvas.addEventListener('mousedown', e => {
         if (e.button !== 0) return;
-        if (!currentTool && !selectedIconUrl) { deselectObject(); return; }
+        if (!currentTool && !selectedIconUrl) {
+            deselectObject();
+            if (currentFogTool) setFogTool(null);
+            if (measureActive)  clearMeasure();
+            return;
+        }
         const pos = viewportToGrid(e.clientX, e.clientY);
 
         if (selectedIconUrl) {
