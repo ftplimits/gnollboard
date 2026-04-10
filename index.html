@@ -100,7 +100,8 @@
         .shape-obj.selected { outline: 2px dashed rgba(139,69,19,0.6); outline-offset: 4px; pointer-events: auto; }
         .shape-obj.dragging { cursor: grabbing; z-index: 300; }
 
-        /* ── Fog toolbar ── */
+        #fog-toolbar { display: none; }
+        #fog-toggle  { display: none; }
         #fog-toolbar {
             position: fixed; right: 0; top: 50%; transform: translateY(-50%);
             background: rgba(30,30,30,0.55); border: 2px solid rgba(255,255,255,0.15);
@@ -818,6 +819,13 @@
         container.innerHTML = peers.map(p =>
             `<div class="player-name-tag" style="color:${p.color}">● ${p.name}${p.me ? ' ✦' : ''}</div>`
         ).join('');
+
+        // Fog tools visible only to host
+        const showFog = isHost ? 'flex' : 'none';
+        const fogTb  = document.getElementById('fog-toolbar');
+        const fogTog = document.getElementById('fog-toggle');
+        if (fogTb)  fogTb.style.display  = isHost ? 'flex' : 'none';
+        if (fogTog) fogTog.style.display = isHost ? 'block' : 'none';
     }
 
     function toggleP2PPanel() {
