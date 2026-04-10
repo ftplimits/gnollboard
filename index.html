@@ -1247,7 +1247,7 @@
         // Draw label at midpoint
         const mx = (snap1.x + snap2.x) / 2;
         const my = (snap1.y + snap2.y) / 2;
-        const label = `${cells} sq · ${feet} ft`;
+        const label = `${feet} ft`;
         const fs = Math.max(14, 16 / zoom);
         measureCtx.font         = `bold ${fs}px Georgia, serif`;
         measureCtx.textAlign     = 'center';
@@ -1946,7 +1946,7 @@
         if (isFogPainting) { isFogPainting = false; redrawFog(); return; }
 
         // Freeze measurement on release (stays visible until next click)
-        if (measureActive && measureStart) { measureStart = null; return; }
+        if (measureActive && measureStart) { measureStart = null; }
 
         if (isRotating) {
             isRotating = false;
