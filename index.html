@@ -100,7 +100,35 @@
         .shape-obj.selected { outline: 2px dashed rgba(139,69,19,0.6); outline-offset: 4px; pointer-events: auto; }
         .shape-obj.dragging { cursor: grabbing; z-index: 300; }
 
-        /* ── Player overlay ── */
+        /* ── Fog toolbar ── */
+        #fog-toolbar {
+            position: fixed; right: 0; top: 50%; transform: translateY(-50%);
+            background: rgba(30,30,30,0.55); border: 2px solid rgba(255,255,255,0.15);
+            border-radius: 8px 0 0 8px; padding: 10px 8px;
+            display: flex; flex-direction: column; gap: 8px; align-items: center;
+            z-index: 1000; backdrop-filter: blur(4px);
+            box-shadow: -4px 0 12px rgba(0,0,0,0.3);
+            transition: transform 0.25s ease;
+        }
+        #fog-toolbar.hidden { transform: translateY(-50%) translateX(100%); }
+        #fog-toggle {
+            position: fixed; right: 0; top: calc(50% + 80px);
+            background: rgba(30,30,30,0.55); border: 2px solid rgba(255,255,255,0.15);
+            border-radius: 8px 0 0 8px; padding: 6px 4px;
+            color: #aaa; font-size: 11px; cursor: pointer; z-index: 1001;
+            backdrop-filter: blur(4px); writing-mode: vertical-rl;
+            user-select: none; letter-spacing: 1px;
+        }
+        #fog-toggle:hover { background: rgba(50,50,50,0.7); color: #fff; }
+        .fog-btn {
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px; padding: 7px 8px; font-size: 16px; cursor: pointer;
+            color: #ddd; transition: all 0.15s; width: 38px; text-align: center;
+            font-family: var(--font-serif);
+        }
+        .fog-btn:hover { background: rgba(255,255,255,0.18); color: white; }
+        .fog-btn.active { background: rgba(255,255,255,0.25); color: white; border-color: rgba(255,255,255,0.5); box-shadow: 0 0 6px rgba(255,255,255,0.2); }
+        .fog-btn.fill-btn { background: rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.3); font-size: 13px; width: 38px; }
         #player-overlay { position: fixed; top: 70px; left: 12px; z-index: 1000; }
         #player-names { display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px; pointer-events: none; }
         .player-name-tag {
@@ -173,9 +201,6 @@
         <button class="tool-btn" id="btn-text"     data-tool="text"     title="Text">T</button>
         <button class="tool-btn" id="btn-eraser"   data-tool="eraser"   title="Eraser">🧹</button>
         <div class="divider"></div>
-        <button class="tool-btn" id="btn-fog"    data-tool="fog"    title="Paint Fog">🌫️</button>
-        <button class="tool-btn" id="btn-reveal" data-tool="reveal" title="Reveal">👁️</button>
-        <div class="divider"></div>
         <button class="tool-btn" id="bold-toggle" title="Bold">B</button>
         <div class="divider"></div>
         <div class="color-picker">
@@ -220,6 +245,14 @@
         <div class="sel-handle" data-corner="sw"></div>
         <div class="sel-handle" data-corner="se"></div>
     </div>
+
+    <!-- Fog toolbar -->
+    <div id="fog-toolbar">
+        <button class="fog-btn fill-btn" id="btn-fill-fog" title="Fill All Fog">■</button>
+        <button class="fog-btn" id="btn-fog-paint" title="Paint Fog (3×3)">🌑</button>
+        <button class="fog-btn" id="btn-fog-reveal" title="Reveal (3×3)">👁</button>
+    </div>
+    <div id="fog-toggle">FOG</div>
 
     <div id="viewport">
         <div id="grid-container">
@@ -756,6 +789,15 @@
                     else     { fogCells.delete(key); eraseFogCell(cx, cy); }
                 });
                 break;
+
+            case 'fog_fill':
+                fogCtx.fillStyle = 'rgba(0,0,0,0.92)';
+                fogCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
+                fogCells.clear();
+                for (let cx = 0; cx < 100; cx++)
+                    for (let cy = 0; cy < 100; cy++)
+                        fogCells.add(`${cx},${cy}`);
+                break;
         }
     }
 
@@ -917,6 +959,8 @@
 
     function setTool(tool) {
         currentTool = currentTool === tool ? null : tool;
+        // Deselect fog tool when drawing tool activated
+        if (currentTool) { currentFogTool = null; document.querySelectorAll('.fog-btn').forEach(b=>b.classList.remove('active')); }
         document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
         if (currentTool) {
             const btn = document.querySelector(`.tool-btn[data-tool="${tool}"]`);
@@ -1020,22 +1064,15 @@
     // ═══════════════════════════════════════════════════════════════════════════
     const fogCanvas = document.getElementById('fog-canvas');
     const fogCtx    = fogCanvas.getContext('2d');
-    const CELL      = 50;   // grid cell size in px
-    const FOG_COLOR = '#c8be9e'; // matches parchment mid-tone
-    let fogCells    = new Set(); // "cellX,cellY" strings — cells that ARE fogged
+    const CELL      = 50;   // must match grid tile size exactly
+    let fogCells    = new Set(); // "cx,cy" — cells that ARE fogged (black)
+    let currentFogTool = null;  // 'paint' | 'reveal' | null
+    let isFogPainting  = false;
 
-    // Draw the grid line pattern on a fogged cell to match the background
     function drawFogCell(cx, cy) {
-        const x = cx * CELL, y = cy * CELL;
-        fogCtx.fillStyle = FOG_COLOR;
-        fogCtx.fillRect(x, y, CELL, CELL);
-        // Draw grid lines on top to match background
-        fogCtx.strokeStyle = 'rgba(42,37,34,0.25)';
-        fogCtx.lineWidth = 1;
-        fogCtx.beginPath();
-        fogCtx.moveTo(x, y); fogCtx.lineTo(x + CELL, y);      // top
-        fogCtx.moveTo(x, y); fogCtx.lineTo(x, y + CELL);      // left
-        fogCtx.stroke();
+        // Pixel-perfect alignment: cell (cx,cy) = pixels [cx*50 .. (cx+1)*50]
+        fogCtx.fillStyle = 'rgba(0,0,0,0.92)';
+        fogCtx.fillRect(cx * CELL, cy * CELL, CELL, CELL);
     }
 
     function eraseFogCell(cx, cy) {
@@ -1043,11 +1080,9 @@
     }
 
     function applyFogBrush(gridX, gridY, painting) {
-        // Convert grid coords to cell coords, then apply 3×3 brush
         const centerCX = Math.floor(gridX / CELL);
         const centerCY = Math.floor(gridY / CELL);
         const changed = [];
-
         for (let dx = -1; dx <= 1; dx++) {
             for (let dy = -1; dy <= 1; dy++) {
                 const cx = centerCX + dx, cy = centerCY + dy;
@@ -1063,12 +1098,48 @@
         if (changed.length) broadcastMove('fog', { type: 'fog_cells', cells: changed });
     }
 
+    function fillFog() {
+        fogCtx.fillStyle = 'rgba(0,0,0,0.92)';
+        fogCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
+        fogCells.clear();
+        for (let cx = 0; cx < 100; cx++)
+            for (let cy = 0; cy < 100; cy++)
+                fogCells.add(`${cx},${cy}`);
+        broadcast({ type: 'fog_fill' });
+    }
+
     function applyFogSnapshot(cells) {
-        // Apply full fog state from snapshot
         fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
         fogCells = new Set();
         cells.forEach(({ cx, cy }) => { fogCells.add(`${cx},${cy}`); drawFogCell(cx, cy); });
     }
+
+    function setFogTool(tool) {
+        currentFogTool = currentFogTool === tool ? null : tool;
+        document.querySelectorAll('.fog-btn').forEach(b => b.classList.remove('active'));
+        if (currentFogTool === 'paint')  document.getElementById('btn-fog-paint').classList.add('active');
+        if (currentFogTool === 'reveal') document.getElementById('btn-fog-reveal').classList.add('active');
+        // Deselect main tool when fog tool active, and vice versa
+        if (currentFogTool) { currentTool = null; document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active')); canvas.classList.remove('drawing'); }
+    }
+
+    // Fog tool mouse handling directly on viewport
+    viewport.addEventListener('mousedown', e => {
+        if (e.button === 0 && currentFogTool) {
+            e.stopPropagation();
+            isFogPainting = true;
+            const pos = viewportToGrid(e.clientX, e.clientY);
+            applyFogBrush(pos.x, pos.y, currentFogTool === 'paint');
+        }
+    });
+
+    // Wire fog toolbar buttons
+    document.getElementById('btn-fill-fog')?.addEventListener('click', fillFog);
+    document.getElementById('btn-fog-paint')?.addEventListener('click', () => setFogTool('paint'));
+    document.getElementById('btn-fog-reveal')?.addEventListener('click', () => setFogTool('reveal'));
+    document.getElementById('fog-toggle')?.addEventListener('click', () => {
+        document.getElementById('fog-toolbar').classList.toggle('hidden');
+    });
 
     // ═══════════════════════════════════════════════════════════════════════════
     // GRID HELPERS
@@ -1539,12 +1610,6 @@
             window.pendingTextPosition = { x: pos.x, y: pos.y, color: drawColor }; return;
         }
 
-        if (currentTool === 'fog' || currentTool === 'reveal') {
-            isDrawing = true;
-            applyFogBrush(pos.x, pos.y, currentTool === 'fog');
-            return;
-        }
-
         isDrawing = true; drawStartX = pos.x; drawStartY = pos.y;
         // Snapshot canvas state before this stroke for undo
         canvasSnapshotBeforeDraw = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -1569,11 +1634,6 @@
 
     canvas.addEventListener('mousemove', e => {
         if (!isDrawing || !currentTool) return;
-        if (currentTool === 'fog' || currentTool === 'reveal') {
-            const pos = viewportToGrid(e.clientX, e.clientY);
-            applyFogBrush(pos.x, pos.y, currentTool === 'fog');
-            return;
-        }
         if (drawingFrameId) return;
         drawingFrameId = requestAnimationFrame(() => {
             drawingFrameId = null;
@@ -1603,7 +1663,6 @@
 
     canvas.addEventListener('mouseup', e => {
         if (!isDrawing || !currentTool) return;
-        if (currentTool === 'fog' || currentTool === 'reveal') { isDrawing = false; return; }
         const pos = viewportToGrid(e.clientX, e.clientY);
 
         if (currentTool === 'eraser') {
@@ -1641,7 +1700,11 @@
     // UNIFIED DRAG / RESIZE / ROTATE  (window-level so cursor leaving viewport doesn't break it)
     // ═══════════════════════════════════════════════════════════════════════════
     window.addEventListener('mousemove', e => {
-        // Rotate
+        // Fog drag
+        if (isFogPainting && currentFogTool) {
+            const pos = viewportToGrid(e.clientX, e.clientY);
+            applyFogBrush(pos.x, pos.y, currentFogTool === 'paint');
+        }
         if (isRotating && selectedObject) {
             const angle = Math.atan2(e.clientY-rotateCenterY, e.clientX-rotateCenterX)*180/Math.PI;
             selectedObject.data.rotation = rotateStartObjAngle + (angle-rotateStartAngle);
@@ -1735,6 +1798,8 @@
     window.addEventListener('mouseup', e => {
         if (e.button !== 0) return;
 
+        if (isFogPainting) { isFogPainting = false; return; }
+
         if (isRotating) {
             isRotating = false;
             // Broadcast final rotation
@@ -1782,7 +1847,7 @@
     // WIRE UP ALL BUTTONS (replaces removed inline onclick handlers)
     // ═══════════════════════════════════════════════════════════════════════════
     // Tool buttons — add data-tool attribute so setTool can find them
-    const toolMap = { 'btn-pen':'pen', 'btn-line':'line', 'btn-circle':'circle', 'btn-triangle':'triangle', 'btn-text':'text', 'btn-eraser':'eraser', 'btn-fog':'fog', 'btn-reveal':'reveal' };
+    const toolMap = { 'btn-pen':'pen', 'btn-line':'line', 'btn-circle':'circle', 'btn-triangle':'triangle', 'btn-text':'text', 'btn-eraser':'eraser' };
     Object.entries(toolMap).forEach(([id, tool]) => {
         const btn = document.getElementById(id);
         if (btn) { btn.dataset.tool = tool; btn.addEventListener('click', () => setTool(tool)); }
