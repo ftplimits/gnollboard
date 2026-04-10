@@ -48,8 +48,6 @@
         .tool-btn { background: var(--parchment-dark); border: 2px solid var(--ink-medium); border-radius: 6px; padding: 7px 10px; font-family: var(--font-serif); font-size: 15px; font-weight: 600; color: var(--ink-dark); cursor: pointer; transition: all 0.2s; min-width: 34px; text-align: center; }
         .tool-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
         .tool-btn.active { background: var(--accent); color: white; border-color: var(--accent-hover); }
-        .tool-btn.clear-btn { background: #a07850; color: white; border-color: #7a5c38; }
-        .tool-btn.clear-btn:hover { background: #8b6540; }
         .divider { width: 2px; height: 28px; background: var(--ink-medium); opacity: 0.3; flex-shrink: 0; }
         .color-picker { display: flex; gap: 5px; align-items: center; }
         .color-swatch { width: 22px; height: 22px; border: 2px solid var(--ink-dark); border-radius: 3px; cursor: pointer; transition: transform 0.15s; flex-shrink: 0; }
@@ -184,15 +182,15 @@
             <div class="color-swatch"        id="sw-red"   style="background:#cc0000" data-color="#cc0000"></div>
             <div class="color-swatch"        id="sw-green" style="background:#1e4d2b" data-color="#1e4d2b"></div>
             <div class="color-swatch"        id="sw-blue"  style="background:#1a4d7a" data-color="#1a4d7a"></div>
-            <div class="color-swatch"        id="sw-white" style="background:#ffffff;border:1px solid #666" data-color="#ffffff"></div>
+            <div class="color-swatch"        id="sw-orange" style="background:#cc6600" data-color="#cc6600"></div>
+            <div class="color-swatch"        id="sw-gray"   style="background:#888888" data-color="#888888"></div>
+            <div class="color-swatch"        id="sw-white"  style="background:#ffffff;border:1px solid #666" data-color="#ffffff"></div>
         </div>
         <div class="divider"></div>
         <button class="tool-btn" id="btn-undo" title="Undo (Ctrl+Z)">↩</button>
         <button class="tool-btn" id="btn-redo" title="Redo (Ctrl+Y)">↪</button>
         <div class="divider"></div>
         <button class="tool-btn" id="btn-icons" title="Icons" style="padding:4px 6px;"><img src="./icons/wooden-door.webp" style="width:22px;height:22px;display:block;pointer-events:none;"></button>
-        <div class="divider"></div>
-        <button class="tool-btn clear-btn" id="btn-clear" title="Clear Drawings">🗑️</button>
     </div>
 
     <div id="toolbar-toggle">▲ tools</div>
@@ -1561,8 +1559,6 @@
         isDrawing=false; penPath=[];
     });
 
-    function clearDrawings() {
-        if (confirm('Clear all drawings?')) ctx.clearRect(0,0,canvas.width,canvas.height);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1720,7 +1716,6 @@
     document.getElementById('bold-toggle')?.addEventListener('click', toggleBold);
     document.getElementById('btn-icons')?.addEventListener('click', toggleIconPalette);
     document.getElementById('btn-close-palette')?.addEventListener('click', toggleIconPalette);
-    document.getElementById('btn-clear')?.addEventListener('click', clearDrawings);
     document.getElementById('btn-undo')?.addEventListener('click', doUndo);
     document.getElementById('btn-redo')?.addEventListener('click', doRedo);
     document.getElementById('toolbar-toggle')?.addEventListener('click', toggleToolbar);
