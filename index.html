@@ -792,7 +792,7 @@
 
             case 'fog_fill':
                 fogCtx.fillStyle = 'rgba(0,0,0,0.92)';
-                fogCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
+                fogCtx.fillRect(FOG_OFFSET, FOG_OFFSET, fogCanvas.width - FOG_OFFSET, fogCanvas.height - FOG_OFFSET);
                 fogCells.clear();
                 for (let cx = 0; cx < 100; cx++)
                     for (let cy = 0; cy < 100; cy++)
@@ -1065,18 +1065,18 @@
     const fogCanvas = document.getElementById('fog-canvas');
     const fogCtx    = fogCanvas.getContext('2d');
     const CELL      = 50;   // must match grid tile size exactly
-    let fogCells    = new Set(); // "cx,cy" — cells that ARE fogged (black)
-    let currentFogTool = null;  // 'paint' | 'reveal' | null
+    const FOG_OFFSET = 8;   // matches grid-background border width so cells align
+    let fogCells    = new Set();
+    let currentFogTool = null;
     let isFogPainting  = false;
 
     function drawFogCell(cx, cy) {
-        // Pixel-perfect alignment: cell (cx,cy) = pixels [cx*50 .. (cx+1)*50]
         fogCtx.fillStyle = 'rgba(0,0,0,0.92)';
-        fogCtx.fillRect(cx * CELL, cy * CELL, CELL, CELL);
+        fogCtx.fillRect(cx * CELL + FOG_OFFSET, cy * CELL + FOG_OFFSET, CELL, CELL);
     }
 
     function eraseFogCell(cx, cy) {
-        fogCtx.clearRect(cx * CELL, cy * CELL, CELL, CELL);
+        fogCtx.clearRect(cx * CELL + FOG_OFFSET, cy * CELL + FOG_OFFSET, CELL, CELL);
     }
 
     function applyFogBrush(gridX, gridY, painting) {
@@ -1100,7 +1100,7 @@
 
     function fillFog() {
         fogCtx.fillStyle = 'rgba(0,0,0,0.92)';
-        fogCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
+        fogCtx.fillRect(FOG_OFFSET, FOG_OFFSET, fogCanvas.width - FOG_OFFSET, fogCanvas.height - FOG_OFFSET);
         fogCells.clear();
         for (let cx = 0; cx < 100; cx++)
             for (let cy = 0; cy < 100; cy++)
