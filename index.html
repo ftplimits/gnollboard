@@ -1276,27 +1276,6 @@
         ctx.closePath();
     }
 
-    // Measure tool viewport events
-    viewport.addEventListener('mousedown', e => {
-        if (e.button === 0 && measureActive && !currentFogTool) {
-            e.stopPropagation();
-            const pos = viewportToGrid(e.clientX, e.clientY);
-            measureStart = pos; measureEnd = pos;
-        }
-    });
-    window.addEventListener('mousemove', e => {
-        if (measureActive && measureStart) {
-            measureEnd = viewportToGrid(e.clientX, e.clientY);
-            drawMeasure(measureStart.x, measureStart.y, measureEnd.x, measureEnd.y);
-        }
-    });
-    window.addEventListener('mouseup', e => {
-        if (e.button === 0 && measureActive && measureStart) {
-            // Keep the last measurement visible until next click or toggle
-            measureStart = null;
-        }
-    });
-
     document.getElementById('measure-toggle')?.addEventListener('click', toggleMeasure);
     function viewportToGrid(cx, cy) {
         const rect = gridContainer.getBoundingClientRect();
@@ -1854,6 +1833,11 @@
     // UNIFIED DRAG / RESIZE / ROTATE  (window-level so cursor leaving viewport doesn't break it)
     // ═══════════════════════════════════════════════════════════════════════════
     window.addEventListener('mousemove', e => {
+        // Measure drag
+        if (measureActive && measureStart) {
+            const pos = viewportToGrid(e.clientX, e.clientY);
+            drawMeasure(measureStart.x, measureStart.y, pos.x, pos.y);
+        }
         // Fog drag
         if (isFogPainting && currentFogTool) {
             const pos = viewportToGrid(e.clientX, e.clientY);
@@ -1949,10 +1933,20 @@
         }
     });
 
+    window.addEventListener('mousedown', e => {
+        if (e.button === 0 && measureActive) {
+            const pos = viewportToGrid(e.clientX, e.clientY);
+            measureStart = pos;
+        }
+    }, true); // capture phase so it fires before any stopPropagation
+
     window.addEventListener('mouseup', e => {
         if (e.button !== 0) return;
 
         if (isFogPainting) { isFogPainting = false; redrawFog(); return; }
+
+        // Freeze measurement on release (stays visible until next click)
+        if (measureActive && measureStart) { measureStart = null; return; }
 
         if (isRotating) {
             isRotating = false;
