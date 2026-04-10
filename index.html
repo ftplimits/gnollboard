@@ -1218,13 +1218,13 @@
         const snap1 = snapToGrid(x1, y1);
         const snap2 = snapToGrid(x2, y2);
 
-        // Distance in cells (Chebyshev — diagonal counts as 1 square like D&D/OSR)
+        // Distance in cells (Chebyshev — diagonal = 1 square)
         const dcx = Math.abs(Math.round((snap2.x - snap1.x) / 50));
         const dcy = Math.abs(Math.round((snap2.y - snap1.y) / 50));
         const cells = Math.max(dcx, dcy);
         const feet  = cells * 5;
 
-        // Draw line
+        // Draw line between snapped points
         measureCtx.save();
         measureCtx.strokeStyle = 'rgba(255,200,50,0.9)';
         measureCtx.lineWidth   = 2 / zoom;
@@ -1236,7 +1236,7 @@
         measureCtx.stroke();
         measureCtx.setLineDash([]);
 
-        // Draw endpoint dots
+        // Endpoint dots on snapped positions
         measureCtx.fillStyle = 'rgba(255,200,50,0.95)';
         [snap1, snap2].forEach(p => {
             measureCtx.beginPath();
@@ -1946,7 +1946,7 @@
         if (isFogPainting) { isFogPainting = false; redrawFog(); return; }
 
         // Freeze measurement on release (stays visible until next click)
-        if (measureActive && measureStart) { measureStart = null; }
+        if (measureActive && measureStart) { clearMeasure(); }
 
         if (isRotating) {
             isRotating = false;
