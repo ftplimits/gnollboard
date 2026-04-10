@@ -1191,8 +1191,8 @@
     // ═══════════════════════════════════════════════════════════════════════════
     function getObjSize(obj) {
         if (obj.w && obj.h) return { w: obj.w, h: obj.h };
-        const m = { small: obj.type==='token'?50:50, medium:100, large:150 };
-        const px = m[obj.size||'small']||50;
+        const m = { small: obj.type==='token'?49:50, medium:100, large:150 };
+        const px = m[obj.size||'small']||49;
         return { w: px, h: px };
     }
 
@@ -1209,8 +1209,8 @@
         } else {
             const { w, h } = getObjSize(obj);
             div.style.width  = w + 'px'; div.style.height = h + 'px';
-            div.style.left   = Math.round(obj.x - w/2 + 9) + 'px';
-            div.style.top    = Math.round(obj.y - h/2 + 9) + 'px';
+            div.style.left   = Math.round(obj.x - w/2 + 8) + 'px';
+            div.style.top    = Math.round(obj.y - h/2 + 8) + 'px';
             updateObjTransform(obj, div);
         }
     }
@@ -1392,7 +1392,7 @@
         const div = document.createElement('div');
         div.className = 'sticker'; div.setAttribute('data-id', sticker.id);
         sticker.type = 'sticker';
-        if (!sticker.w || !sticker.h) { const m={small:50,medium:100,large:150}; const px=m[sticker.size||'small']||50; sticker.w=px; sticker.h=px; }
+        if (!sticker.w || !sticker.h) { const m={small:49,medium:100,large:150}; const px=m[sticker.size||'small']||49; sticker.w=px; sticker.h=px; }
         const img = document.createElement('img');
         img.src = sticker.iconUrl; img.draggable = false; img.style.pointerEvents = 'none';
         img.style.width = '100%'; img.style.height = '100%';
@@ -1451,7 +1451,7 @@
         const div = document.createElement('div');
         div.className = 'token'; if (token.hidden) div.classList.add('hidden');
         div.dataset.id = token.id; token.type = 'token';
-        if (!token.w || !token.h) { const m={small:50,medium:100,large:150}; const px=m[token.size||'small']||50; token.w=px; token.h=px; }
+        if (!token.w || !token.h) { const m={small:49,medium:100,large:150}; const px=m[token.size||'small']||49; token.w=px; token.h=px; }
         div.style.backgroundImage = `url(${token.image})`;
         updateObjDiv(token, div);
 
