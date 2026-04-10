@@ -1071,7 +1071,7 @@
     let isFogPainting  = false;
 
     function drawFogCell(cx, cy) {
-        fogCtx.fillStyle = 'rgba(0,0,0,0.92)';
+        fogCtx.fillStyle = '#000000';
         fogCtx.fillRect(cx * CELL + FOG_OFFSET, cy * CELL + FOG_OFFSET, CELL, CELL);
     }
 
@@ -1084,8 +1084,8 @@
     function redrawFog() {
         fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
 
-        // 1 — paint all fogged cells solid black
-        fogCtx.fillStyle = 'rgba(0,0,0,0.92)';
+        // 1 — paint all fogged cells solid black first
+        fogCtx.fillStyle = '#000000';
         fogCells.forEach(key => {
             const [cx, cy] = key.split(',').map(Number);
             fogCtx.fillRect(cx * CELL + FOG_OFFSET, cy * CELL + FOG_OFFSET, CELL, CELL);
@@ -1093,17 +1093,16 @@
 
         if (!fogCells.size) return;
 
-        // 2 — composite a radial gradient over the fog mass
-        // Lighter in the center, darker toward edges — matches the parchment vignette feel
+        // 2 — composite a fully opaque radial gradient: dark gray center → black edges
         const cx = fogCanvas.width  / 2;
         const cy = fogCanvas.height / 2;
         const r  = Math.max(fogCanvas.width, fogCanvas.height) * 0.65;
         const grad = fogCtx.createRadialGradient(cx, cy, 0, cx, cy, r);
-        grad.addColorStop(0,   'rgba(0,0,0,0)');       // transparent center
-        grad.addColorStop(0.5, 'rgba(0,0,0,0.08)');
-        grad.addColorStop(1,   'rgba(0,0,0,0.38)');    // darker at edges
+        grad.addColorStop(0,   '#1a1a1a');  // dark gray center
+        grad.addColorStop(0.5, '#0d0d0d');
+        grad.addColorStop(1,   '#000000');  // pure black edges
 
-        // Only apply gradient where fog cells exist (source-atop)
+        // source-atop: gradient only paints where fog cells already exist
         fogCtx.globalCompositeOperation = 'source-atop';
         fogCtx.fillStyle = grad;
         fogCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
