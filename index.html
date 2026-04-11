@@ -1503,14 +1503,22 @@
     }
 
     function buildSavePayload() {
+        // Encode fog as a bitmask — 100×100 = 10000 bits = 1250 bytes → ~1.6KB base64
+        const bits = new Uint8Array(1250);
+        fogCells.forEach(key => {
+            const [cx, cy] = key.split(',').map(Number);
+            const i = cy * 100 + cx;
+            bits[i >> 3] |= (1 << (i & 7));
+        });
+        const fogB64 = btoa(String.fromCharCode(...bits));
+
         return {
             tokens:     tokens.map(t => ({ ...t })),
             stickers:   stickers.map(s => ({ ...s })),
             shapes:     shapes.map(s => ({ ...s })),
             textLabels: textLabels.map(t => ({ ...t })),
             mapImages:  mapImages.filter(m => m.locked && m.image).map(m => ({ ...m })),
-            // Compact fog storage: "cx,cy|cx,cy|..." saves ~60% vs array of objects
-            fogCells:   [...fogCells].join('|')
+            fogBitmask: fogB64
         };
     }
 
@@ -1526,8 +1534,19 @@
         (data.shapes     ||[]).forEach(s=>{shapes.push(s);renderShape(s);});
         (data.textLabels ||[]).forEach(t=>{textLabels.push(t);renderTextLabel(t);});
         (data.mapImages  ||[]).forEach(m=>{mapImages.push(m);renderMapImage(m);});
-        // Handle both compact string format "cx,cy|cx,cy" and legacy array format [{cx,cy}]
-        if (data.fogCells) {
+        // Handle bitmask (new), compact string, or legacy array format
+        if (data.fogBitmask) {
+            const raw  = atob(data.fogBitmask);
+            const bits = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; i++) bits[i] = raw.charCodeAt(i);
+            const cells = [];
+            for (let i = 0; i < 10000; i++) {
+                if (bits[i >> 3] & (1 << (i & 7))) {
+                    cells.push({ cx: i % 100, cy: Math.floor(i / 100) });
+                }
+            }
+            applyFogSnapshot(cells);
+        } else if (data.fogCells) {
             if (typeof data.fogCells === 'string') {
                 const cells = data.fogCells ? data.fogCells.split('|').map(k => { const [cx,cy]=k.split(',').map(Number); return {cx,cy}; }) : [];
                 applyFogSnapshot(cells);
