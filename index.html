@@ -100,6 +100,57 @@
         .shape-obj.selected { outline: 2px dashed rgba(139,69,19,0.6); outline-offset: 4px; pointer-events: auto; }
         .shape-obj.dragging { cursor: grabbing; z-index: 300; }
 
+        /* ── Save / Load UI ── */
+        #save-load-btn {
+            position: fixed; top: 12px; left: 68px; z-index: 1001;
+            background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px; padding: 6px 10px; color: #ccc; font-family: var(--font-serif);
+            font-size: 13px; cursor: pointer; backdrop-filter: blur(4px); user-select: none;
+        }
+        #save-load-btn:hover { background: rgba(60,60,60,0.8); color: white; }
+
+        .sl-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+            display: flex; align-items: center; justify-content: center; z-index: 9000;
+        }
+        .sl-overlay.hidden { display: none; }
+        .sl-panel {
+            background: #1e1e1e; border: 2px solid rgba(255,255,255,0.15);
+            border-radius: 10px; padding: 24px; width: 360px; max-height: 80vh;
+            overflow-y: auto; font-family: var(--font-serif); color: #ddd;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+        .sl-panel h3 { margin: 0 0 16px; font-size: 18px; color: #e0d5c5; }
+        .sl-panel input[type=text] {
+            width: 100%; padding: 8px 10px; background: #111; border: 1px solid #444;
+            border-radius: 5px; color: white; font-family: var(--font-serif); font-size: 15px;
+            margin-bottom: 12px; box-sizing: border-box;
+        }
+        .sl-row {
+            display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+            background: rgba(255,255,255,0.04); border-radius: 6px; margin-bottom: 6px;
+        }
+        .sl-row .sl-name { flex: 1; font-size: 14px; color: #ccc; }
+        .sl-row .sl-date { font-size: 11px; color: #666; }
+        .sl-row button {
+            padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer;
+            font-family: var(--font-serif); font-size: 12px;
+        }
+        .sl-load-btn { background: #2a4a6a; color: white; }
+        .sl-load-btn:hover { background: #3a6a9a; }
+        .sl-del-btn  { background: #5a1a1a; color: #f88; }
+        .sl-del-btn:hover  { background: #8a2020; }
+        .sl-action-row { display: flex; gap: 8px; margin-top: 12px; }
+        .sl-action-row button {
+            flex: 1; padding: 8px; border: none; border-radius: 5px; cursor: pointer;
+            font-family: var(--font-serif); font-size: 14px;
+        }
+        .sl-confirm { background: #8b4513; color: white; }
+        .sl-confirm:hover { background: #a0522d; }
+        .sl-cancel  { background: #333; color: #aaa; }
+        .sl-cancel:hover  { background: #444; }
+        .sl-status { font-size: 12px; color: #888; margin-top: 8px; text-align: center; min-height: 16px; }
+
         /* ── Measure tool ── */
         #measure-toggle {
             position: fixed; top: 12px; right: 12px; z-index: 1001;
@@ -184,7 +235,34 @@
 </head>
 <body>
     <img id="vtt-logo" src="./icons/Logo.webp" alt="Logo">
+    <button id="btn-save" title="Save Game" style="position:fixed;top:12px;left:68px;z-index:1001;background:rgba(42,42,42,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:6px 10px;color:#ccc;font-family:var(--font-serif);font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">💾 Save</button>
+    <button id="btn-load" title="Load Game" style="position:fixed;top:12px;left:130px;z-index:1001;background:rgba(42,42,42,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:6px 10px;color:#ccc;font-family:var(--font-serif);font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">📂 Load</button>
     <button id="measure-toggle" title="Measure Tool">📏 Measure</button>
+
+    <!-- Save dialog -->
+    <div id="save-dialog" class="sl-overlay hidden">
+        <div class="sl-panel">
+            <h3>💾 Save Game</h3>
+            <input type="text" id="save-name-input" placeholder="Enter save name..." maxlength="40">
+            <div id="save-status" class="sl-status"></div>
+            <div class="sl-action-row">
+                <button class="sl-confirm" id="save-confirm-btn">Save</button>
+                <button class="sl-cancel"  id="save-cancel-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load dialog -->
+    <div id="load-dialog" class="sl-overlay hidden">
+        <div class="sl-panel">
+            <h3>📂 Load Game</h3>
+            <div id="load-slots"></div>
+            <div id="load-status" class="sl-status"></div>
+            <div class="sl-action-row">
+                <button class="sl-cancel" id="load-cancel-btn">Close</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Floating player name overlay -->
     <div id="player-overlay">
@@ -344,7 +422,9 @@
     // ═══════════════════════════════════════════════════════════════════════════
     // P2P STATE
     // ═══════════════════════════════════════════════════════════════════════════
-    const CLIENT_ID = '1491605237109100574';
+    const CLIENT_ID    = '1491605237109100574';
+    const JSONBIN_KEY  = '$2a$10$Et2PJHIivNU8.4G4kiFPm.MLBHuLnostN1BrsG4ewcogrRpEIcPH2';
+    const JSONBIN_BASE = 'https://api.jsonbin.io/v3';
     let inDiscord   = false;
 
     let peer = null;
@@ -1207,6 +1287,190 @@
     document.getElementById('btn-fog-reveal')?.addEventListener('click', () => setFogTool('reveal'));
     document.getElementById('fog-toggle')?.addEventListener('click', () => {
         document.getElementById('fog-toolbar').classList.toggle('hidden');
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SAVE / LOAD SYSTEM  (JSONBin.io — 12 named slots per channel)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Index bin ID is stored in localStorage keyed to channel — one index per channel
+    function indexKey() {
+        const params = new URLSearchParams(window.location.search);
+        return 'gnoll_index_' + (params.get('channel_id') || 'browser');
+    }
+
+    async function getIndex() {
+        const binId = localStorage.getItem(indexKey());
+        if (!binId) return [];
+        try {
+            const r = await fetch(`${JSONBIN_BASE}/b/${binId}/latest`, {
+                headers: { 'X-Master-Key': JSONBIN_KEY }
+            });
+            const j = await r.json();
+            return Array.isArray(j.record) ? j.record : [];
+        } catch { return []; }
+    }
+
+    async function setIndex(slots) {
+        const binId = localStorage.getItem(indexKey());
+        if (!binId) {
+            // Create new index bin
+            const r = await fetch(`${JSONBIN_BASE}/b`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY, 'X-Bin-Private': 'true' },
+                body: JSON.stringify(slots)
+            });
+            const j = await r.json();
+            localStorage.setItem(indexKey(), j.metadata.id);
+        } else {
+            await fetch(`${JSONBIN_BASE}/b/${binId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY },
+                body: JSON.stringify(slots)
+            });
+        }
+    }
+
+    function buildSavePayload() {
+        return {
+            tokens:     tokens.map(t => ({ ...t })),
+            stickers:   stickers.map(s => ({ ...s })),
+            shapes:     shapes.map(s => ({ ...s })),
+            textLabels: textLabels.map(t => ({ ...t })),
+            fogCells:   [...fogCells].map(key => { const [cx,cy]=key.split(',').map(Number); return {cx,cy}; })
+        };
+    }
+
+    function applySavePayload(data) {
+        // Clear existing state
+        tokensContainer.innerHTML = ''; stickersContainer.innerHTML = '';
+        shapesContainer.innerHTML = ''; document.getElementById('text-container').innerHTML = '';
+        tokens = []; stickers = []; shapes = []; textLabels = [];
+        deselectObject();
+        (data.tokens     || []).forEach(t => { tokens.push(t);      renderToken(t); });
+        (data.stickers   || []).forEach(s => { stickers.push(s);    renderSticker(s); });
+        (data.shapes     || []).forEach(s => { shapes.push(s);      renderShape(s); });
+        (data.textLabels || []).forEach(t => { textLabels.push(t);  renderTextLabel(t); });
+        if (data.fogCells) applyFogSnapshot(data.fogCells);
+        if (tokens.length)     nextTokenId   = Math.max(...tokens.map(t=>t.id))   + 1;
+        if (stickers.length)   nextStickerId = Math.max(...stickers.map(s=>s.id)) + 1;
+        if (shapes.length)     nextShapeId   = Math.max(...shapes.map(s=>s.id))   + 1;
+        if (textLabels.length) nextTextId    = Math.max(...textLabels.map(t=>t.id)) + 1;
+    }
+
+    // ── Save dialog ──────────────────────────────────────────────────────────
+    document.getElementById('btn-save').addEventListener('click', () => {
+        document.getElementById('save-name-input').value = '';
+        document.getElementById('save-status').textContent = '';
+        document.getElementById('save-dialog').classList.remove('hidden');
+        document.getElementById('save-name-input').focus();
+    });
+
+    document.getElementById('btn-load').addEventListener('click', openLoadDialog);
+
+    document.getElementById('save-cancel-btn').addEventListener('click', () => {
+        document.getElementById('save-dialog').classList.add('hidden');
+    });
+
+    document.getElementById('save-confirm-btn').addEventListener('click', async () => {
+        const name = document.getElementById('save-name-input').value.trim();
+        if (!name) { document.getElementById('save-status').textContent = 'Please enter a name.'; return; }
+        const status = document.getElementById('save-status');
+        status.textContent = 'Saving...';
+        try {
+            // Create a new bin for this save
+            const payload = buildSavePayload();
+            const r = await fetch(`${JSONBIN_BASE}/b`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY, 'X-Bin-Private': 'true', 'X-Bin-Name': name },
+                body: JSON.stringify(payload)
+            });
+            const j = await r.json();
+            const binId = j.metadata.id;
+
+            // Update index — keep max 12 slots, newest first
+            let slots = await getIndex();
+            slots.unshift({ name, binId, savedAt: new Date().toLocaleString() });
+            if (slots.length > 12) slots = slots.slice(0, 12);
+            await setIndex(slots);
+
+            status.textContent = '✓ Saved!';
+            setTimeout(() => document.getElementById('save-dialog').classList.add('hidden'), 800);
+        } catch(e) {
+            status.textContent = 'Save failed. Check connection.';
+            console.error(e);
+        }
+    });
+
+    // Save on Enter key in name input
+    document.getElementById('save-name-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('save-confirm-btn').click();
+        if (e.key === 'Escape') document.getElementById('save-dialog').classList.add('hidden');
+    });
+
+    // ── Load dialog ──────────────────────────────────────────────────────────
+    async function openLoadDialog() {
+        const status = document.getElementById('load-status');
+        const slots  = document.getElementById('load-slots');
+        status.textContent = 'Loading saves...';
+        slots.innerHTML = '';
+        document.getElementById('load-dialog').classList.remove('hidden');
+
+        const index = await getIndex();
+        status.textContent = '';
+        if (!index.length) { slots.innerHTML = '<div style="color:#666;font-size:13px;padding:8px 0">No saves found.</div>'; return; }
+
+        index.forEach((slot, i) => {
+            const row = document.createElement('div');
+            row.className = 'sl-row';
+            row.innerHTML = `
+                <div style="flex:1">
+                    <div class="sl-name">${slot.name}</div>
+                    <div class="sl-date">${slot.savedAt || ''}</div>
+                </div>`;
+            const loadBtn = document.createElement('button');
+            loadBtn.className = 'sl-load-btn'; loadBtn.textContent = 'Load';
+            loadBtn.addEventListener('click', async () => {
+                status.textContent = 'Loading...';
+                try {
+                    const r = await fetch(`${JSONBIN_BASE}/b/${slot.binId}/latest`, {
+                        headers: { 'X-Master-Key': JSONBIN_KEY }
+                    });
+                    const j = await r.json();
+                    applySavePayload(j.record);
+                    status.textContent = `✓ Loaded "${slot.name}"`;
+                    setTimeout(() => document.getElementById('load-dialog').classList.add('hidden'), 800);
+                } catch(e) {
+                    status.textContent = 'Load failed.';
+                    console.error(e);
+                }
+            });
+            const delBtn = document.createElement('button');
+            delBtn.className = 'sl-del-btn'; delBtn.textContent = '✕';
+            delBtn.addEventListener('click', async () => {
+                if (!confirm(`Delete "${slot.name}"?`)) return;
+                try {
+                    await fetch(`${JSONBIN_BASE}/b/${slot.binId}`, { method: 'DELETE', headers: { 'X-Master-Key': JSONBIN_KEY } });
+                    let idx = await getIndex();
+                    idx.splice(i, 1);
+                    await setIndex(idx);
+                    openLoadDialog();
+                } catch(e) { status.textContent = 'Delete failed.'; }
+            });
+            row.appendChild(loadBtn);
+            row.appendChild(delBtn);
+            slots.appendChild(row);
+        });
+    }
+
+    document.getElementById('load-cancel-btn').addEventListener('click', () => {
+        document.getElementById('load-dialog').classList.add('hidden');
+    });
+    // Click overlay to close
+    ['save-dialog','load-dialog'].forEach(id => {
+        document.getElementById(id).addEventListener('click', e => {
+            if (e.target === document.getElementById(id)) document.getElementById(id).classList.add('hidden');
+        });
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
