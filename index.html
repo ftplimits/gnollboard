@@ -164,6 +164,8 @@
 
         #fog-toolbar { display: none; }
         #fog-toggle  { display: none; }
+        #btn-save    { display: none; }
+        #btn-load    { display: none; }
         #fog-toolbar {
             position: fixed; right: 0; top: 50%; transform: translateY(-50%);
             background: rgba(30,30,30,0.55); border: 2px solid rgba(255,255,255,0.15);
@@ -915,12 +917,15 @@
             `<div class="player-name-tag" style="color:${p.color}">● ${p.name}${p.me ? ' ✦' : ''}</div>`
         ).join('');
 
-        // Fog tools visible only to host
-        const showFog = isHost ? 'flex' : 'none';
+        // Fog tools and save/load visible only to host
         const fogTb  = document.getElementById('fog-toolbar');
         const fogTog = document.getElementById('fog-toggle');
-        if (fogTb)  fogTb.style.display  = isHost ? 'flex' : 'none';
-        if (fogTog) fogTog.style.display = isHost ? 'block' : 'none';
+        const btnSave = document.getElementById('btn-save');
+        const btnLoad = document.getElementById('btn-load');
+        if (fogTb)   fogTb.style.display   = isHost ? 'flex'  : 'none';
+        if (fogTog)  fogTog.style.display  = isHost ? 'block' : 'none';
+        if (btnSave) btnSave.style.display = isHost ? ''      : 'none';
+        if (btnLoad) btnLoad.style.display = isHost ? ''      : 'none';
     }
 
     function toggleP2PPanel() {
@@ -1191,7 +1196,7 @@
     let isFogPainting  = false;
 
     function drawFogCell(cx, cy) {
-        fogCtx.fillStyle = '#000000';
+        fogCtx.fillStyle = isHost ? 'rgba(0,0,0,0.5)' : '#000000';
         fogCtx.fillRect(cx * CELL + FOG_OFFSET, cy * CELL + FOG_OFFSET, CELL, CELL);
     }
 
@@ -1204,8 +1209,10 @@
     function redrawFog() {
         fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
 
-        // 1 — paint all fogged cells solid black first
-        fogCtx.fillStyle = '#000000';
+        // Host sees 50% opacity so they can see through fog; players see solid black
+        const baseAlpha = isHost ? 0.5 : 1.0;
+
+        fogCtx.fillStyle = `rgba(0,0,0,${baseAlpha})`;
         fogCells.forEach(key => {
             const [cx, cy] = key.split(',').map(Number);
             fogCtx.fillRect(cx * CELL + FOG_OFFSET, cy * CELL + FOG_OFFSET, CELL, CELL);
@@ -1213,16 +1220,21 @@
 
         if (!fogCells.size) return;
 
-        // 2 — composite a fully opaque radial gradient: dark gray center → black edges
+        // Radial gradient: dark gray center → black edges, composited over fog cells
         const cx = fogCanvas.width  / 2;
         const cy = fogCanvas.height / 2;
         const r  = Math.max(fogCanvas.width, fogCanvas.height) * 0.65;
         const grad = fogCtx.createRadialGradient(cx, cy, 0, cx, cy, r);
-        grad.addColorStop(0,   '#1a1a1a');  // dark gray center
-        grad.addColorStop(0.5, '#0d0d0d');
-        grad.addColorStop(1,   '#000000');  // pure black edges
+        if (isHost) {
+            grad.addColorStop(0,   'rgba(20,20,20,0)');
+            grad.addColorStop(0.5, 'rgba(10,10,10,0.1)');
+            grad.addColorStop(1,   'rgba(0,0,0,0.2)');
+        } else {
+            grad.addColorStop(0,   '#1a1a1a');
+            grad.addColorStop(0.5, '#0d0d0d');
+            grad.addColorStop(1,   '#000000');
+        }
 
-        // source-atop: gradient only paints where fog cells already exist
         fogCtx.globalCompositeOperation = 'source-atop';
         fogCtx.fillStyle = grad;
         fogCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
