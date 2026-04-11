@@ -37,10 +37,11 @@
         #text-input-dialog button { font-family: var(--font-serif); font-size: 16px; padding: 6px 16px; margin-left: 8px; background: var(--saddle-brown); color: white; border: none; border-radius: 4px; cursor: pointer; }
         #text-input-dialog button:hover { background: #6d3510; }
         #toolbar {
+            display: none;
             position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
             background: rgba(81,81,81,0.50); border: 2px solid var(--ink-dark);
             border-radius: 8px 8px 0 0; padding: 10px 16px;
-            display: flex; flex-direction: row; gap: 10px; align-items: center;
+            flex-direction: row; gap: 10px; align-items: center;
             box-shadow: 0 -4px 12px rgba(0,0,0,0.2); z-index: 1000;
             backdrop-filter: blur(4px); transition: transform 0.25s ease;
         }
@@ -54,6 +55,7 @@
         .color-swatch:hover { transform: scale(1.15); }
         .color-swatch.active { border: 2px solid white; box-shadow: 0 0 6px rgba(255,255,255,0.9); transform: scale(1.2); }
         #toolbar-toggle {
+            display: none;
             position: fixed; left: 50%; transform: translateX(-50%);
             background: rgba(81,81,81,0.50); border: 2px solid var(--ink-dark);
             border-radius: 8px 8px 0 0; border-bottom: none;
@@ -162,21 +164,21 @@
         #measure-toggle:hover { background: rgba(60,60,60,0.8); color: white; }
         #measure-toggle.active { background: rgba(139,69,19,0.7); border-color: rgba(180,100,40,0.6); color: white; }
 
-        #fog-toolbar { display: none; }
-        #fog-toggle  { display: none; }
         #btn-save    { display: none; }
         #btn-load    { display: none; }
         #fog-toolbar {
+            display: none;
             position: fixed; right: 0; top: 50%; transform: translateY(-50%);
             background: rgba(30,30,30,0.55); border: 2px solid rgba(255,255,255,0.15);
             border-radius: 8px 0 0 8px; padding: 10px 8px;
-            display: flex; flex-direction: column; gap: 8px; align-items: center;
+            flex-direction: column; gap: 8px; align-items: center;
             z-index: 1000; backdrop-filter: blur(4px);
             box-shadow: -4px 0 12px rgba(0,0,0,0.3);
             transition: transform 0.25s ease;
         }
         #fog-toolbar.hidden { transform: translateY(-50%) translateX(100%); }
         #fog-toggle {
+            display: none;
             position: fixed; right: 0; top: calc(50% + 80px);
             background: rgba(30,30,30,0.55); border: 2px solid rgba(255,255,255,0.15);
             border-radius: 8px 0 0 8px; padding: 6px 4px;
@@ -486,7 +488,9 @@
     // When inside Discord, route PeerJS signaling through Discord's CSP proxy
     function getDiscordPeerConfig() {
         if (!inDiscord) return {};
-        return { host: window.location.hostname, path: '/peerjs', port: 443, secure: true };
+        const cfg = { host: window.location.hostname, path: '/peerjs', port: 443, secure: true };
+        console.log('PeerJS config:', JSON.stringify(cfg));
+        return cfg;
     }
 
     function initPeer(onReady, customId = undefined) {
@@ -554,9 +558,9 @@
 
     async function startDiscordSession(instanceId) {
         myName = generateName();
-        // Sanitise instanceId → valid PeerJS custom ID (alphanumeric, max 30 chars)
         const roomCode = instanceId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
         const config   = { debug: 0, ...getDiscordPeerConfig() };
+        console.log('startDiscordSession — roomCode:', roomCode, '| hostname:', window.location.hostname, '| inDiscord:', inDiscord);
 
         setStatus('Connecting...', '#aaa');
 
@@ -917,15 +921,21 @@
             `<div class="player-name-tag" style="color:${p.color}">● ${p.name}${p.me ? ' ✦' : ''}</div>`
         ).join('');
 
-        // Fog tools and save/load visible only to host
-        const fogTb  = document.getElementById('fog-toolbar');
-        const fogTog = document.getElementById('fog-toggle');
+        // Fog tools, toolbar and save/load visible only to host
+        const fogTb   = document.getElementById('fog-toolbar');
+        const fogTog  = document.getElementById('fog-toggle');
+        const tb      = document.getElementById('toolbar');
+        const tbTog   = document.getElementById('toolbar-toggle');
         const btnSave = document.getElementById('btn-save');
         const btnLoad = document.getElementById('btn-load');
         if (fogTb)   fogTb.style.display   = isHost ? 'flex'  : 'none';
         if (fogTog)  fogTog.style.display  = isHost ? 'block' : 'none';
+        if (tb)      tb.style.display      = isHost ? 'flex'  : 'none';
+        if (tbTog)   tbTog.style.display   = isHost ? 'block' : 'none';
         if (btnSave) btnSave.style.display = isHost ? 'block' : 'none';
         if (btnLoad) btnLoad.style.display = isHost ? 'block' : 'none';
+        // Reposition toolbar toggle after toolbar becomes visible
+        if (isHost) { const tbEl = document.getElementById('toolbar'); if (tbEl && tbTog) tbTog.style.bottom = tbEl.offsetHeight + 'px'; }
     }
 
     function toggleP2PPanel() {
