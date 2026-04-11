@@ -169,6 +169,31 @@
             font-size: 13px; cursor: pointer; backdrop-filter: blur(4px);
         }
         #btn-center-view:hover { background: rgba(60,60,60,0.8); color: white; }
+        /* ── Name prompt ── */
+        #name-prompt {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+            display: flex; align-items: center; justify-content: center; z-index: 9998;
+        }
+        #name-prompt.hidden { display: none; }
+        #name-prompt-box {
+            background: #1e1e1e; border: 2px solid rgba(255,255,255,0.15);
+            border-radius: 10px; padding: 28px 32px; font-family: var(--font-serif);
+            color: #ddd; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            width: 320px;
+        }
+        #name-prompt-box h3 { margin: 0 0 6px; font-size: 20px; color: #e0d5c5; }
+        #name-prompt-box p  { margin: 0 0 18px; font-size: 13px; color: #888; }
+        #name-prompt-input {
+            width: 100%; padding: 9px 12px; background: #111; border: 1px solid #444;
+            border-radius: 5px; color: white; font-family: var(--font-serif); font-size: 16px;
+            margin-bottom: 14px; box-sizing: border-box; text-align: center;
+        }
+        #name-prompt-btn {
+            width: 100%; padding: 9px; background: #8b4513; color: white;
+            border: none; border-radius: 5px; font-family: var(--font-serif);
+            font-size: 15px; cursor: pointer;
+        }
+        #name-prompt-btn:hover { background: #a0522d; }
         #measure-toggle {
             position: fixed; top: 12px; right: 12px; z-index: 1001;
             background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
@@ -264,6 +289,16 @@
 <body>
     <img id="vtt-logo" src="./icons/Logo.webp" alt="Logo">
     <button id="btn-center-view" title="Sync all player views to yours">👁 Sync Views</button>
+
+    <!-- Name prompt -->
+    <div id="name-prompt" class="hidden">
+        <div id="name-prompt-box">
+            <h3>⚔ Welcome</h3>
+            <p>Enter your name for this session</p>
+            <input type="text" id="name-prompt-input" maxlength="24" placeholder="Your name...">
+            <button id="name-prompt-btn">Join Session</button>
+        </div>
+    </div>
     <button id="btn-save" title="Save Game">💾 Save</button>
     <button id="btn-load" title="Load Game">📂 Load</button>
     <button id="measure-toggle" title="Measure Tool">📏 Measure</button>
@@ -579,12 +614,31 @@
         discordReady();
         document.getElementById('p2p-manual-controls')?.style && (document.getElementById('p2p-manual-controls').style.display = 'none');
         document.getElementById('session-toggle-btn')?.style && (document.getElementById('session-toggle-btn').style.display = 'none');
-        document.getElementById('p2p-discord-status')?.style && (document.getElementById('p2p-discord-status').style.display  = 'block');
+        document.getElementById('p2p-discord-status')?.style && (document.getElementById('p2p-discord-status').style.display = 'block');
+
+        // Show name prompt before joining
+        const suggestedName = generateName();
+        const input = document.getElementById('name-prompt-input');
+        input.value = suggestedName;
+        document.getElementById('name-prompt').classList.remove('hidden');
+        input.focus(); input.select();
+
+        await new Promise(resolve => {
+            const confirm = () => {
+                const entered = input.value.trim();
+                myName = entered || suggestedName;
+                document.getElementById('name-prompt').classList.add('hidden');
+                resolve();
+            };
+            document.getElementById('name-prompt-btn').addEventListener('click', confirm);
+            input.addEventListener('keydown', e => { if (e.key === 'Enter') confirm(); });
+        });
+
         await startDiscordSession(instanceId);
     }
 
     async function startDiscordSession(instanceId) {
-        myName = generateName();
+        // myName already set by name prompt
         const roomCode = instanceId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
         const config   = { debug: 0, ...getDiscordPeerConfig() };
 
