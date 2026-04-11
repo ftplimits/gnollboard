@@ -616,8 +616,9 @@
         document.getElementById('session-toggle-btn')?.style && (document.getElementById('session-toggle-btn').style.display = 'none');
         document.getElementById('p2p-discord-status')?.style && (document.getElementById('p2p-discord-status').style.display = 'block');
 
-        // Show name prompt before joining
-        const suggestedName = generateName();
+        // Show name prompt — pre-fill from last session if available
+        const savedName    = localStorage.getItem('gnoll_player_name');
+        const suggestedName = savedName || generateName();
         const input = document.getElementById('name-prompt-input');
         input.value = suggestedName;
         document.getElementById('name-prompt').classList.remove('hidden');
@@ -627,6 +628,7 @@
             const confirm = () => {
                 const entered = input.value.trim();
                 myName = entered || suggestedName;
+                localStorage.setItem('gnoll_player_name', myName);
                 document.getElementById('name-prompt').classList.add('hidden');
                 resolve();
             };
