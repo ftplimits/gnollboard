@@ -287,6 +287,7 @@
         <div class="divider"></div>
         <button class="tool-btn" id="btn-pen"      data-tool="pen"      title="Pen">✏️</button>
         <button class="tool-btn" id="btn-line"     data-tool="line"     title="Line">╱</button>
+        <button class="tool-btn" id="btn-rect"     data-tool="rect"     title="Rectangle">▭</button>
         <button class="tool-btn" id="btn-circle"   data-tool="circle"   title="Circle">○</button>
         <button class="tool-btn" id="btn-triangle" data-tool="triangle" title="Triangle">△</button>
         <button class="tool-btn" id="btn-text"     data-tool="text"     title="Text">T</button>
@@ -2103,6 +2104,7 @@
                 const w=pos.x-drawStartX, h=pos.y-drawStartY;
                 ctx.globalCompositeOperation='source-over'; ctx.strokeStyle=drawColor; ctx.lineWidth=boldLines?12:3; ctx.setLineDash([5,5]);
                 if (currentTool==='line') { ctx.beginPath(); ctx.moveTo(drawStartX,drawStartY); ctx.lineTo(pos.x,pos.y); ctx.stroke(); }
+                else if (currentTool==='rect') { ctx.strokeRect(drawStartX,drawStartY,w,h); }
                 else if (currentTool==='circle') { const r=Math.sqrt(w*w+h*h)/2; ctx.beginPath(); ctx.arc(drawStartX+w/2,drawStartY+h/2,r,0,Math.PI*2); ctx.stroke(); }
                 else if (currentTool==='triangle') { ctx.beginPath(); ctx.moveTo(drawStartX+w/2,drawStartY); ctx.lineTo(drawStartX+w,drawStartY+h); ctx.lineTo(drawStartX,drawStartY+h); ctx.closePath(); ctx.stroke(); }
                 ctx.setLineDash([]);
@@ -2126,7 +2128,7 @@
             ctx.globalCompositeOperation='source-over'; ctx.strokeStyle=drawColor; ctx.lineWidth=boldLines?12:3; ctx.setLineDash([]);
             ctx.beginPath(); ctx.moveTo(drawStartX,drawStartY); ctx.lineTo(pos.x,pos.y); ctx.stroke();
             broadcast({ type:'line_commit', x1:drawStartX, y1:drawStartY, x2:pos.x, y2:pos.y, color:drawColor, lineWidth:boldLines?12:3 });
-        } else if (currentTool==='circle' || currentTool==='triangle') {
+        } else if (currentTool==='rect' || currentTool==='circle' || currentTool==='triangle') {
             if (savedImageData) { ctx.putImageData(savedImageData,0,0); savedImageData=null; }
             const rawW=pos.x-drawStartX, rawH=pos.y-drawStartY;
             addShape(currentTool, drawStartX+rawW/2, drawStartY+rawH/2, Math.abs(rawW), Math.abs(rawH), drawColor, boldLines?12:3);
@@ -2311,7 +2313,7 @@
     // WIRE UP ALL BUTTONS (replaces removed inline onclick handlers)
     // ═══════════════════════════════════════════════════════════════════════════
     // Tool buttons — add data-tool attribute so setTool can find them
-    const toolMap = { 'btn-pen':'pen', 'btn-line':'line', 'btn-circle':'circle', 'btn-triangle':'triangle', 'btn-text':'text', 'btn-eraser':'eraser' };
+    const toolMap = { 'btn-pen':'pen', 'btn-line':'line', 'btn-rect':'rect', 'btn-circle':'circle', 'btn-triangle':'triangle', 'btn-text':'text', 'btn-eraser':'eraser' };
     Object.entries(toolMap).forEach(([id, tool]) => {
         const btn = document.getElementById(id);
         if (btn) { btn.dataset.tool = tool; btn.addEventListener('click', () => setTool(tool)); }
