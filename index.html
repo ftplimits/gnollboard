@@ -1508,9 +1508,9 @@
             stickers:   stickers.map(s => ({ ...s })),
             shapes:     shapes.map(s => ({ ...s })),
             textLabels: textLabels.map(t => ({ ...t })),
-            // Only save locked maps — they have confirmed image data
             mapImages:  mapImages.filter(m => m.locked && m.image).map(m => ({ ...m })),
-            fogCells:   [...fogCells].map(key => { const [cx,cy]=key.split(',').map(Number); return {cx,cy}; })
+            // Compact fog storage: "cx,cy|cx,cy|..." saves ~60% vs array of objects
+            fogCells:   [...fogCells].join('|')
         };
     }
 
@@ -1526,7 +1526,15 @@
         (data.shapes     ||[]).forEach(s=>{shapes.push(s);renderShape(s);});
         (data.textLabels ||[]).forEach(t=>{textLabels.push(t);renderTextLabel(t);});
         (data.mapImages  ||[]).forEach(m=>{mapImages.push(m);renderMapImage(m);});
-        if (data.fogCells) applyFogSnapshot(data.fogCells);
+        // Handle both compact string format "cx,cy|cx,cy" and legacy array format [{cx,cy}]
+        if (data.fogCells) {
+            if (typeof data.fogCells === 'string') {
+                const cells = data.fogCells ? data.fogCells.split('|').map(k => { const [cx,cy]=k.split(',').map(Number); return {cx,cy}; }) : [];
+                applyFogSnapshot(cells);
+            } else {
+                applyFogSnapshot(data.fogCells);
+            }
+        }
         if (tokens.length)     nextTokenId   = Math.max(...tokens.map(t=>t.id))   + 1;
         if (stickers.length)   nextStickerId = Math.max(...stickers.map(s=>s.id)) + 1;
         if (shapes.length)     nextShapeId   = Math.max(...shapes.map(s=>s.id))   + 1;
