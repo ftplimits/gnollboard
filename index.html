@@ -20,11 +20,15 @@
         body { font-family: var(--font-serif); overflow: hidden; width: 100vw; height: 100vh; background: var(--parchment-light); cursor: default; user-select: none; position: relative; }
         body::before { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0.4; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E"); z-index: 0; }
         #viewport { width: 100%; height: 100%; overflow: hidden; position: relative; z-index: 1; background: #3a3a3a; }
-        #map-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; }
+        #map-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
         .map-image { position: absolute; cursor: move; pointer-events: auto; user-select: none; }
         .map-image.locked { cursor: default; pointer-events: none; }
         .map-image.selected { outline: 2px dashed rgba(139,69,19,0.6); outline-offset: 2px; }
-        #grid-background { position: absolute; width: 100%; height: 100%; border: 8px solid var(--ink-dark); box-sizing: border-box; background: url("data:image/svg+xml,%3Csvg width='50' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 0 Q 12 -0.3 25 0.2 Q 37 -0.4 50 0' stroke='%232a2522' stroke-width='1' fill='none' opacity='0.5'/%3E%3Cpath d='M 0 0 Q -0.4 12 0.3 25 Q -0.2 37 0 50' stroke='%232a2522' stroke-width='1' fill='none' opacity='0.5'/%3E%3C/svg%3E"), radial-gradient(circle at center, #d2cbbc, #7e7466); pointer-events: none; }
+        .map-lock-handle { position: absolute; pointer-events: auto; cursor: pointer; z-index: 11;
+            background: rgba(0,0,0,0.55); border-radius: 4px; padding: 3px 6px;
+            font-size: 14px; color: #fff; user-select: none; }
+        .map-lock-handle:hover { background: rgba(139,69,19,0.8); }
+        #grid-background { position: absolute; width: 100%; height: 100%; z-index: 1; border: 8px solid var(--ink-dark); box-sizing: border-box; background: url("data:image/svg+xml,%3Csvg width='50' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 0 Q 12 -0.3 25 0.2 Q 37 -0.4 50 0' stroke='%232a2522' stroke-width='1' fill='none' opacity='0.5'/%3E%3Cpath d='M 0 0 Q -0.4 12 0.3 25 Q -0.2 37 0 50' stroke='%232a2522' stroke-width='1' fill='none' opacity='0.5'/%3E%3C/svg%3E"), radial-gradient(circle at center, #d2cbbc, #7e7466); pointer-events: none; }
         #drawing-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; }
         #drawing-canvas.drawing { pointer-events: auto; }
         .token { position: absolute; border: none; border-radius: 0; cursor: move; background-size: cover; background-position: center; background-repeat: no-repeat; transition: opacity 0.2s; z-index: 200; }
@@ -685,8 +689,9 @@
             stickers:    stickers.map(s => ({ ...s })),
             shapes:      shapes.map(s => ({ ...s })),
             textLabels:  textLabels.map(t => ({ ...t })),
-            mapImages:   mapImages.map(m => ({ ...m })),
-            canvasData:  canvas.toDataURL('image/png'),
+            // Only send locked maps — unlocked ones have no image yet and are host-only
+            mapImages:   mapImages.filter(m => m.locked && m.image).map(m => ({ ...m })),
+            canvasData:  canvas.toDataURL('image/webp', 0.85),
             fogCellData: [...fogCells].map(key => { const [cx,cy] = key.split(',').map(Number); return {cx,cy}; })
         };
         conn.send(JSON.stringify(snap));
@@ -891,7 +896,12 @@
 
             case 'map_add': {
                 const m = msg.map;
-                mapImages.push(m); renderMapImage(m);
+                // Replace placeholder if exists, otherwise add fresh
+                const idx = mapImages.findIndex(e => e.id === m.id);
+                if (idx > -1) { mapImages[idx] = m; } else { mapImages.push(m); }
+                mapContainer.querySelector(`[data-id="${m.id}"]`)?.remove();
+                mapContainer.querySelector(`.map-lock-handle[data-map-id="${m.id}"]`)?.remove();
+                renderMapImage(m);
                 if (m.id >= nextMapId) nextMapId = m.id + 1;
                 break;
             }
@@ -1393,7 +1403,8 @@
             stickers:   stickers.map(s => ({ ...s })),
             shapes:     shapes.map(s => ({ ...s })),
             textLabels: textLabels.map(t => ({ ...t })),
-            mapImages:  mapImages.map(m => ({ ...m })),
+            // Only save locked maps — they have confirmed image data
+            mapImages:  mapImages.filter(m => m.locked && m.image).map(m => ({ ...m })),
             fogCells:   [...fogCells].map(key => { const [cx,cy]=key.split(',').map(Number); return {cx,cy}; })
         };
     }
@@ -1402,6 +1413,7 @@
         tokensContainer.innerHTML=''; stickersContainer.innerHTML='';
         shapesContainer.innerHTML=''; document.getElementById('text-container').innerHTML='';
         mapContainer.innerHTML='';
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         tokens=[]; stickers=[]; shapes=[]; textLabels=[]; mapImages=[];
         deselectObject();
         (data.tokens     ||[]).forEach(t=>{tokens.push(t);renderToken(t);});
@@ -1497,6 +1509,8 @@
                     });
                     const j = await r.json();
                     applySavePayload(j.record);
+                    // Broadcast new state to all connected peers
+                    Object.values(connections).forEach(conn => { if (conn.open) sendSnapshot(conn); });
                     status.textContent = `✓ Loaded "${slot.name}"`;
                     setTimeout(() => document.getElementById('load-dialog').classList.add('hidden'), 800);
                 } catch(e) {
@@ -2007,14 +2021,14 @@
         img.onload = () => {
             const map = {
                 id: nextMapId++, image: imageDataUrl, type: 'map',
-                x: 8, y: 8,  // align to grid border offset
+                x: 8, y: 8,
                 w: Math.min(img.width,  4984),
                 h: Math.min(img.height, 4984),
                 locked: false, ar: img.width / img.height
             };
             mapImages.push(map);
             renderMapImage(map);
-            broadcast({ type: 'map_add', map: { ...map } });
+            // Nothing broadcast until host locks — peers don't need unlocked map data
         };
         img.src = imageDataUrl;
     }
@@ -2046,6 +2060,25 @@
         });
 
         mapContainer.appendChild(el);
+
+        // Lock handle — always visible to host, allows unlocking without right-click
+        if (isHost) {
+            const handle = document.createElement('div');
+            handle.className = 'map-lock-handle';
+            handle.setAttribute('data-map-id', map.id);
+            handle.textContent = map.locked ? '🔒' : '';
+            handle.style.display = map.locked ? 'block' : 'none';
+            handle.style.left = (map.x + 4) + 'px';
+            handle.style.top  = (map.y + 4) + 'px';
+            handle.addEventListener('click', e => {
+                e.stopPropagation();
+                map.locked = false;
+                el.classList.remove('locked');
+                el.style.pointerEvents = 'auto';
+                handle.style.display = 'none';
+                broadcast({ type: 'map_update', id: map.id, data: { locked: false } });
+            });            mapContainer.appendChild(handle);
+        }
     }
 
     function showMapContextMenu(x, y, map, el) {
@@ -2060,7 +2093,14 @@
             el.classList.toggle('locked', map.locked);
             el.style.pointerEvents = map.locked ? 'none' : 'auto';
             if (selectedObject?.data.id === map.id) deselectObject();
-            broadcast({ type: 'map_update', id: map.id, data: { locked: map.locked } });
+            const handle = mapContainer.querySelector(`.map-lock-handle[data-map-id="${map.id}"]`);
+            if (handle) { handle.textContent = '🔒'; handle.style.display = map.locked ? 'block' : 'none'; }
+            if (map.locked) {
+                // First time locking — broadcast full image so all peers receive it
+                broadcast({ type: 'map_add', map: { ...map } });
+            } else {
+                broadcast({ type: 'map_update', id: map.id, data: { locked: false } });
+            }
             menu.remove();
         };
 
@@ -2070,6 +2110,7 @@
         delBtn.onclick = () => {
             mapImages = mapImages.filter(m => m.id !== map.id);
             el.remove();
+            mapContainer.querySelector(`.map-lock-handle[data-map-id="${map.id}"]`)?.remove();
             if (selectedObject?.data.id === map.id) deselectObject();
             broadcast({ type: 'map_delete', id: map.id });
             menu.remove();
@@ -2362,7 +2403,7 @@
                 if (resizeCorner==='nw'){ newX=ox-dw;   newY=oy-dh;   }
                 obj.w=Math.round(newW); obj.h=Math.round(newH); obj.x=newX; obj.y=newY;
                 updateObjDiv(obj, selectedObject.div); updateSelectionOverlay();
-                broadcastMove('resize_'+obj.id, { type:'map_update', id:obj.id, data:{ w:obj.w, h:obj.h, x:obj.x, y:obj.y } });
+                if (obj.locked) broadcastMove('resize_'+obj.id, { type:'map_update', id:obj.id, data:{ w:obj.w, h:obj.h, x:obj.x, y:obj.y } });
             } else if (selectedObject.type === 'text') {
                 // Text resize: scale fontSize by height delta
                 const ySign = (resizeCorner==='se'||resizeCorner==='sw') ? 1 : -1;
@@ -2434,7 +2475,7 @@
             const el = mapContainer.querySelector(`[data-id="${draggedMap.id}"]`);
             if (el) { el.style.left = draggedMap.x + 'px'; el.style.top = draggedMap.y + 'px'; }
             updateSelectionOverlay();
-            broadcastMove('map_'+draggedMap.id, { type:'map_move', id:draggedMap.id, x:draggedMap.x, y:draggedMap.y });
+            if (draggedMap.locked) broadcastMove('map_'+draggedMap.id, { type:'map_move', id:draggedMap.id, x:draggedMap.x, y:draggedMap.y });
         }
     });
 
@@ -2490,7 +2531,7 @@
             updateSelectionOverlay(); draggedShape=null;
         }
         if (draggedMap) {
-            broadcast({ type:'map_move', id:draggedMap.id, x:draggedMap.x, y:draggedMap.y });
+            if (draggedMap.locked) broadcast({ type:'map_move', id:draggedMap.id, x:draggedMap.x, y:draggedMap.y });
             updateSelectionOverlay(); draggedMap=null;
         }
     });
