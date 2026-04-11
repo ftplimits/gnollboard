@@ -24,7 +24,7 @@
         #map-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
         #map-handle-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 12; }
         .map-image { position: absolute; cursor: move; pointer-events: auto; user-select: none; }
-        .map-image.locked { cursor: default; pointer-events: none; }
+        .map-image.locked { cursor: default; }
         .map-image.selected { outline: 2px dashed rgba(139,69,19,0.6); outline-offset: 2px; }
         .map-lock-handle { position: absolute; pointer-events: auto; cursor: pointer; z-index: 11;
             background: rgba(0,0,0,0.55); border-radius: 4px; padding: 3px 6px;
@@ -162,7 +162,13 @@
         .sl-cancel:hover  { background: #444; }
         .sl-status { font-size: 12px; color: #888; margin-top: 8px; text-align: center; min-height: 16px; }
 
-        /* ── Measure tool ── */
+        #btn-center-view {
+            display: none; position: fixed; bottom: 12px; left: 12px; z-index: 1001;
+            background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px; padding: 6px 10px; color: #ccc; font-family: var(--font-serif);
+            font-size: 13px; cursor: pointer; backdrop-filter: blur(4px);
+        }
+        #btn-center-view:hover { background: rgba(60,60,60,0.8); color: white; }
         #measure-toggle {
             position: fixed; top: 12px; right: 12px; z-index: 1001;
             background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
@@ -257,6 +263,7 @@
 </head>
 <body>
     <img id="vtt-logo" src="./icons/Logo.webp" alt="Logo">
+    <button id="btn-center-view" title="Center all players to your view">📍 Center Players</button>
     <button id="btn-save" title="Save Game">💾 Save</button>
     <button id="btn-load" title="Load Game">📂 Load</button>
     <button id="measure-toggle" title="Measure Tool">📏 Measure</button>
@@ -899,11 +906,9 @@
 
             case 'map_add': {
                 const m = msg.map;
-                // Replace placeholder if exists, otherwise add fresh
                 const idx = mapImages.findIndex(e => e.id === m.id);
                 if (idx > -1) { mapImages[idx] = m; } else { mapImages.push(m); }
                 mapContainer.querySelector(`[data-id="${m.id}"]`)?.remove();
-                mapHandleContainer.querySelector(`.map-lock-handle[data-map-id="${m.id}"]`)?.remove();
                 renderMapImage(m);
                 if (m.id >= nextMapId) nextMapId = m.id + 1;
                 break;
@@ -928,7 +933,10 @@
                 break;
             }
 
-            case 'fog_cells':
+            case 'center_view':
+                panX = msg.panX; panY = msg.panY; zoom = msg.zoom;
+                updateTransform();
+                break;
                 msg.cells.forEach(({ cx, cy, fog }) => {
                     const key = `${cx},${cy}`;
                     if (fog) fogCells.add(key);
@@ -973,13 +981,15 @@
         const btnSave = document.getElementById('btn-save');
         const btnLoad = document.getElementById('btn-load');
         const btnMap  = document.getElementById('btn-map-upload-tb');
-        if (fogTb)   fogTb.style.display   = isHost ? 'flex'  : 'none';
-        if (fogTog)  fogTog.style.display  = isHost ? 'block' : 'none';
-        if (tb)      tb.style.display      = isHost ? 'flex'  : 'none';
-        if (tbTog)   tbTog.style.display   = isHost ? 'block' : 'none';
-        if (btnSave) btnSave.style.display = isHost ? 'block' : 'none';
-        if (btnLoad) btnLoad.style.display = isHost ? 'block' : 'none';
-        if (btnMap)  btnMap.style.display  = isHost ? 'block' : 'none';
+        const btnCenter = document.getElementById('btn-center-view');
+        if (fogTb)     fogTb.style.display     = isHost ? 'flex'  : 'none';
+        if (fogTog)    fogTog.style.display    = isHost ? 'block' : 'none';
+        if (tb)        tb.style.display        = isHost ? 'flex'  : 'none';
+        if (tbTog)     tbTog.style.display     = isHost ? 'block' : 'none';
+        if (btnSave)   btnSave.style.display   = isHost ? 'block' : 'none';
+        if (btnLoad)   btnLoad.style.display   = isHost ? 'block' : 'none';
+        if (btnMap)    btnMap.style.display    = isHost ? 'block' : 'none';
+        if (btnCenter) btnCenter.style.display = isHost ? 'block' : 'none';
         // Reposition toolbar toggle after toolbar becomes visible
         if (isHost) { const tbEl = document.getElementById('toolbar'); if (tbEl && tbTog) tbTog.style.bottom = tbEl.offsetHeight + 'px'; }
     }
@@ -1638,6 +1648,9 @@
         ctx.closePath();
     }
 
+    document.getElementById('btn-center-view')?.addEventListener('click', () => {
+        broadcast({ type: 'center_view', panX, panY, zoom });
+    });
     document.getElementById('measure-toggle')?.addEventListener('click', toggleMeasure);
     function viewportToGrid(cx, cy) {
         const rect = gridContainer.getBoundingClientRect();
@@ -2023,23 +2036,26 @@
     function addMapImage(imageDataUrl) {
         const img = new Image();
         img.onload = () => {
+            // Spawn centered in current viewport
+            const cx = (window.innerWidth/2  - panX) / zoom;
+            const cy = (window.innerHeight/2 - panY) / zoom;
+            const w  = Math.min(img.width,  4984);
+            const h  = Math.min(img.height, 4984);
             const map = {
                 id: nextMapId++, image: imageDataUrl, type: 'map',
-                x: 8, y: 8,
-                w: Math.min(img.width,  4984),
-                h: Math.min(img.height, 4984),
-                locked: false, ar: img.width / img.height
+                x: Math.round(cx - w/2),
+                y: Math.round(cy - h/2),
+                w, h, locked: false, ar: img.width / img.height
             };
             mapImages.push(map);
             renderMapImage(map);
-            // Nothing broadcast until host locks — peers don't need unlocked map data
         };
         img.src = imageDataUrl;
     }
 
     function renderMapImage(map) {
         const el = document.createElement('img');
-        el.className = 'map-image' + (map.locked ? ' locked' : '');
+        el.className = 'map-image';
         el.setAttribute('data-id', map.id);
         el.src = map.image;
         el.draggable = false;
@@ -2064,25 +2080,6 @@
         });
 
         mapContainer.appendChild(el);
-
-        // Lock handle — always visible to host, allows unlocking without right-click
-        if (isHost) {
-            const handle = document.createElement('div');
-            handle.className = 'map-lock-handle';
-            handle.setAttribute('data-map-id', map.id);
-            handle.textContent = map.locked ? '🔒' : '';
-            handle.style.display = map.locked ? 'block' : 'none';
-            handle.style.left = (map.x + 4) + 'px';
-            handle.style.top  = (map.y + 4) + 'px';
-            handle.addEventListener('click', e => {
-                e.stopPropagation();
-                map.locked = false;
-                el.classList.remove('locked');
-                el.style.pointerEvents = 'auto';
-                handle.style.display = 'none';
-                broadcast({ type: 'map_update', id: map.id, data: { locked: false } });
-            });            mapHandleContainer.appendChild(handle);
-        }
     }
 
     function showMapContextMenu(x, y, map, el) {
@@ -2094,13 +2091,8 @@
         lockBtn.style.cssText = `display:block;width:100%;padding:6px 12px;margin:2px 0;background:#2a4a6a;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);border-radius:2px;`;
         lockBtn.onclick = () => {
             map.locked = !map.locked;
-            el.classList.toggle('locked', map.locked);
-            el.style.pointerEvents = map.locked ? 'none' : 'auto';
             if (selectedObject?.data.id === map.id) deselectObject();
-            const handle = mapHandleContainer.querySelector(`.map-lock-handle[data-map-id="${map.id}"]`);
-            if (handle) { handle.textContent = '🔒'; handle.style.display = map.locked ? 'block' : 'none'; }
             if (map.locked) {
-                // First time locking — broadcast full image so all peers receive it
                 broadcast({ type: 'map_add', map: { ...map } });
             } else {
                 broadcast({ type: 'map_update', id: map.id, data: { locked: false } });
@@ -2114,7 +2106,6 @@
         delBtn.onclick = () => {
             mapImages = mapImages.filter(m => m.id !== map.id);
             el.remove();
-            mapHandleContainer.querySelector(`.map-lock-handle[data-map-id="${map.id}"]`)?.remove();
             if (selectedObject?.data.id === map.id) deselectObject();
             broadcast({ type: 'map_delete', id: map.id });
             menu.remove();
