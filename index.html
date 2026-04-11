@@ -22,6 +22,7 @@
         #viewport { width: 100%; height: 100%; overflow: hidden; position: relative; z-index: 1; background: #3a3a3a; }
         #grid-container { position: absolute; width: 5000px; height: 5000px; transform-origin: 0 0; }
         #map-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        #map-handle-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 12; }
         .map-image { position: absolute; cursor: move; pointer-events: auto; user-select: none; }
         .map-image.locked { cursor: default; pointer-events: none; }
         .map-image.selected { outline: 2px dashed rgba(139,69,19,0.6); outline-offset: 2px; }
@@ -372,6 +373,7 @@
         <div id="grid-container">
             <div id="grid-background"></div>
             <div id="map-container"></div>
+            <div id="map-handle-container"></div>
             <canvas id="drawing-canvas" width="5000" height="5000"></canvas>
             <div id="shapes-container"></div>
             <div id="stickers-container"></div>
@@ -701,7 +703,7 @@
     function applySnapshot(snap) {
         tokensContainer.innerHTML = ''; stickersContainer.innerHTML = '';
         shapesContainer.innerHTML = ''; document.getElementById('text-container').innerHTML = '';
-        mapContainer.innerHTML = '';
+        mapContainer.innerHTML = ''; mapHandleContainer.innerHTML = '';
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         tokens = []; stickers = []; shapes = []; textLabels = []; mapImages = [];
         deselectObject();
@@ -901,7 +903,7 @@
                 const idx = mapImages.findIndex(e => e.id === m.id);
                 if (idx > -1) { mapImages[idx] = m; } else { mapImages.push(m); }
                 mapContainer.querySelector(`[data-id="${m.id}"]`)?.remove();
-                mapContainer.querySelector(`.map-lock-handle[data-map-id="${m.id}"]`)?.remove();
+                mapHandleContainer.querySelector(`.map-lock-handle[data-map-id="${m.id}"]`)?.remove();
                 renderMapImage(m);
                 if (m.id >= nextMapId) nextMapId = m.id + 1;
                 break;
@@ -1413,7 +1415,7 @@
     function applySavePayload(data) {
         tokensContainer.innerHTML=''; stickersContainer.innerHTML='';
         shapesContainer.innerHTML=''; document.getElementById('text-container').innerHTML='';
-        mapContainer.innerHTML='';
+        mapContainer.innerHTML=''; mapHandleContainer.innerHTML='';
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         tokens=[]; stickers=[]; shapes=[]; textLabels=[]; mapImages=[];
         deselectObject();
@@ -2015,7 +2017,8 @@
     // ═══════════════════════════════════════════════════════════════════════════
     let mapImages = [], nextMapId = 1, draggedMap = null;
     let mapDragOffsetX = 0, mapDragOffsetY = 0;
-    const mapContainer = document.getElementById('map-container');
+    const mapContainer       = document.getElementById('map-container');
+    const mapHandleContainer = document.getElementById('map-handle-container');
 
     function addMapImage(imageDataUrl) {
         const img = new Image();
@@ -2078,7 +2081,7 @@
                 el.style.pointerEvents = 'auto';
                 handle.style.display = 'none';
                 broadcast({ type: 'map_update', id: map.id, data: { locked: false } });
-            });            mapContainer.appendChild(handle);
+            });            mapHandleContainer.appendChild(handle);
         }
     }
 
@@ -2094,7 +2097,7 @@
             el.classList.toggle('locked', map.locked);
             el.style.pointerEvents = map.locked ? 'none' : 'auto';
             if (selectedObject?.data.id === map.id) deselectObject();
-            const handle = mapContainer.querySelector(`.map-lock-handle[data-map-id="${map.id}"]`);
+            const handle = mapHandleContainer.querySelector(`.map-lock-handle[data-map-id="${map.id}"]`);
             if (handle) { handle.textContent = '🔒'; handle.style.display = map.locked ? 'block' : 'none'; }
             if (map.locked) {
                 // First time locking — broadcast full image so all peers receive it
@@ -2111,7 +2114,7 @@
         delBtn.onclick = () => {
             mapImages = mapImages.filter(m => m.id !== map.id);
             el.remove();
-            mapContainer.querySelector(`.map-lock-handle[data-map-id="${map.id}"]`)?.remove();
+            mapHandleContainer.querySelector(`.map-lock-handle[data-map-id="${map.id}"]`)?.remove();
             if (selectedObject?.data.id === map.id) deselectObject();
             broadcast({ type: 'map_delete', id: map.id });
             menu.remove();
