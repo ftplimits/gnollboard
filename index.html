@@ -20,7 +20,10 @@
         body { font-family: var(--font-serif); overflow: hidden; width: 100vw; height: 100vh; background: var(--parchment-light); cursor: default; user-select: none; position: relative; }
         body::before { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0.4; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E"); z-index: 0; }
         #viewport { width: 100%; height: 100%; overflow: hidden; position: relative; z-index: 1; background: #3a3a3a; }
-        #grid-container { position: absolute; width: 5000px; height: 5000px; transform-origin: 0 0; }
+        #map-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; }
+        .map-image { position: absolute; cursor: move; pointer-events: auto; user-select: none; }
+        .map-image.locked { cursor: default; pointer-events: none; }
+        .map-image.selected { outline: 2px dashed rgba(139,69,19,0.6); outline-offset: 2px; }
         #grid-background { position: absolute; width: 100%; height: 100%; border: 8px solid var(--ink-dark); box-sizing: border-box; background: url("data:image/svg+xml,%3Csvg width='50' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 0 Q 12 -0.3 25 0.2 Q 37 -0.4 50 0' stroke='%232a2522' stroke-width='1' fill='none' opacity='0.5'/%3E%3Cpath d='M 0 0 Q -0.4 12 0.3 25 Q -0.2 37 0 50' stroke='%232a2522' stroke-width='1' fill='none' opacity='0.5'/%3E%3C/svg%3E"), radial-gradient(circle at center, #d2cbbc, #7e7466); pointer-events: none; }
         #drawing-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; }
         #drawing-canvas.drawing { pointer-events: auto; }
@@ -163,9 +166,18 @@
         }
         #measure-toggle:hover { background: rgba(60,60,60,0.8); color: white; }
         #measure-toggle.active { background: rgba(139,69,19,0.7); border-color: rgba(180,100,40,0.6); color: white; }
+        #btn-save { display: none; position: fixed; top: 12px; right: 110px; z-index: 1001;
+            background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px; padding: 6px 10px; color: #ccc; font-family: var(--font-serif);
+            font-size: 13px; cursor: pointer; backdrop-filter: blur(4px); }
+        #btn-save:hover { background: rgba(60,60,60,0.8); color: white; }
+        #btn-load { display: none; position: fixed; top: 12px; right: 172px; z-index: 1001;
+            background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px; padding: 6px 10px; color: #ccc; font-family: var(--font-serif);
+            font-size: 13px; cursor: pointer; backdrop-filter: blur(4px); }
+        #btn-load:hover { background: rgba(60,60,60,0.8); color: white; }
+        #btn-map-upload { display: none; }
 
-        #btn-save    { display: none; }
-        #btn-load    { display: none; }
         #fog-toolbar {
             display: none;
             position: fixed; right: 0; top: 50%; transform: translateY(-50%);
@@ -239,9 +251,10 @@
 </head>
 <body>
     <img id="vtt-logo" src="./icons/Logo.webp" alt="Logo">
-    <button id="btn-save" title="Save Game" style="position:fixed;top:12px;left:68px;z-index:1001;background:rgba(42,42,42,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:6px 10px;color:#ccc;font-family:var(--font-serif);font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">💾 Save</button>
-    <button id="btn-load" title="Load Game" style="position:fixed;top:12px;left:130px;z-index:1001;background:rgba(42,42,42,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:6px 10px;color:#ccc;font-family:var(--font-serif);font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">📂 Load</button>
+    <button id="btn-save" title="Save Game">💾 Save</button>
+    <button id="btn-load" title="Load Game">📂 Load</button>
     <button id="measure-toggle" title="Measure Tool">📏 Measure</button>
+    <input type="file" id="map-upload" accept="image/*" style="display:none;">
 
     <!-- Save dialog -->
     <div id="save-dialog" class="sl-overlay hidden">
@@ -287,7 +300,9 @@
     </div>
 
     <div id="toolbar">
-        <button class="tool-btn" id="btn-token-upload" title="Upload Token">➕</button>
+        <button class="tool-btn" id="btn-token-upload" title="Upload Token">👤</button>
+        <button class="tool-btn" id="btn-map-upload-tb" title="Upload Map">🗺️</button>
+        <button class="tool-btn" id="btn-icons" title="Icons" style="padding:4px 6px;"><img src="./icons/wooden-door.webp" style="width:22px;height:22px;display:block;pointer-events:none;"></button>
         <div class="divider"></div>
         <button class="tool-btn" id="btn-pen"      data-tool="pen"      title="Pen">✏️</button>
         <button class="tool-btn" id="btn-line"     data-tool="line"     title="Line">╱</button>
@@ -312,8 +327,6 @@
         <div class="divider"></div>
         <button class="tool-btn" id="btn-undo" title="Undo (Ctrl+Z)">↩</button>
         <button class="tool-btn" id="btn-redo" title="Redo (Ctrl+Y)">↪</button>
-        <div class="divider"></div>
-        <button class="tool-btn" id="btn-icons" title="Icons" style="padding:4px 6px;"><img src="./icons/wooden-door.webp" style="width:22px;height:22px;display:block;pointer-events:none;"></button>
     </div>
 
     <div id="toolbar-toggle">▲ tools</div>
@@ -353,6 +366,7 @@
     <div id="viewport">
         <div id="grid-container">
             <div id="grid-background"></div>
+            <div id="map-container"></div>
             <canvas id="drawing-canvas" width="5000" height="5000"></canvas>
             <div id="shapes-container"></div>
             <div id="stickers-container"></div>
@@ -671,6 +685,7 @@
             stickers:    stickers.map(s => ({ ...s })),
             shapes:      shapes.map(s => ({ ...s })),
             textLabels:  textLabels.map(t => ({ ...t })),
+            mapImages:   mapImages.map(m => ({ ...m })),
             canvasData:  canvas.toDataURL('image/png'),
             fogCellData: [...fogCells].map(key => { const [cx,cy] = key.split(',').map(Number); return {cx,cy}; })
         };
@@ -678,31 +693,24 @@
     }
 
     function applySnapshot(snap) {
-        tokensContainer.innerHTML   = '';
-        stickersContainer.innerHTML = '';
-        shapesContainer.innerHTML   = '';
-        document.getElementById('text-container').innerHTML = '';
+        tokensContainer.innerHTML = ''; stickersContainer.innerHTML = '';
+        shapesContainer.innerHTML = ''; document.getElementById('text-container').innerHTML = '';
+        mapContainer.innerHTML = '';
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        tokens = []; stickers = []; shapes = []; textLabels = [];
+        tokens = []; stickers = []; shapes = []; textLabels = []; mapImages = [];
         deselectObject();
-
-        snap.tokens.forEach(t => { tokens.push(t); renderToken(t); });
-        snap.stickers.forEach(s => { stickers.push(s); renderSticker(s); });
-        snap.shapes.forEach(s => { shapes.push(s); renderShape(s); });
-        snap.textLabels.forEach(t => { textLabels.push(t); renderTextLabel(t); });
-
-        if (snap.canvasData) {
-            const img = new Image();
-            img.onload = () => ctx.drawImage(img, 0, 0);
-            img.src = snap.canvasData;
-        }
-
+        (snap.tokens     ||[]).forEach(t => { tokens.push(t);     renderToken(t); });
+        (snap.stickers   ||[]).forEach(s => { stickers.push(s);   renderSticker(s); });
+        (snap.shapes     ||[]).forEach(s => { shapes.push(s);     renderShape(s); });
+        (snap.textLabels ||[]).forEach(t => { textLabels.push(t); renderTextLabel(t); });
+        (snap.mapImages  ||[]).forEach(m => { mapImages.push(m);  renderMapImage(m); });
+        if (snap.canvasData) { const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = snap.canvasData; }
         if (snap.fogCellData) applyFogSnapshot(snap.fogCellData);
-
         if (tokens.length)     nextTokenId   = Math.max(...tokens.map(t=>t.id))   + 1;
         if (stickers.length)   nextStickerId = Math.max(...stickers.map(s=>s.id)) + 1;
         if (shapes.length)     nextShapeId   = Math.max(...shapes.map(s=>s.id))   + 1;
         if (textLabels.length) nextTextId    = Math.max(...textLabels.map(t=>t.id)) + 1;
+        if (mapImages.length)  nextMapId     = Math.max(...mapImages.map(m=>m.id))  + 1;
     }
 
     // ── Message handler ──────────────────────────────────────────────────────
@@ -881,6 +889,32 @@
                 triggerPingLocal(msg.x, msg.y, msg.color);
                 break;
 
+            case 'map_add': {
+                const m = msg.map;
+                mapImages.push(m); renderMapImage(m);
+                if (m.id >= nextMapId) nextMapId = m.id + 1;
+                break;
+            }
+            case 'map_move': {
+                const m = mapImages.find(m=>m.id===msg.id);
+                if (m) { m.x=msg.x; m.y=msg.y; const el=mapContainer.querySelector(`[data-id="${msg.id}"]`); if(el){el.style.left=m.x+'px';el.style.top=m.y+'px';} }
+                break;
+            }
+            case 'map_update': {
+                const m = mapImages.find(m=>m.id===msg.id);
+                if (m) {
+                    Object.assign(m, msg.data);
+                    const el = mapContainer.querySelector(`[data-id="${msg.id}"]`);
+                    if (el) { updateObjDiv(m, el); if (msg.data.locked !== undefined) { el.classList.toggle('locked', m.locked); el.style.pointerEvents = m.locked ? 'none' : 'auto'; } }
+                }
+                break;
+            }
+            case 'map_delete': {
+                mapImages = mapImages.filter(m=>m.id!==msg.id);
+                mapContainer.querySelector(`[data-id="${msg.id}"]`)?.remove();
+                break;
+            }
+
             case 'fog_cells':
                 msg.cells.forEach(({ cx, cy, fog }) => {
                     const key = `${cx},${cy}`;
@@ -925,12 +959,14 @@
         const tbTog   = document.getElementById('toolbar-toggle');
         const btnSave = document.getElementById('btn-save');
         const btnLoad = document.getElementById('btn-load');
+        const btnMap  = document.getElementById('btn-map-upload-tb');
         if (fogTb)   fogTb.style.display   = isHost ? 'flex'  : 'none';
         if (fogTog)  fogTog.style.display  = isHost ? 'block' : 'none';
         if (tb)      tb.style.display      = isHost ? 'flex'  : 'none';
         if (tbTog)   tbTog.style.display   = isHost ? 'block' : 'none';
         if (btnSave) btnSave.style.display = isHost ? 'block' : 'none';
         if (btnLoad) btnLoad.style.display = isHost ? 'block' : 'none';
+        if (btnMap)  btnMap.style.display  = isHost ? 'block' : 'none';
         // Reposition toolbar toggle after toolbar becomes visible
         if (isHost) { const tbEl = document.getElementById('toolbar'); if (tbEl && tbTog) tbTog.style.bottom = tbEl.offsetHeight + 'px'; }
     }
@@ -1357,25 +1393,28 @@
             stickers:   stickers.map(s => ({ ...s })),
             shapes:     shapes.map(s => ({ ...s })),
             textLabels: textLabels.map(t => ({ ...t })),
+            mapImages:  mapImages.map(m => ({ ...m })),
             fogCells:   [...fogCells].map(key => { const [cx,cy]=key.split(',').map(Number); return {cx,cy}; })
         };
     }
 
     function applySavePayload(data) {
-        // Clear existing state
-        tokensContainer.innerHTML = ''; stickersContainer.innerHTML = '';
-        shapesContainer.innerHTML = ''; document.getElementById('text-container').innerHTML = '';
-        tokens = []; stickers = []; shapes = []; textLabels = [];
+        tokensContainer.innerHTML=''; stickersContainer.innerHTML='';
+        shapesContainer.innerHTML=''; document.getElementById('text-container').innerHTML='';
+        mapContainer.innerHTML='';
+        tokens=[]; stickers=[]; shapes=[]; textLabels=[]; mapImages=[];
         deselectObject();
-        (data.tokens     || []).forEach(t => { tokens.push(t);      renderToken(t); });
-        (data.stickers   || []).forEach(s => { stickers.push(s);    renderSticker(s); });
-        (data.shapes     || []).forEach(s => { shapes.push(s);      renderShape(s); });
-        (data.textLabels || []).forEach(t => { textLabels.push(t);  renderTextLabel(t); });
+        (data.tokens     ||[]).forEach(t=>{tokens.push(t);renderToken(t);});
+        (data.stickers   ||[]).forEach(s=>{stickers.push(s);renderSticker(s);});
+        (data.shapes     ||[]).forEach(s=>{shapes.push(s);renderShape(s);});
+        (data.textLabels ||[]).forEach(t=>{textLabels.push(t);renderTextLabel(t);});
+        (data.mapImages  ||[]).forEach(m=>{mapImages.push(m);renderMapImage(m);});
         if (data.fogCells) applyFogSnapshot(data.fogCells);
         if (tokens.length)     nextTokenId   = Math.max(...tokens.map(t=>t.id))   + 1;
         if (stickers.length)   nextStickerId = Math.max(...stickers.map(s=>s.id)) + 1;
         if (shapes.length)     nextShapeId   = Math.max(...shapes.map(s=>s.id))   + 1;
         if (textLabels.length) nextTextId    = Math.max(...textLabels.map(t=>t.id)) + 1;
+        if (mapImages.length)  nextMapId     = Math.max(...mapImages.map(m=>m.id))  + 1;
     }
 
     // ── Save dialog ──────────────────────────────────────────────────────────
@@ -1616,6 +1655,11 @@
             div.style.fontSize = (obj.fontSize || 18) + 'px';
             div.style.width = ''; div.style.height = '';
             updateObjTransform(obj, div);
+        } else if (obj.type === 'map') {
+            div.style.left   = Math.round(obj.x) + 'px';
+            div.style.top    = Math.round(obj.y) + 'px';
+            div.style.width  = Math.round(obj.w) + 'px';
+            div.style.height = Math.round(obj.h) + 'px';
         } else {
             const { w, h } = getObjSize(obj);
             div.style.width  = w + 'px'; div.style.height = h + 'px';
@@ -1722,6 +1766,7 @@
             if (type === 'sticker') { const i=stickers.findIndex(s=>s.id===data.id); if(i>-1) stickers.splice(i,1); broadcast({type:'sticker_delete', id:data.id}); }
             if (type === 'shape')   { shapes   = shapes.filter(s=>s.id!==data.id);   broadcast({type:'shape_delete',   id:data.id}); }
             if (type === 'text')    { const i=textLabels.findIndex(l=>l.id===data.id); if(i>-1) textLabels.splice(i,1); broadcast({type:'text_delete', id:data.id}); }
+            if (type === 'map')     { mapImages = mapImages.filter(m=>m.id!==data.id); broadcast({type:'map_delete', id:data.id}); }
         }
         if (e.key === 'Escape') { deselectObject(); if (measureActive) clearMeasure(); }
     });
@@ -1949,6 +1994,104 @@
             reader.readAsDataURL(file);
         });
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MAP IMAGE SYSTEM
+    // ═══════════════════════════════════════════════════════════════════════════
+    let mapImages = [], nextMapId = 1, draggedMap = null;
+    let mapDragOffsetX = 0, mapDragOffsetY = 0;
+    const mapContainer = document.getElementById('map-container');
+
+    function addMapImage(imageDataUrl) {
+        const img = new Image();
+        img.onload = () => {
+            const map = {
+                id: nextMapId++, image: imageDataUrl, type: 'map',
+                x: 8, y: 8,  // align to grid border offset
+                w: Math.min(img.width,  4984),
+                h: Math.min(img.height, 4984),
+                locked: false, ar: img.width / img.height
+            };
+            mapImages.push(map);
+            renderMapImage(map);
+            broadcast({ type: 'map_add', map: { ...map } });
+        };
+        img.src = imageDataUrl;
+    }
+
+    function renderMapImage(map) {
+        const el = document.createElement('img');
+        el.className = 'map-image' + (map.locked ? ' locked' : '');
+        el.setAttribute('data-id', map.id);
+        el.src = map.image;
+        el.draggable = false;
+        el.style.left   = map.x + 'px';
+        el.style.top    = map.y + 'px';
+        el.style.width  = map.w + 'px';
+        el.style.height = map.h + 'px';
+
+        el.addEventListener('mousedown', e => {
+            if (e.button !== 0 || map.locked || currentTool) return;
+            e.stopPropagation();
+            selectObject('map', map, el);
+            draggedMap = map; el.classList.add('dragging');
+            const pos = viewportToGrid(e.clientX, e.clientY);
+            mapDragOffsetX = pos.x - map.x; mapDragOffsetY = pos.y - map.y;
+        });
+
+        el.addEventListener('contextmenu', e => {
+            e.preventDefault(); e.stopPropagation();
+            if (!isHost) return;
+            showMapContextMenu(e.clientX, e.clientY, map, el);
+        });
+
+        mapContainer.appendChild(el);
+    }
+
+    function showMapContextMenu(x, y, map, el) {
+        const menu = document.createElement('div');
+        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:var(--font-serif);`;
+
+        const lockBtn = document.createElement('button');
+        lockBtn.textContent = map.locked ? '🔓 Unlock' : '🔒 Lock';
+        lockBtn.style.cssText = `display:block;width:100%;padding:6px 12px;margin:2px 0;background:#2a4a6a;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);border-radius:2px;`;
+        lockBtn.onclick = () => {
+            map.locked = !map.locked;
+            el.classList.toggle('locked', map.locked);
+            el.style.pointerEvents = map.locked ? 'none' : 'auto';
+            if (selectedObject?.data.id === map.id) deselectObject();
+            broadcast({ type: 'map_update', id: map.id, data: { locked: map.locked } });
+            menu.remove();
+        };
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = 'Delete';
+        delBtn.style.cssText = `display:block;width:100%;padding:6px 12px;margin-top:4px;background:#dc143c;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);border-radius:2px;`;
+        delBtn.onclick = () => {
+            mapImages = mapImages.filter(m => m.id !== map.id);
+            el.remove();
+            if (selectedObject?.data.id === map.id) deselectObject();
+            broadcast({ type: 'map_delete', id: map.id });
+            menu.remove();
+        };
+
+        menu.appendChild(lockBtn); menu.appendChild(delBtn);
+        document.body.appendChild(menu);
+        const close = () => { menu.remove(); document.removeEventListener('click', close); };
+        setTimeout(() => document.addEventListener('click', close), 10);
+    }
+
+    document.getElementById('map-upload').addEventListener('change', async e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const url = await convertToWebP(file, 0.75);
+        addMapImage(url);
+        e.target.value = '';
+    });
+
+    document.getElementById('btn-map-upload-tb')?.addEventListener('click', () => {
+        document.getElementById('map-upload').click();
+    });
 
     // ═══════════════════════════════════════════════════════════════════════════
     // TEXT LABELS
@@ -2206,6 +2349,20 @@
                 applyObjSize(obj,newW,newH); obj.x=newX; obj.y=newY;
                 updateObjDiv(obj, selectedObject.div); updateSelectionOverlay();
                 broadcastMove('resize_'+obj.id, { type:'token_update', id:obj.id, data:{ w:obj.w, h:obj.h, x:obj.x, y:obj.y } });
+            } else if (selectedObject.type === 'map') {
+                // Aspect-locked resize, top-left origin
+                const ar = obj.ar || (ow/oh);
+                const wSign = (resizeCorner==='se'||resizeCorner==='ne') ? 1 : -1;
+                newW = Math.max(50, ow + wSign * dx);
+                newH = Math.max(50, newW / ar);
+                const dw = newW - ow, dh = newH - oh;
+                if (resizeCorner==='se'){ newX=ox;      newY=oy;      }
+                if (resizeCorner==='sw'){ newX=ox-dw;   newY=oy;      }
+                if (resizeCorner==='ne'){ newX=ox;      newY=oy-dh;   }
+                if (resizeCorner==='nw'){ newX=ox-dw;   newY=oy-dh;   }
+                obj.w=Math.round(newW); obj.h=Math.round(newH); obj.x=newX; obj.y=newY;
+                updateObjDiv(obj, selectedObject.div); updateSelectionOverlay();
+                broadcastMove('resize_'+obj.id, { type:'map_update', id:obj.id, data:{ w:obj.w, h:obj.h, x:obj.x, y:obj.y } });
             } else if (selectedObject.type === 'text') {
                 // Text resize: scale fontSize by height delta
                 const ySign = (resizeCorner==='se'||resizeCorner==='sw') ? 1 : -1;
@@ -2268,6 +2425,17 @@
             updateSelectionOverlay();
             broadcastMove('shape_'+draggedShape.id, { type:'shape_move', id:draggedShape.id, x:draggedShape.x, y:draggedShape.y });
         }
+
+        // Map drag
+        if (draggedMap) {
+            const pos = viewportToGrid(e.clientX, e.clientY);
+            draggedMap.x = pos.x - mapDragOffsetX;
+            draggedMap.y = pos.y - mapDragOffsetY;
+            const el = mapContainer.querySelector(`[data-id="${draggedMap.id}"]`);
+            if (el) { el.style.left = draggedMap.x + 'px'; el.style.top = draggedMap.y + 'px'; }
+            updateSelectionOverlay();
+            broadcastMove('map_'+draggedMap.id, { type:'map_move', id:draggedMap.id, x:draggedMap.x, y:draggedMap.y });
+        }
     });
 
     window.addEventListener('mousedown', e => {
@@ -2320,6 +2488,10 @@
             if (div) div.classList.remove('dragging');
             broadcast({ type:'shape_move', id:draggedShape.id, x:draggedShape.x, y:draggedShape.y });
             updateSelectionOverlay(); draggedShape=null;
+        }
+        if (draggedMap) {
+            broadcast({ type:'map_move', id:draggedMap.id, x:draggedMap.x, y:draggedMap.y });
+            updateSelectionOverlay(); draggedMap=null;
         }
     });
 
