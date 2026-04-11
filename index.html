@@ -370,9 +370,10 @@
 
     <!-- Fog toolbar -->
     <div id="fog-toolbar">
-        <button class="fog-btn fill-btn" id="btn-fill-fog" title="Fill All Fog">🌫️</button>
-        <button class="fog-btn" id="btn-fog-paint" title="Paint Fog (3×3)">☁️</button>
-        <button class="fog-btn" id="btn-fog-reveal" title="Reveal (3×3)">✂️</button>
+        <button class="fog-btn fill-btn" id="btn-fill-fog"  title="Fill All Fog">🌫️</button>
+        <button class="fog-btn fill-btn" id="btn-clear-fog" title="Clear All Fog">✂️</button>
+        <button class="fog-btn" id="btn-fog-paint"  title="Paint Fog (3×3)">☁️</button>
+        <button class="fog-btn" id="btn-fog-reveal" title="Reveal (3×3)">🧹</button>
     </div>
     <div id="fog-toggle">FOG</div>
 
@@ -952,6 +953,11 @@
                         fogCells.add(`${cx},${cy}`);
                 redrawFog();
                 break;
+
+            case 'fog_clear':
+                fogCells.clear();
+                fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
+                break;
         }
     }
 
@@ -1326,13 +1332,42 @@
         if (changed.length) broadcastMove('fog', { type: 'fog_cells', cells: changed });
     }
 
+    function fogConfirm(message, onConfirm) {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;`;
+        const box = document.createElement('div');
+        box.style.cssText = `background:#1e1e1e;border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:20px 24px;font-family:var(--font-serif);color:#ddd;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.5);`;
+        box.innerHTML = `<div style="font-size:15px;margin-bottom:16px;">${message}</div>`;
+        const row = document.createElement('div');
+        row.style.cssText = `display:flex;gap:10px;justify-content:center;`;
+        const yes = document.createElement('button');
+        yes.textContent = 'Yes'; yes.style.cssText = `padding:6px 20px;background:#8b4513;color:white;border:none;border-radius:5px;font-family:var(--font-serif);font-size:14px;cursor:pointer;`;
+        const no  = document.createElement('button');
+        no.textContent  = 'Cancel'; no.style.cssText = `padding:6px 20px;background:#333;color:#aaa;border:none;border-radius:5px;font-family:var(--font-serif);font-size:14px;cursor:pointer;`;
+        yes.onclick = () => { overlay.remove(); onConfirm(); };
+        no.onclick  = () => overlay.remove();
+        row.appendChild(yes); row.appendChild(no);
+        box.appendChild(row); overlay.appendChild(box); document.body.appendChild(overlay);
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    }
+
     function fillFog() {
-        fogCells.clear();
-        for (let cx = 0; cx < 100; cx++)
-            for (let cy = 0; cy < 100; cy++)
-                fogCells.add(`${cx},${cy}`);
-        redrawFog();
-        broadcast({ type: 'fog_fill' });
+        fogConfirm('Cover the entire map in fog?', () => {
+            fogCells.clear();
+            for (let cx = 0; cx < 100; cx++)
+                for (let cy = 0; cy < 100; cy++)
+                    fogCells.add(`${cx},${cy}`);
+            redrawFog();
+            broadcast({ type: 'fog_fill' });
+        });
+    }
+
+    function clearAllFog() {
+        fogConfirm('Clear all fog from the map?', () => {
+            fogCells.clear();
+            fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
+            broadcast({ type: 'fog_clear' });
+        });
     }
 
     function applyFogSnapshot(cells) {
@@ -1362,6 +1397,7 @@
 
     // Wire fog toolbar buttons
     document.getElementById('btn-fill-fog')?.addEventListener('click', fillFog);
+    document.getElementById('btn-clear-fog')?.addEventListener('click', clearAllFog);
     document.getElementById('btn-fog-paint')?.addEventListener('click', () => setFogTool('paint'));
     document.getElementById('btn-fog-reveal')?.addEventListener('click', () => setFogTool('reveal'));
     document.getElementById('fog-toggle')?.addEventListener('click', () => {
