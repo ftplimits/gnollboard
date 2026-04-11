@@ -8,8 +8,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Grid VTT</title>
-    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-    <script>eruda.init();</script>
     <script src="./peerjs.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -21,7 +19,7 @@
         }
         body { font-family: var(--font-serif); overflow: hidden; width: 100vw; height: 100vh; background: var(--parchment-light); cursor: default; user-select: none; position: relative; }
         body::before { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0.4; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E"); z-index: 0; }
-        #viewport { width: 100%; height: 100%; overflow: hidden; position: relative; z-index: 1; background: #3a3a3a; touch-action: none; }
+        #viewport { width: 100%; height: 100%; overflow: hidden; position: relative; z-index: 1; background: #3a3a3a; }
         #grid-container { position: absolute; width: 5000px; height: 5000px; transform-origin: 0 0; }
         #grid-background { position: absolute; width: 100%; height: 100%; border: 8px solid var(--ink-dark); box-sizing: border-box; background: url("data:image/svg+xml,%3Csvg width='50' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 0 Q 12 -0.3 25 0.2 Q 37 -0.4 50 0' stroke='%232a2522' stroke-width='1' fill='none' opacity='0.5'/%3E%3Cpath d='M 0 0 Q -0.4 12 0.3 25 Q -0.2 37 0 50' stroke='%232a2522' stroke-width='1' fill='none' opacity='0.5'/%3E%3C/svg%3E"), radial-gradient(circle at center, #d2cbbc, #7e7466); pointer-events: none; }
         #drawing-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; }
@@ -490,9 +488,7 @@
     // When inside Discord, route PeerJS signaling through Discord's CSP proxy
     function getDiscordPeerConfig() {
         if (!inDiscord) return {};
-        const cfg = { host: window.location.hostname, path: '/peerjs', port: 443, secure: true };
-        console.log('PeerJS config:', JSON.stringify(cfg));
-        return cfg;
+        return { host: window.location.hostname, path: '/peerjs', port: 443, secure: true };
     }
 
     function initPeer(onReady, customId = undefined) {
@@ -562,7 +558,6 @@
         myName = generateName();
         const roomCode = instanceId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
         const config   = { debug: 0, ...getDiscordPeerConfig() };
-        console.log('startDiscordSession — roomCode:', roomCode, '| hostname:', window.location.hostname, '| inDiscord:', inDiscord);
 
         setStatus('Connecting...', '#aaa');
 
@@ -2367,200 +2362,6 @@
         if (e.key === 'Enter') confirmTextInput();
         else if (e.key === 'Escape') cancelTextInput();
     });
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // TOUCH SUPPORT  (mobile players — no host tools needed)
-    // ═══════════════════════════════════════════════════════════════════════════
-    let touchState = {
-        touches:       [],   // current active touches
-        lastTap:       0,    // timestamp of last tap (for double-tap ping)
-        longPressTimer: null,
-        dragStarted:   false,
-        pinchDist:     null, // starting pinch distance
-        pinchZoom:     null, // zoom at pinch start
-        pinchPanX:     null,
-        pinchPanY:     null,
-        dragTarget:    null, // { type, obj, div, offX, offY }
-    };
-
-    const LONG_PRESS_MS  = 500;
-    const DOUBLE_TAP_MS  = 300;
-    const DRAG_THRESHOLD = 8;   // px movement before drag starts
-
-    function touchToClient(t) { return { clientX: t.clientX, clientY: t.clientY }; }
-
-    function pinchDistance(t1, t2) {
-        const dx = t1.clientX - t2.clientX, dy = t1.clientY - t2.clientY;
-        return Math.sqrt(dx*dx + dy*dy);
-    }
-
-    function pinchMidpoint(t1, t2) {
-        return { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
-    }
-
-    function findTouchTarget(cx, cy) {
-        // Walk DOM elements at this point and find the topmost draggable object
-        const els = document.elementsFromPoint(cx, cy);
-        for (const el of els) {
-            const id = parseInt(el.getAttribute('data-id'));
-            if (isNaN(id)) continue;
-            const token   = tokens.find(t => t.id === id);
-            if (token)   { const pos = viewportToGrid(cx, cy); return { type:'token',   obj:token,   div:el, offX:pos.x-token.x,   offY:pos.y-token.y   }; }
-            const sticker = stickers.find(s => s.id === id);
-            if (sticker) { const pos = viewportToGrid(cx, cy); return { type:'sticker', obj:sticker, div:el, offX:pos.x-sticker.x, offY:pos.y-sticker.y }; }
-            const lbl     = textLabels.find(l => l.id === id);
-            if (lbl)     { const pos = viewportToGrid(cx, cy); return { type:'text',    obj:lbl,     div:el, offX:pos.x-lbl.x,     offY:pos.y-lbl.y     }; }
-        }
-        return null;
-    }
-
-    viewport.addEventListener('touchstart', e => {
-        e.preventDefault();
-        touchState.touches = [...e.touches];
-        const t = e.touches[0];
-
-        if (e.touches.length === 1) {
-            touchState.dragStarted = false;
-            touchState.dragTarget  = findTouchTarget(t.clientX, t.clientY);
-            touchState.lastTouchX  = t.clientX;
-            touchState.lastTouchY  = t.clientY;
-
-            // Long press → ping
-            touchState.longPressTimer = setTimeout(() => {
-                touchState.longPressTimer = null;
-                if (!touchState.dragStarted) {
-                    const pos = viewportToGrid(t.clientX, t.clientY);
-                    triggerPing(pos.x, pos.y);
-                }
-            }, LONG_PRESS_MS);
-
-            // Measure tool: start measurement on tap
-            if (measureActive) {
-                const pos = viewportToGrid(t.clientX, t.clientY);
-                measureStart = pos;
-            }
-
-        } else if (e.touches.length === 2) {
-            // Two-finger: prepare for pan + pinch
-            clearTimeout(touchState.longPressTimer);
-            touchState.longPressTimer = null;
-            touchState.pinchDist = pinchDistance(e.touches[0], e.touches[1]);
-            touchState.pinchZoom = zoom;
-            touchState.pinchPanX = panX;
-            touchState.pinchPanY = panY;
-        }
-    }, { passive: false });
-
-    viewport.addEventListener('touchmove', e => {
-        e.preventDefault();
-        touchState.touches = [...e.touches];
-
-        if (e.touches.length === 1) {
-            const t = e.touches[0];
-            touchState.dragStarted = true;
-            clearTimeout(touchState.longPressTimer);
-            touchState.longPressTimer = null;
-
-            // Measure drag
-            if (measureActive && measureStart) {
-                const pos = viewportToGrid(t.clientX, t.clientY);
-                drawMeasure(measureStart.x, measureStart.y, pos.x, pos.y);
-                return;
-            }
-
-            // Drag object
-            if (touchState.dragTarget) {
-                const { type, obj, div, offX, offY } = touchState.dragTarget;
-                const pos = viewportToGrid(t.clientX, t.clientY);
-                if (type === 'token') {
-                    obj.x = pos.x - offX; obj.y = pos.y - offY;
-                    updateObjDiv(obj, div); updateSelectionOverlay();
-                    broadcastMove('token_'+obj.id, { type:'token_move', id:obj.id, x:obj.x, y:obj.y });
-                } else if (type === 'sticker') {
-                    obj.x = pos.x - offX; obj.y = pos.y - offY;
-                    updateObjDiv(obj, div); updateSelectionOverlay();
-                    broadcastMove('sticker_'+obj.id, { type:'sticker_move', id:obj.id, x:obj.x, y:obj.y });
-                } else if (type === 'text') {
-                    obj.x = pos.x - offX; obj.y = pos.y - offY;
-                    updateObjDiv(obj, div); updateSelectionOverlay();
-                    broadcastMove('text_'+obj.id, { type:'text_move', id:obj.id, x:obj.x, y:obj.y });
-                }
-                return;
-            }
-
-            // Pan with single finger (no object under finger)
-            panX += (t.clientX - (touchState.lastTouchX || t.clientX));
-            panY += (t.clientY - (touchState.lastTouchY || t.clientY));
-            touchState.lastTouchX = t.clientX;
-            touchState.lastTouchY = t.clientY;
-            updateTransform();
-
-        } else if (e.touches.length === 2) {
-            // Pinch zoom + two-finger pan
-            const newDist = pinchDistance(e.touches[0], e.touches[1]);
-            const mid     = pinchMidpoint(e.touches[0], e.touches[1]);
-            const scale   = newDist / touchState.pinchDist;
-            const newZoom = Math.max(0.3, Math.min(4, touchState.pinchZoom * scale));
-
-            // Zoom centered on pinch midpoint
-            const gx = (mid.x - touchState.pinchPanX) / touchState.pinchZoom;
-            const gy = (mid.y - touchState.pinchPanY) / touchState.pinchZoom;
-            panX = mid.x - gx * newZoom;
-            panY = mid.y - gy * newZoom;
-            zoom = newZoom;
-            updateTransform();
-        }
-    }, { passive: false });
-
-    viewport.addEventListener('touchend', e => {
-        e.preventDefault();
-        const wasDragging = touchState.dragStarted;
-        clearTimeout(touchState.longPressTimer);
-        touchState.longPressTimer = null;
-
-        const t = e.changedTouches[0];
-
-        // Snap dropped token to grid
-        if (wasDragging && touchState.dragTarget) {
-            const { type, obj, div } = touchState.dragTarget;
-            if (type === 'token') {
-                const snapped = snapToGrid(obj.x, obj.y);
-                obj.x = snapped.x; obj.y = snapped.y;
-                updateObjDiv(obj, div);
-                broadcast({ type:'token_move', id:obj.id, x:obj.x, y:obj.y });
-            }
-            touchState.dragTarget = null;
-        }
-
-        // Clear measure on release
-        if (measureActive && measureStart) { clearMeasure(); }
-
-        // Reset pan tracking
-        touchState.lastTouchX = null;
-        touchState.lastTouchY = null;
-        touchState.pinchDist  = null;
-
-        if (!wasDragging && e.touches.length === 0) {
-            // Tap — check double tap for ping
-            const now = Date.now();
-            if (now - touchState.lastTap < DOUBLE_TAP_MS) {
-                const pos = viewportToGrid(t.clientX, t.clientY);
-                triggerPing(pos.x, pos.y);
-                touchState.lastTap = 0;
-                return;
-            }
-            touchState.lastTap = now;
-
-            // Single tap — select object under finger
-            const target = findTouchTarget(t.clientX, t.clientY);
-            if (target) {
-                const { type, obj, div } = target;
-                selectObject(type, obj, div);
-            } else {
-                deselectObject();
-            }
-        }
-    }, { passive: false });
 
     // ═══════════════════════════════════════════════════════════════════════════
     // INIT
