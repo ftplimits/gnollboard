@@ -2152,17 +2152,14 @@
     }
 
     document.getElementById('token-upload').addEventListener('change', async e => {
-        const files = Array.from(e.target.files);
-        // Start at viewport center, spread each token one cell to the right
+        const files = Array.from(e.target.files).slice(0, 15); // max 15
         const startCX = (window.innerWidth/2  - panX) / zoom;
         const startCY = (window.innerHeight/2 - panY) / zoom;
         const startSnap = snapToGrid(startCX, startCY);
         for (let i = 0; i < files.length; i++) {
             const url = await convertToWebP(files[i], 0.85);
-            // Each token placed one cell (50px) to the right of the last
-            const cellX = startSnap.x + i * 50;
-            const cellY = startSnap.y;
-            const token = { id: nextTokenId++, x: cellX, y: cellY, image: url, hidden: false, size: 'small' };
+            const col = i % 5, row = Math.floor(i / 5);
+            const token = { id: nextTokenId++, x: startSnap.x + col * 50, y: startSnap.y + row * 50, image: url, hidden: false, size: 'small' };
             tokens.push(token); renderToken(token);
             broadcast({ type: 'token_add', token: { ...token } });
         }
@@ -2635,6 +2632,9 @@
 
     let lastMouseX = window.innerWidth / 2, lastMouseY = window.innerHeight / 2;
     window.addEventListener('mousemove', e => { lastMouseX = e.clientX; lastMouseY = e.clientY; }, { capture: true, passive: true });
+
+    window.addEventListener('mousedown', e => {
+        if (e.button === 0 && measureActive) {
             const pos = viewportToGrid(e.clientX, e.clientY);
             measureStart = pos;
         }
