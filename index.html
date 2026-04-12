@@ -2152,14 +2152,34 @@
     }
 
     document.getElementById('token-upload').addEventListener('change', async e => {
-        const files = Array.from(e.target.files).slice(0, 15); // max 15
-        const startCX = (window.innerWidth/2  - panX) / zoom;
-        const startCY = (window.innerHeight/2 - panY) / zoom;
-        const startSnap = snapToGrid(startCX, startCY);
-        for (let i = 0; i < files.length; i++) {
+        const files = Array.from(e.target.files).slice(0, 15);
+        const count = files.length;
+        const cols  = Math.min(count, 5);
+        const rows  = Math.ceil(count / 5);
+
+        // Group size in grid pixels
+        const groupW = cols * 50;
+        const groupH = rows * 50;
+
+        // Viewport center in grid coords
+        const vcx = (window.innerWidth  / 2 - panX) / zoom;
+        const vcy = (window.innerHeight / 2 - panY) / zoom;
+
+        // Desired top-left of the group (centered on viewport)
+        const rawLeft = vcx - groupW / 2;
+        const rawTop  = vcy - groupH / 2;
+
+        // Snap top-left to nearest cell boundary so all tokens land on cell centers
+        const snappedLeft = Math.round(rawLeft / 50) * 50;
+        const snappedTop  = Math.round(rawTop  / 50) * 50;
+
+        for (let i = 0; i < count; i++) {
             const url = await convertToWebP(files[i], 0.85);
             const col = i % 5, row = Math.floor(i / 5);
-            const token = { id: nextTokenId++, x: startSnap.x + col * 50, y: startSnap.y + row * 50, image: url, hidden: false, size: 'small' };
+            // Cell center = snapped top-left + col/row offset + half cell
+            const x = snappedLeft + col * 50 + 25;
+            const y = snappedTop  + row * 50 + 25;
+            const token = { id: nextTokenId++, x, y, image: url, hidden: false, size: 'small' };
             tokens.push(token); renderToken(token);
             broadcast({ type: 'token_add', token: { ...token } });
         }
