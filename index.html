@@ -593,20 +593,30 @@
         console.log('initApp — instanceId:', instanceId, '| full search:', window.location.search);
 
         if (!instanceId) {
-            // Not running inside Discord — show block screen
-            document.body.innerHTML = `
-                <div style="
-                    position:fixed;inset:0;background:#1a1a2e;
-                    display:flex;flex-direction:column;align-items:center;justify-content:center;
-                    font-family:Georgia,serif;color:#c3baa6;text-align:center;padding:40px;
-                ">
-                    <div style="font-size:64px;margin-bottom:24px;">⚔</div>
-                    <div style="font-size:28px;font-weight:700;margin-bottom:16px;color:#e0d5c5;">Gnollboard</div>
-                    <div style="font-size:16px;color:#8a8090;max-width:380px;line-height:1.7;">
-                        This application is designed to run as a Discord Activity.<br><br>
-                        Launch it from inside a Discord voice channel to begin your session.
-                    </div>
-                </div>`;
+            // Browser testing mode — show name prompt then manual session controls
+            const savedName     = localStorage.getItem('gnoll_player_name');
+            const suggestedName = savedName || generateName();
+            const input = document.getElementById('name-prompt-input');
+            input.value = suggestedName;
+            document.getElementById('name-prompt').classList.remove('hidden');
+            input.focus(); input.select();
+
+            await new Promise(resolve => {
+                const confirm = () => {
+                    const entered = input.value.trim();
+                    myName = entered || suggestedName;
+                    localStorage.setItem('gnoll_player_name', myName);
+                    document.getElementById('name-prompt').classList.add('hidden');
+                    resolve();
+                };
+                document.getElementById('name-prompt-btn').addEventListener('click', confirm);
+                input.addEventListener('keydown', e => { if (e.key === 'Enter') confirm(); });
+            });
+
+            // Show session controls for browser mode
+            document.getElementById('session-toggle-btn').style.display = '';
+            // Force show host-only UI for testing
+            isHost = false; // will be set properly by hostSession/joinSession
             return;
         }
 
@@ -617,7 +627,7 @@
         document.getElementById('p2p-discord-status')?.style && (document.getElementById('p2p-discord-status').style.display = 'block');
 
         // Show name prompt — pre-fill from last session if available
-        const savedName    = localStorage.getItem('gnoll_player_name');
+        const savedName     = localStorage.getItem('gnoll_player_name');
         const suggestedName = savedName || generateName();
         const input = document.getElementById('name-prompt-input');
         input.value = suggestedName;
@@ -693,6 +703,9 @@
                 conn.send(JSON.stringify({ type: 'peer_list', peers: peerList, hostId: myPeerId, hostName: myName, hostColor: myColor }));
                 broadcast({ type: 'peer_joined', peerId: pid, name: peerNames[pid] || '?', color: peerColors[pid] || '#aaa' }, pid);
                 sendSnapshot(conn);
+            } else if (incoming && !isHost) {
+                // Non-host receiving a peer-to-peer connection — introduce ourselves
+                conn.send(JSON.stringify({ type: 'announce', name: myName, color: myColor }));
             }
 
             conn.on('data',  raw => handleMessage(typeof raw === 'string' ? JSON.parse(raw) : raw, pid));
