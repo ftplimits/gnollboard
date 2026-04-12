@@ -1920,15 +1920,16 @@
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
             e.preventDefault();
             if (!copiedObject) return;
-            const offset = 50;
+            const pos = viewportToGrid(lastMouseX, lastMouseY);
+            const snapped = snapToGrid(pos.x, pos.y);
             if (copiedObject.type === 'token') {
                 const src = copiedObject.data;
-                const t = { id: nextTokenId++, image: src.image, x: src.x + offset, y: src.y + offset, w: src.w, h: src.h, rotation: 0, flipped: false, type: 'token' };
+                const t = { id: nextTokenId++, image: src.image, x: snapped.x, y: snapped.y, w: src.w, h: src.h, rotation: 0, flipped: false, type: 'token' };
                 tokens.push(t); renderToken(t);
                 broadcast({ type: 'token_add', token: { ...t } });
             } else if (copiedObject.type === 'sticker') {
                 const src = copiedObject.data;
-                const s = { id: nextStickerId++, iconUrl: src.iconUrl, x: src.x + offset, y: src.y + offset, w: src.w, h: src.h, size: src.size || 'small', flipped: false, type: 'sticker' };
+                const s = { id: nextStickerId++, iconUrl: src.iconUrl, x: snapped.x, y: snapped.y, w: src.w, h: src.h, size: src.size || 'small', flipped: false, type: 'sticker' };
                 stickers.push(s); renderSticker(s);
                 broadcast({ type: 'sticker_add', sticker: { ...s } });
             }
@@ -2151,8 +2152,19 @@
     }
 
     document.getElementById('token-upload').addEventListener('change', async e => {
-        for (const file of Array.from(e.target.files)) {
-            const url = await convertToWebP(file, 0.85); addToken(url);
+        const files = Array.from(e.target.files);
+        // Start at viewport center, spread each token one cell to the right
+        const startCX = (window.innerWidth/2  - panX) / zoom;
+        const startCY = (window.innerHeight/2 - panY) / zoom;
+        const startSnap = snapToGrid(startCX, startCY);
+        for (let i = 0; i < files.length; i++) {
+            const url = await convertToWebP(files[i], 0.85);
+            // Each token placed one cell (50px) to the right of the last
+            const cellX = startSnap.x + i * 50;
+            const cellY = startSnap.y;
+            const token = { id: nextTokenId++, x: cellX, y: cellY, image: url, hidden: false, size: 'small' };
+            tokens.push(token); renderToken(token);
+            broadcast({ type: 'token_add', token: { ...token } });
         }
         e.target.value = '';
     });
@@ -2621,8 +2633,8 @@
         }
     });
 
-    window.addEventListener('mousedown', e => {
-        if (e.button === 0 && measureActive) {
+    let lastMouseX = window.innerWidth / 2, lastMouseY = window.innerHeight / 2;
+    window.addEventListener('mousemove', e => { lastMouseX = e.clientX; lastMouseY = e.clientY; }, { capture: true, passive: true });
             const pos = viewportToGrid(e.clientX, e.clientY);
             measureStart = pos;
         }
