@@ -507,11 +507,15 @@
 
     const PLAYER_COLORS = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#e91e63','#00bcd4','#ff5722'];
 
+    let colorIndex = 0;
+
     function assignColor(peerId) {
         if (peerColors[peerId]) return peerColors[peerId];
-        // Pick first color not already in use
+        // Skip colors already used by known peers
         const used = new Set(Object.values(peerColors));
-        const color = PLAYER_COLORS.find(c => !used.has(c)) || PLAYER_COLORS[Object.keys(peerColors).length % PLAYER_COLORS.length];
+        while (used.has(PLAYER_COLORS[colorIndex % PLAYER_COLORS.length])) colorIndex++;
+        const color = PLAYER_COLORS[colorIndex % PLAYER_COLORS.length];
+        colorIndex++;
         peerColors[peerId] = color;
         return color;
     }
@@ -813,6 +817,14 @@
                 peerNames[msg.hostId] = msg.hostName;
                 if (msg.hostColor) peerColors[msg.hostId] = msg.hostColor;
                 msg.peers.forEach(p => { connectToPeer(p.id, p.name); if (p.color) peerColors[p.id] = p.color; });
+                // Now we know all existing colors — reassign our own to avoid clashes
+                delete peerColors[myPeerId];
+                myColor = assignColor(myPeerId);
+                peerColors[myPeerId] = myColor;
+                // Tell everyone our (possibly updated) color
+                Object.values(connections).forEach(conn => {
+                    if (conn.open) conn.send(JSON.stringify({ type: 'announce', name: myName, color: myColor }));
+                });
                 updatePeerUI();
                 break;
 
@@ -1008,6 +1020,8 @@
                 panX = msg.panX; panY = msg.panY; zoom = msg.zoom;
                 updateTransform();
                 break;
+
+            case 'fog_cells':
                 msg.cells.forEach(({ cx, cy, fog }) => {
                     const key = `${cx},${cy}`;
                     if (fog) fogCells.add(key);
