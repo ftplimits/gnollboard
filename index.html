@@ -509,6 +509,7 @@
 
     function assignColor(peerId) {
         if (peerColors[peerId]) return peerColors[peerId];
+        // Pick first color not already in use
         const used = new Set(Object.values(peerColors));
         const color = PLAYER_COLORS.find(c => !used.has(c)) || PLAYER_COLORS[Object.keys(peerColors).length % PLAYER_COLORS.length];
         peerColors[peerId] = color;
@@ -757,7 +758,7 @@
         const conn = peer.connect(peerId, { reliable: true });
         conn.on('open', () => {
             conn.send(JSON.stringify({ type: 'announce', name: myName, color: myColor }));
-            wireConnection(conn, false);
+            wireConnection(conn, false, true); // alreadyOpen=true — open already fired here
         });
     }
 
@@ -1398,7 +1399,7 @@
                 }
             }
         }
-        if (changed.length) broadcastMove('fog', { type: 'fog_cells', cells: changed });
+        if (changed.length) broadcast({ type: 'fog_cells', cells: changed });
     }
 
     function fogConfirm(message, onConfirm) {
