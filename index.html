@@ -79,7 +79,7 @@
             bottom: 0; transition: bottom 0.25s ease;
         }
         #toolbar-toggle:hover { background: rgba(100,100,100,0.95); }
-        #icon-palette { position: fixed; bottom: 60px; right: 20px; width: 320px; max-height: min(500px, calc(100vh - 80px)); background: var(--parchment-light); border: 3px solid var(--ink-dark); border-radius: 8px; box-shadow: 0 -8px 24px rgba(0,0,0,0.3); z-index: 2000; overflow: hidden; }
+        #icon-palette { position: fixed; bottom: 60px; right: 20px; width: 320px; max-height: min(500px, calc(100vh - 80px)); background: var(--parchment-light); border: 3px solid var(--ink-dark); border-radius: 8px; box-shadow: 0 -8px 24px rgba(0,0,0,0.3); z-index: 2000; overflow: hidden; display: flex; flex-direction: column; }
         .palette-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--parchment-mid); border-bottom: 2px solid var(--ink-dark); }
         .palette-header h3 { margin: 0; font-family: var(--font-serif); font-size: 20px; color: var(--ink-dark); }
         .palette-header button { background: transparent; border: none; font-size: 24px; cursor: pointer; color: var(--ink-dark); padding: 0; width: 30px; height: 30px; line-height: 1; }
@@ -2166,13 +2166,40 @@
         labelBtn.style.cssText = btnStyle + 'background:#2a5a3a;';
         labelBtn.onclick = () => {
             menu.remove();
-            const name = prompt('Token label (leave blank to remove):', token.label || '');
-            if (name === null) return; // cancelled
-            token.label = name.trim() || null;
-            tokensContainer.querySelector(`[data-id="${token.id}"]`).remove();
-            if (selectedObject?.data.id === token.id) deselectObject();
-            renderToken(token);
-            broadcast({ type: 'token_update', id: token.id, data: { label: token.label } });
+            // prompt() blocked in Discord iframe — use inline overlay instead
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;`;
+            const box = document.createElement('div');
+            box.style.cssText = `background:#1e1e1e;border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:20px 24px;font-family:var(--font-serif);color:#ddd;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.5);width:280px;`;
+            box.innerHTML = `<div style="font-size:14px;margin-bottom:12px;">Token Label</div>`;
+            const inp = document.createElement('input');
+            inp.type = 'text'; inp.maxLength = 30;
+            inp.value = token.label || '';
+            inp.placeholder = 'Enter name or leave blank to remove';
+            inp.style.cssText = `width:100%;padding:7px 10px;background:#111;border:1px solid #444;border-radius:4px;color:white;font-family:var(--font-serif);font-size:14px;box-sizing:border-box;margin-bottom:12px;`;
+            const row = document.createElement('div');
+            row.style.cssText = `display:flex;gap:8px;justify-content:center;`;
+            const ok = document.createElement('button');
+            ok.textContent = 'OK';
+            ok.style.cssText = `padding:6px 20px;background:#8b4513;color:white;border:none;border-radius:4px;font-family:var(--font-serif);cursor:pointer;`;
+            const cancel = document.createElement('button');
+            cancel.textContent = 'Cancel';
+            cancel.style.cssText = `padding:6px 16px;background:#333;color:#aaa;border:none;border-radius:4px;font-family:var(--font-serif);cursor:pointer;`;
+            const apply = () => {
+                token.label = inp.value.trim() || null;
+                overlay.remove();
+                tokensContainer.querySelector(`[data-id="${token.id}"]`).remove();
+                if (selectedObject?.data.id === token.id) deselectObject();
+                renderToken(token);
+                broadcast({ type: 'token_update', id: token.id, data: { label: token.label } });
+            };
+            ok.onclick = apply;
+            cancel.onclick = () => overlay.remove();
+            inp.addEventListener('keydown', e => { if (e.key === 'Enter') apply(); else if (e.key === 'Escape') overlay.remove(); });
+            row.appendChild(ok); row.appendChild(cancel);
+            box.appendChild(inp); box.appendChild(row);
+            overlay.appendChild(box); document.body.appendChild(overlay);
+            setTimeout(() => inp.focus(), 50);
         };
 
         const flip = document.createElement('button'); flip.textContent = '↔ Flip';
