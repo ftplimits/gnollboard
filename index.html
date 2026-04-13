@@ -34,6 +34,12 @@
         #drawing-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; }
         #drawing-canvas.drawing { pointer-events: auto; }
         .token { position: absolute; border: none; border-radius: 0; cursor: move; background-size: cover; background-position: center; background-repeat: no-repeat; transition: opacity 0.2s; z-index: 200; }
+        .token-label { position: absolute; bottom: -1px; left: 50%; transform: translateX(-50%);
+            background: rgba(20,20,20,0.82); color: #f0e6d0; font-family: var(--font-serif);
+            font-size: 11px; white-space: nowrap; padding: 1px 6px 2px;
+            border-radius: 3px 3px 0 0; pointer-events: none; z-index: 201;
+            border: 1px solid rgba(255,255,255,0.15); border-bottom: none;
+            max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
         .token.hidden { opacity: 0.3; }
         .token.dragging { z-index: 300; cursor: grabbing; }
         .sticker { position: absolute; cursor: grab; pointer-events: auto; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); z-index: 150; }
@@ -73,11 +79,11 @@
             bottom: 0; transition: bottom 0.25s ease;
         }
         #toolbar-toggle:hover { background: rgba(100,100,100,0.95); }
-        #icon-palette { position: fixed; bottom: 60px; right: 20px; width: 320px; max-height: 500px; background: var(--parchment-light); border: 3px solid var(--ink-dark); border-radius: 8px; box-shadow: 0 -8px 24px rgba(0,0,0,0.3); z-index: 2000; overflow: hidden; }
+        #icon-palette { position: fixed; bottom: 60px; right: 20px; width: 320px; max-height: min(500px, calc(100vh - 80px)); background: var(--parchment-light); border: 3px solid var(--ink-dark); border-radius: 8px; box-shadow: 0 -8px 24px rgba(0,0,0,0.3); z-index: 2000; overflow: hidden; }
         .palette-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--parchment-mid); border-bottom: 2px solid var(--ink-dark); }
         .palette-header h3 { margin: 0; font-family: var(--font-serif); font-size: 20px; color: var(--ink-dark); }
         .palette-header button { background: transparent; border: none; font-size: 24px; cursor: pointer; color: var(--ink-dark); padding: 0; width: 30px; height: 30px; line-height: 1; }
-        #icon-palette-content { padding: 16px; max-height: 520px; overflow-y: auto; }
+        #icon-palette-content { padding: 16px; overflow-y: auto; flex: 1; }
         .icon-category { margin-bottom: 20px; }
         .icon-category h4 { margin: 0 0 8px 0; font-family: var(--font-serif); font-size: 16px; color: var(--saddle-brown); text-transform: capitalize; }
         .icon-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
@@ -1856,10 +1862,17 @@
     function updateObjTransform(obj, div) {
         const rot = obj.rotation || 0;
         if (obj.type === 'token') {
+            div.style.transformOrigin = 'center center';
             div.style.transform = `rotate(${rot}deg)${obj.flipped ? ' scaleX(-1)' : ''}`;
         } else if (obj.type === 'text') {
+            div.style.transformOrigin = 'center center';
             div.style.transform = rot ? `rotate(${rot}deg)` : '';
+        } else if (obj.type === 'shape' && obj.shapeType === 'triangle') {
+            // Rotate from apex (top-center = peak of the cone)
+            div.style.transformOrigin = '50% 0%';
+            div.style.transform = `rotate(${rot}deg)`;
         } else {
+            div.style.transformOrigin = 'center center';
             div.style.transform = `rotate(${rot}deg)`;
             const img = div.querySelector('img');
             if (img) img.style.transform = obj.flipped ? 'scaleX(-1)' : '';
@@ -1905,8 +1918,10 @@
         e.preventDefault(); e.stopPropagation();
         isRotating = true;
         const rect = selectedObject.div.getBoundingClientRect();
-        rotateCenterX = rect.left + rect.width/2;
-        rotateCenterY = rect.top  + rect.height/2;
+        const isTriangle = selectedObject.type === 'shape' && selectedObject.data.shapeType === 'triangle';
+        // Triangle rotates from apex (top-center); everything else from center
+        rotateCenterX = rect.left + rect.width / 2;
+        rotateCenterY = isTriangle ? rect.top : rect.top + rect.height / 2;
         rotateStartAngle    = Math.atan2(e.clientY-rotateCenterY, e.clientX-rotateCenterX)*180/Math.PI;
         rotateStartObjAngle = selectedObject.data.rotation || 0;
     });
@@ -2120,6 +2135,13 @@
         div.style.backgroundImage = `url(${token.image})`;
         updateObjDiv(token, div);
 
+        if (token.label) {
+            const lbl = document.createElement('div');
+            lbl.className = 'token-label';
+            lbl.textContent = token.label;
+            div.appendChild(lbl);
+        }
+
         div.addEventListener('mousedown', e => {
             if (e.button !== 0) return; e.stopPropagation();
             if (e.shiftKey) { token.hidden=!token.hidden; div.classList.toggle('hidden'); broadcast({type:'token_update',id:token.id,data:{hidden:token.hidden}}); return; }
@@ -2134,9 +2156,27 @@
 
     function showTokenContextMenu(x, y, token, div) {
         const menu = document.createElement('div');
-        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:var(--font-serif);`;
-        const flip = document.createElement('button'); flip.textContent = 'Flip';
-        flip.style.cssText = `display:block;width:100%;padding:6px 12px;margin:2px 0;background:#1a4d7a;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);`;
+        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:var(--font-serif);min-width:140px;`;
+
+        const btnStyle = `display:block;width:100%;padding:6px 12px;margin:2px 0;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);border-radius:2px;text-align:left;`;
+
+        // Label toggle
+        const labelBtn = document.createElement('button');
+        labelBtn.textContent = token.label ? '🏷️ Edit Label' : '🏷️ Add Label';
+        labelBtn.style.cssText = btnStyle + 'background:#2a5a3a;';
+        labelBtn.onclick = () => {
+            menu.remove();
+            const name = prompt('Token label (leave blank to remove):', token.label || '');
+            if (name === null) return; // cancelled
+            token.label = name.trim() || null;
+            tokensContainer.querySelector(`[data-id="${token.id}"]`).remove();
+            if (selectedObject?.data.id === token.id) deselectObject();
+            renderToken(token);
+            broadcast({ type: 'token_update', id: token.id, data: { label: token.label } });
+        };
+
+        const flip = document.createElement('button'); flip.textContent = '↔ Flip';
+        flip.style.cssText = btnStyle + 'background:#1a4d7a;';
         flip.onclick = () => {
             token.flipped = !token.flipped;
             tokensContainer.querySelector(`[data-id="${token.id}"]`).remove();
@@ -2145,15 +2185,18 @@
             broadcast({ type: 'token_update', id: token.id, data: { flipped: token.flipped } });
             menu.remove();
         };
-        const del = document.createElement('button'); del.textContent = 'Delete';
-        del.style.cssText = `display:block;width:100%;padding:6px 12px;margin-top:4px;background:#dc143c;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);`;
+
+        const del = document.createElement('button'); del.textContent = '✕ Delete';
+        del.style.cssText = btnStyle + 'background:#dc143c;margin-top:4px;';
         del.onclick = () => {
             tokens = tokens.filter(t=>t.id!==token.id);
             tokensContainer.querySelector(`[data-id="${token.id}"]`).remove();
             if (selectedObject?.data.id === token.id) deselectObject();
             broadcast({ type: 'token_delete', id: token.id }); menu.remove();
         };
-        menu.appendChild(flip); menu.appendChild(del); document.body.appendChild(menu);
+
+        menu.appendChild(labelBtn); menu.appendChild(flip); menu.appendChild(del);
+        document.body.appendChild(menu);
         const close = () => { menu.remove(); document.removeEventListener('click', close); };
         setTimeout(() => document.addEventListener('click', close), 10);
     }
