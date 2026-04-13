@@ -40,6 +40,10 @@
             border-radius: 3px 3px 0 0; pointer-events: none; z-index: 201;
             border: 1px solid rgba(255,255,255,0.15); border-bottom: none;
             max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+        .token-conditions { position: absolute; top: -10px; right: -10px;
+            display: flex; flex-wrap: wrap; gap: 1px; max-width: 36px;
+            pointer-events: none; z-index: 202; }
+        .token-condition { font-size: 13px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8)); }
         .token.hidden { opacity: 0.3; }
         .token.dragging { z-index: 300; cursor: grabbing; }
         .sticker { position: absolute; cursor: grab; pointer-events: auto; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); z-index: 150; }
@@ -2076,10 +2080,11 @@
         const img = document.createElement('img');
         img.src = sticker.iconUrl; img.draggable = false; img.style.pointerEvents = 'none';
         img.style.width = '100%'; img.style.height = '100%';
+        if (sticker.locked) div.style.cursor = 'default';
         div.appendChild(img); updateObjDiv(sticker, div);
 
         div.addEventListener('mousedown', e => {
-            if (e.button === 0 && !currentTool && !selectedIconUrl) {
+            if (e.button === 0 && !currentTool && !selectedIconUrl && !sticker.locked) {
                 e.stopPropagation(); selectObject('sticker', sticker, div);
                 draggedSticker = sticker; div.classList.add('dragging');
                 const pos = viewportToGrid(e.clientX, e.clientY);
@@ -2092,9 +2097,22 @@
 
     function showStickerContextMenu(x, y, sticker, div) {
         const menu = document.createElement('div');
-        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:var(--font-serif);`;
-        const flip = document.createElement('button'); flip.textContent = 'Flip';
-        flip.style.cssText = `display:block;width:100%;padding:6px 12px;margin:2px 0;background:#1a4d7a;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);`;
+        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:var(--font-serif);min-width:120px;`;
+        const btnStyle = `display:block;width:100%;padding:6px 12px;margin:2px 0;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);border-radius:2px;text-align:left;`;
+
+        const lockBtn = document.createElement('button');
+        lockBtn.textContent = sticker.locked ? '🔓 Unlock' : '🔒 Lock';
+        lockBtn.style.cssText = btnStyle + 'background:#2a4a6a;';
+        lockBtn.onclick = () => {
+            sticker.locked = !sticker.locked;
+            div.style.cursor = sticker.locked ? 'default' : 'grab';
+            if (selectedObject?.data.id === sticker.id) deselectObject();
+            broadcast({ type: 'sticker_update', id: sticker.id, data: { locked: sticker.locked } });
+            menu.remove();
+        };
+
+        const flip = document.createElement('button'); flip.textContent = '↔ Flip';
+        flip.style.cssText = btnStyle + 'background:#1a4d7a;';
         flip.onclick = () => {
             sticker.flipped = !sticker.flipped;
             stickersContainer.querySelector(`[data-id="${sticker.id}"]`).remove();
@@ -2103,15 +2121,18 @@
             broadcast({ type: 'sticker_update', id: sticker.id, data: { flipped: sticker.flipped } });
             menu.remove();
         };
-        const del = document.createElement('button'); del.textContent = 'Delete';
-        del.style.cssText = `display:block;width:100%;padding:6px 12px;margin-top:4px;background:#dc143c;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);`;
+
+        const del = document.createElement('button'); del.textContent = '✕ Delete';
+        del.style.cssText = btnStyle + 'background:#dc143c;margin-top:4px;';
         del.onclick = () => {
             stickers.splice(stickers.findIndex(s=>s.id===sticker.id), 1);
             stickersContainer.querySelector(`[data-id="${sticker.id}"]`).remove();
             if (selectedObject?.data.id === sticker.id) deselectObject();
             broadcast({ type: 'sticker_delete', id: sticker.id }); menu.remove();
         };
-        menu.appendChild(flip); menu.appendChild(del); document.body.appendChild(menu);
+
+        menu.appendChild(lockBtn); menu.appendChild(flip); menu.appendChild(del);
+        document.body.appendChild(menu);
         const close = () => { menu.remove(); document.removeEventListener('click', close); };
         setTimeout(() => document.addEventListener('click', close), 10);
     }
@@ -2143,6 +2164,35 @@
             div.appendChild(lbl);
         }
 
+        if (token.conditions && token.conditions.length) {
+            // Eliminated X — full overlay
+            if (token.conditions.includes('❌')) {
+                const xover = document.createElement('div');
+                xover.style.cssText = `position:absolute;inset:0;pointer-events:none;z-index:203;`;
+                xover.innerHTML = `<svg width="100%" height="100%" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <line x1="8" y1="8" x2="92" y2="92" stroke="#cc0000" stroke-width="10" stroke-linecap="round"/>
+                    <line x1="92" y1="8" x2="8" y2="92" stroke="#cc0000" stroke-width="10" stroke-linecap="round"/>
+                    <line x1="8" y1="8" x2="92" y2="92" stroke="rgba(255,60,60,0.4)" stroke-width="14" stroke-linecap="round"/>
+                    <line x1="92" y1="8" x2="8" y2="92" stroke="rgba(255,60,60,0.4)" stroke-width="14" stroke-linecap="round"/>
+                </svg>`;
+                div.appendChild(xover);
+            }
+            // Other conditions — corner badges
+            const others = token.conditions.filter(c => c !== '❌');
+            if (others.length) {
+                const cbox = document.createElement('div');
+                cbox.className = 'token-conditions';
+                if (token.flipped) cbox.style.transform = 'scaleX(-1)';
+                others.forEach(emoji => {
+                    const span = document.createElement('span');
+                    span.className = 'token-condition';
+                    span.textContent = emoji;
+                    cbox.appendChild(span);
+                });
+                div.appendChild(cbox);
+            }
+        }
+
         div.addEventListener('mousedown', e => {
             if (e.button !== 0) return; e.stopPropagation();
             if (e.shiftKey) { token.hidden=!token.hidden; div.classList.toggle('hidden'); broadcast({type:'token_update',id:token.id,data:{hidden:token.hidden}}); return; }
@@ -2159,7 +2209,36 @@
         const menu = document.createElement('div');
         menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:var(--font-serif);min-width:140px;`;
 
-        const btnStyle = `display:block;width:100%;padding:6px 12px;margin:2px 0;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);border-radius:2px;text-align:left;`;
+        const CONDITIONS = ['☠️','😴','🔥','❄️','⚡','🩸','🌀','💀','🛡️','🤢','💫','❌'];
+
+        // Conditions picker
+        const condLabel = document.createElement('div');
+        condLabel.style.cssText = `font-size:11px;color:#888;padding:4px 4px 2px;font-family:var(--font-serif);`;
+        condLabel.textContent = 'Conditions';
+        const condGrid = document.createElement('div');
+        condGrid.style.cssText = `display:grid;grid-template-columns:repeat(6,1fr);gap:2px;margin-bottom:6px;`;
+        const curConditions = token.conditions || [];
+        CONDITIONS.forEach(emoji => {
+            const btn = document.createElement('button');
+            btn.textContent = emoji;
+            const active = curConditions.includes(emoji);
+            btn.style.cssText = `font-size:16px;padding:3px;border-radius:3px;cursor:pointer;border:2px solid ${active?'#8b4513':'transparent'};background:${active?'rgba(139,69,19,0.2)':'transparent'};`;
+            btn.onclick = e => {
+                e.stopPropagation();
+                const conds = [...(token.conditions || [])];
+                const idx = conds.indexOf(emoji);
+                if (idx > -1) conds.splice(idx, 1); else conds.push(emoji);
+                token.conditions = conds;
+                tokensContainer.querySelector(`[data-id="${token.id}"]`).remove();
+                if (selectedObject?.data.id === token.id) deselectObject();
+                renderToken(token);
+                broadcast({ type: 'token_update', id: token.id, data: { conditions: token.conditions } });
+                menu.remove();
+            };
+            condGrid.appendChild(btn);
+        });
+        menu.appendChild(condLabel);
+        menu.appendChild(condGrid);
 
         // Label toggle
         const labelBtn = document.createElement('button');
