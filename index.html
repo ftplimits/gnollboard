@@ -20,9 +20,9 @@
         body { font-family: var(--font-serif); overflow: hidden; width: 100vw; height: 100vh; background: var(--parchment-light); cursor: default; user-select: none; position: relative; }
         body::before { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0.4; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E"); z-index: 0; }
         #viewport { width: 100%; height: 100%; overflow: hidden; position: relative; z-index: 1; background: #3a3a3a; }
-        #grid-container { position: absolute; width: 5000px; height: 5000px; transform-origin: 0 0; }
+        #grid-container { position: absolute; width: 5000px; height: 5000px; transform-origin: 0 0; background: radial-gradient(circle at center, #d2cbbc, #7e7466); }
         #map-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
-        #map-container-below { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+        #map-container-below { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
         #map-handle-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 12; }
         .map-image { position: absolute; cursor: move; pointer-events: auto; user-select: none; }
         .map-image.locked { cursor: default; }
@@ -31,7 +31,7 @@
             background: rgba(0,0,0,0.55); border-radius: 4px; padding: 3px 6px;
             font-size: 14px; color: #fff; user-select: none; }
         .map-lock-handle:hover { background: rgba(139,69,19,0.8); }
-        #grid-background { position: absolute; width: 100%; height: 100%; z-index: 1; border: 8px solid var(--ink-dark); box-sizing: border-box; background: url("data:image/svg+xml,%3Csvg width='50' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 0 Q 12 -0.3 25 0.2 Q 37 -0.4 50 0' stroke='%232a2522' stroke-width='1' fill='none' opacity='0.5'/%3E%3Cpath d='M 0 0 Q -0.4 12 0.3 25 Q -0.2 37 0 50' stroke='%232a2522' stroke-width='1' fill='none' opacity='0.5'/%3E%3C/svg%3E"), radial-gradient(circle at center, #d2cbbc, #7e7466); pointer-events: none; }
+        #grid-background { position: absolute; width: 100%; height: 100%; z-index: 5; border: 8px solid var(--ink-dark); box-sizing: border-box; background: url("data:image/svg+xml,%3Csvg width='50' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 0 Q 12 -0.3 25 0.2 Q 37 -0.4 50 0' stroke='%232a2522' stroke-width='1' fill='none' opacity='0.5'/%3E%3Cpath d='M 0 0 Q -0.4 12 0.3 25 Q -0.2 37 0 50' stroke='%232a2522' stroke-width='1' fill='none' opacity='0.5'/%3E%3C/svg%3E"); background-color: transparent; pointer-events: none; }
         #drawing-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; }
         #drawing-canvas.drawing { pointer-events: auto; }
         .token { position: absolute; border: none; border-radius: 0; cursor: move; background-size: cover; background-position: center; background-repeat: no-repeat; transition: opacity 0.2s; z-index: 200; box-sizing: border-box; }
@@ -2692,9 +2692,22 @@
             mapDragOffsetX = pos.x - map.x; mapDragOffsetY = pos.y - map.y;
         });
 
+        let mapRightDownX = 0, mapRightDownY = 0, mapRightMoved = false;
+
+        el.addEventListener('mousedown', e => {
+            if (e.button === 2) { mapRightDownX = e.clientX; mapRightDownY = e.clientY; mapRightMoved = false; }
+        });
+        el.addEventListener('mousemove', e => {
+            if (e.buttons === 2) {
+                const d = Math.hypot(e.clientX - mapRightDownX, e.clientY - mapRightDownY);
+                if (d > 6) mapRightMoved = true;
+            }
+        });
         el.addEventListener('contextmenu', e => {
             e.preventDefault(); e.stopPropagation();
-            if (!isHost) return;
+            if (!isHost || mapRightMoved) return;
+            // Remove any existing map context menu before opening a new one
+            document.querySelectorAll('.map-ctx-menu').forEach(m => m.remove());
             showMapContextMenu(e.clientX, e.clientY, map, el);
         });
 
@@ -2704,6 +2717,7 @@
 
     function showMapContextMenu(x, y, map, el) {
         const menu = document.createElement('div');
+        menu.className = 'map-ctx-menu';
         menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:var(--font-serif);min-width:130px;`;
         const btnStyle = `display:block;width:100%;padding:6px 12px;margin:2px 0;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);border-radius:2px;text-align:left;`;
 
