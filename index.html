@@ -2557,7 +2557,7 @@
         el.style.color = lbl.color;
         el.setAttribute('data-id', lbl.id);
         updateObjDiv(lbl, el);
-        if (lbl.locked) { el.style.cursor = 'default'; el.style.pointerEvents = 'none'; }
+        if (lbl.locked) { el.style.cursor = 'default'; }
         el.addEventListener('mousedown', e => {
             if (e.button !== 0 || currentTool || lbl.locked) return;
             e.stopPropagation();
@@ -2602,7 +2602,6 @@
             lockBtn.onclick = () => {
                 lbl.locked = !lbl.locked;
                 el.style.cursor = lbl.locked ? 'default' : 'grab';
-                el.style.pointerEvents = lbl.locked ? 'none' : 'auto';
                 broadcast({ type: 'text_update', id: lbl.id, data: { locked: lbl.locked } });
                 menu.remove();
             };
