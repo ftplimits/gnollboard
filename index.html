@@ -85,6 +85,15 @@
         }
         #toolbar-toggle:hover { background: rgba(100,100,100,0.95); }
         #icon-palette { position: fixed; bottom: 120px; right: 20px; width: 320px; max-height: 500px; background: var(--parchment-light); border: 3px solid var(--ink-dark); border-radius: 8px; box-shadow: 0 -8px 24px rgba(0,0,0,0.3); z-index: 2000; overflow: hidden; }
+        #dungeon-panel { position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%); width: 380px; background: var(--parchment-light); border: 3px solid var(--ink-dark); border-radius: 8px; box-shadow: 0 -8px 24px rgba(0,0,0,0.3); z-index: 2000; padding: 16px; font-family: var(--font-serif); }
+        #dungeon-panel h3 { margin: 0 0 14px; font-size: 18px; color: var(--ink-dark); display:flex; justify-content:space-between; align-items:center; }
+        .dg-row { display: flex; gap: 8px; margin-bottom: 12px; }
+        .dg-label { font-size: 12px; color: #666; margin-bottom: 5px; }
+        .dg-toggle { flex: 1; padding: 7px 4px; background: var(--parchment-mid); border: 2px solid var(--ink-medium); border-radius: 5px; font-family: var(--font-serif); font-size: 12px; cursor: pointer; text-align: center; color: var(--ink-dark); transition: all 0.15s; }
+        .dg-toggle.active, .dg-texture.active { background: var(--accent); color: white; border-color: var(--accent-hover); }
+        .dg-texture { flex: 1; padding: 7px 4px; background: var(--parchment-mid); border: 2px solid var(--ink-medium); border-radius: 5px; font-family: var(--font-serif); font-size: 12px; cursor: pointer; text-align: center; color: var(--ink-dark); transition: all 0.15s; }
+        #btn-generate-dungeon { width: 100%; padding: 10px; background: var(--accent); color: white; border: none; border-radius: 6px; font-family: var(--font-serif); font-size: 15px; cursor: pointer; margin-top: 4px; }
+        #btn-generate-dungeon:hover { background: var(--accent-hover); }
         .palette-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--parchment-mid); border-bottom: 2px solid var(--ink-dark); }
         .palette-header h3 { margin: 0; font-family: var(--font-serif); font-size: 20px; color: var(--ink-dark); }
         .palette-header button { background: transparent; border: none; font-size: 24px; cursor: pointer; color: var(--ink-dark); padding: 0; width: 30px; height: 30px; line-height: 1; }
@@ -362,6 +371,7 @@
         <button class="tool-btn" id="btn-token-upload" title="Upload Token">👤</button>
         <button class="tool-btn" id="btn-map-upload-tb" title="Upload Map">🗺️</button>
         <button class="tool-btn" id="btn-icons" title="Icons" style="padding:4px 6px;"><img src="./icons/wooden-door.webp" style="width:22px;height:22px;display:block;pointer-events:none;"></button>
+        <button class="tool-btn" id="btn-dungeon-gen" title="Generate Dungeon">🎲</button>
         <div class="divider"></div>
         <button class="tool-btn" id="btn-pen"      data-tool="pen"      title="Pen">✏️</button>
         <button class="tool-btn" id="btn-line"     data-tool="line"     title="Line">╱</button>
@@ -400,6 +410,9 @@
         </div>
         <div id="icon-palette-content"></div>
     </div>
+
+    <!-- Dungeon Generator Panel -->
+    <div id="dungeon-panel" style="display:none;"></div>
 
     <div id="text-input-dialog">
         <input type="text" id="text-input-field" placeholder="Enter text...">
@@ -3188,6 +3201,196 @@
         if (e.key === 'Enter') confirmTextInput();
         else if (e.key === 'Escape') cancelTextInput();
     });
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DUNGEON GENERATOR
+    // ═══════════════════════════════════════════════════════════════════════════
+    const DG = {
+        size: 'medium',    // small | medium | large
+        density: 'moderate', // sparse | moderate | dense
+        texture: 'hatch'   // hatch | solid | stipple
+    };
+
+    const DG_SIZES = { small: 25, medium: 50, large: 100 };
+    const DG_DENSITY = {
+        sparse:   { rooms: [4,  7 ], minRoom: 6, maxRoom: 12 },
+        moderate: { rooms: [8,  14], minRoom: 4, maxRoom: 8  },
+        dense:    { rooms: [16, 26], minRoom: 2, maxRoom: 5  }
+    };
+
+    function openDungeonPanel() {
+        const panel = document.getElementById('dungeon-panel');
+        if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+        panel.innerHTML = `
+            <h3>🎲 Dungeon Generator <button id="btn-close-dg" style="background:transparent;border:none;font-size:18px;cursor:pointer;color:var(--ink-dark);">✕</button></h3>
+            <div class="dg-label">Size</div>
+            <div class="dg-row">
+                <button class="dg-toggle ${DG.size==='small'?'active':''}"    data-dg-size="small">Small<br><span style="font-size:10px;opacity:0.7">25×25</span></button>
+                <button class="dg-toggle ${DG.size==='medium'?'active':''}"   data-dg-size="medium">Medium<br><span style="font-size:10px;opacity:0.7">50×50</span></button>
+                <button class="dg-toggle ${DG.size==='large'?'active':''}"    data-dg-size="large">Large<br><span style="font-size:10px;opacity:0.7">100×100</span></button>
+            </div>
+            <div class="dg-label">Room Density</div>
+            <div class="dg-row">
+                <button class="dg-toggle ${DG.density==='sparse'?'active':''}"   data-dg-density="sparse">Sparse<br><span style="font-size:10px;opacity:0.7">Few large rooms</span></button>
+                <button class="dg-toggle ${DG.density==='moderate'?'active':''}" data-dg-density="moderate">Moderate<br><span style="font-size:10px;opacity:0.7">Balanced</span></button>
+                <button class="dg-toggle ${DG.density==='dense'?'active':''}"    data-dg-density="dense">Dense<br><span style="font-size:10px;opacity:0.7">Many small rooms</span></button>
+            </div>
+            <div class="dg-label">Wall Texture</div>
+            <div class="dg-row">
+                <button class="dg-texture ${DG.texture==='hatch'?'active':''}"   data-dg-tex="hatch">Hatched<br><span style="font-size:10px;opacity:0.7">OSR crosshatch</span></button>
+                <button class="dg-texture ${DG.texture==='solid'?'active':''}"   data-dg-tex="solid">Solid Stone<br><span style="font-size:10px;opacity:0.7">Dark fill</span></button>
+                <button class="dg-texture ${DG.texture==='stipple'?'active':''}" data-dg-tex="stipple">Stipple<br><span style="font-size:10px;opacity:0.7">TSR dot style</span></button>
+            </div>
+            <button id="btn-generate-dungeon">Generate ⚔</button>
+        `;
+        panel.style.display = 'block';
+
+        panel.querySelectorAll('[data-dg-size]').forEach(b => b.addEventListener('click', () => {
+            DG.size = b.dataset.dgSize;
+            panel.querySelectorAll('[data-dg-size]').forEach(x => x.classList.toggle('active', x===b));
+        }));
+        panel.querySelectorAll('[data-dg-density]').forEach(b => b.addEventListener('click', () => {
+            DG.density = b.dataset.dgDensity;
+            panel.querySelectorAll('[data-dg-density]').forEach(x => x.classList.toggle('active', x===b));
+        }));
+        panel.querySelectorAll('[data-dg-tex]').forEach(b => b.addEventListener('click', () => {
+            DG.texture = b.dataset.dgTex;
+            panel.querySelectorAll('[data-dg-tex]').forEach(x => x.classList.toggle('active', x===b));
+        }));
+        document.getElementById('btn-close-dg').addEventListener('click', () => panel.style.display = 'none');
+        document.getElementById('btn-generate-dungeon').addEventListener('click', generateDungeon);
+    }
+
+    function generateDungeon() {
+        const cells = DG_SIZES[DG.size];
+        const px    = cells * 50;          // pixel size of dungeon area
+        const off   = FOG_OFFSET;
+        // Center within the 5000x5000 grid
+        const startX = Math.round((5000 - px) / 2 / 50) * 50 + off;
+        const startY = Math.round((5000 - px) / 2 / 50) * 50 + off;
+
+        const { rooms: roomRange, minRoom, maxRoom } = DG_DENSITY[DG.density];
+        const numRooms = roomRange[0] + Math.floor(Math.random() * (roomRange[1] - roomRange[0]));
+
+        // BSP-style room placement — attempt to place rooms without overlap
+        const rooms = [];
+        const maxAttempts = numRooms * 20;
+        for (let attempt = 0; attempt < maxAttempts && rooms.length < numRooms; attempt++) {
+            const rw = minRoom + Math.floor(Math.random() * (maxRoom - minRoom + 1));
+            const rh = minRoom + Math.floor(Math.random() * (maxRoom - minRoom + 1));
+            const rx = Math.floor(Math.random() * (cells - rw - 2)) + 1;
+            const ry = Math.floor(Math.random() * (cells - rh - 2)) + 1;
+            // Check overlap (with 1 cell buffer)
+            const overlap = rooms.some(r =>
+                rx < r.x + r.w + 1 && rx + rw + 1 > r.x &&
+                ry < r.y + r.h + 1 && ry + rh + 1 > r.y
+            );
+            if (!overlap) rooms.push({ x: rx, y: ry, w: rw, h: rh });
+        }
+
+        // Connect rooms with L-shaped corridors
+        const corridors = [];
+        for (let i = 1; i < rooms.length; i++) {
+            const a = rooms[i-1], b = rooms[i];
+            const ax = a.x + Math.floor(a.w/2), ay = a.y + Math.floor(a.h/2);
+            const bx = b.x + Math.floor(b.w/2), by = b.y + Math.floor(b.h/2);
+            // Horizontal then vertical
+            if (Math.random() < 0.5) {
+                corridors.push({ x: Math.min(ax,bx), y: ay, w: Math.abs(ax-bx)+1, h: 1 });
+                corridors.push({ x: bx, y: Math.min(ay,by), w: 1, h: Math.abs(ay-by)+1 });
+            } else {
+                corridors.push({ x: ax, y: Math.min(ay,by), w: 1, h: Math.abs(ay-by)+1 });
+                corridors.push({ x: Math.min(ax,bx), y: by, w: Math.abs(ax-bx)+1, h: 1 });
+            }
+        }
+
+        // Clear canvas and draw
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw wall texture over dungeon area
+        drawWallTexture(startX, startY, px, px, DG.texture);
+
+        // Draw rooms and corridors as floor (parchment color)
+        const floorColor = '#d4cbb8';
+        ctx.fillStyle = floorColor;
+        [...rooms, ...corridors].forEach(r => {
+            ctx.fillRect(startX + r.x*50, startY + r.y*50, r.w*50, r.h*50);
+        });
+
+        // Draw room walls (thin border around each room)
+        ctx.strokeStyle = '#3a2a1a';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([]);
+        rooms.forEach(r => {
+            ctx.strokeRect(startX + r.x*50 + 1, startY + r.y*50 + 1, r.w*50 - 2, r.h*50 - 2);
+        });
+
+        // Fill fog over entire dungeon area
+        fogCells.clear();
+        const cellStartX = Math.round((startX - off) / 50);
+        const cellStartY = Math.round((startY - off) / 50);
+        for (let cx = cellStartX; cx < cellStartX + cells; cx++) {
+            for (let cy = cellStartY; cy < cellStartY + cells; cy++) {
+                if (cx >= 0 && cx < 100 && cy >= 0 && cy < 100)
+                    fogCells.add(`${cx},${cy}`);
+            }
+        }
+        redrawFog();
+
+        // Pan view to center on dungeon
+        const dungeonCenterX = startX + px/2, dungeonCenterY = startY + px/2;
+        panX = window.innerWidth/2  - dungeonCenterX * zoom;
+        panY = window.innerHeight/2 - dungeonCenterY * zoom;
+        updateTransform();
+
+        // Broadcast canvas and fog to peers
+        broadcast({ type: 'pen_commit' }); // triggers canvas sync
+        const fogArr = [...fogCells].map(key => { const [cx,cy]=key.split(',').map(Number); return {cx,cy,fog:true}; });
+        broadcast({ type: 'fog_fill' });
+
+        // Close panel
+        document.getElementById('dungeon-panel').style.display = 'none';
+    }
+
+    function drawWallTexture(x, y, w, h, texture) {
+        ctx.save();
+        ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+
+        if (texture === 'solid') {
+            ctx.fillStyle = '#2a2218';
+            ctx.fillRect(x, y, w, h);
+        } else if (texture === 'hatch') {
+            // Parchment base
+            ctx.fillStyle = '#b8a898';
+            ctx.fillRect(x, y, w, h);
+            // Diagonal crosshatch lines
+            ctx.strokeStyle = '#7a6a5a';
+            ctx.lineWidth = 0.8;
+            const spacing = 8;
+            for (let i = -(h); i < w + h; i += spacing) {
+                ctx.beginPath(); ctx.moveTo(x + i, y); ctx.lineTo(x + i + h, y + h); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(x + i, y + h); ctx.lineTo(x + i + h, y); ctx.stroke();
+            }
+        } else if (texture === 'stipple') {
+            // Slightly darker parchment base
+            ctx.fillStyle = '#b0a090';
+            ctx.fillRect(x, y, w, h);
+            // Random dots
+            ctx.fillStyle = '#5a4a3a';
+            const seed = 42;
+            let s = seed;
+            const rng = () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
+            const dotCount = Math.floor(w * h / 60);
+            for (let i = 0; i < dotCount; i++) {
+                const dx = x + rng() * w, dy = y + rng() * h;
+                const r = 0.5 + rng() * 1.2;
+                ctx.beginPath(); ctx.arc(dx, dy, r, 0, Math.PI*2); ctx.fill();
+            }
+        }
+        ctx.restore();
+    }
+
+    document.getElementById('btn-dungeon-gen')?.addEventListener('click', openDungeonPanel);
 
     // ═══════════════════════════════════════════════════════════════════════════
     // INIT
