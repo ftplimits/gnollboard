@@ -33,7 +33,7 @@
         #grid-background { position: absolute; width: 100%; height: 100%; z-index: 1; border: 8px solid var(--ink-dark); box-sizing: border-box; background: url("data:image/svg+xml,%3Csvg width='50' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 0 Q 12 -0.3 25 0.2 Q 37 -0.4 50 0' stroke='%232a2522' stroke-width='1' fill='none' opacity='0.5'/%3E%3Cpath d='M 0 0 Q -0.4 12 0.3 25 Q -0.2 37 0 50' stroke='%232a2522' stroke-width='1' fill='none' opacity='0.5'/%3E%3C/svg%3E"), radial-gradient(circle at center, #d2cbbc, #7e7466); pointer-events: none; }
         #drawing-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; }
         #drawing-canvas.drawing { pointer-events: auto; }
-        .token { position: absolute; border: none; border-radius: 0; cursor: move; background-size: cover; background-position: center; background-repeat: no-repeat; transition: opacity 0.2s; z-index: 200; }
+        .token { position: absolute; border: none; border-radius: 0; cursor: move; background-size: cover; background-position: center; background-repeat: no-repeat; transition: opacity 0.2s; z-index: 200; box-sizing: border-box; }
         .token-label { position: absolute; bottom: -1px; left: 50%; transform: translateX(-50%);
             background: rgba(20,20,20,0.82); color: #f0e6d0; font-family: var(--font-serif);
             font-size: 9px; white-space: nowrap; padding: 1px 6px 2px;
@@ -47,8 +47,9 @@
         .token.hidden { opacity: 0.3; }
         .token.dragging { z-index: 300; cursor: grabbing; }
         .sticker { position: absolute; cursor: grab; pointer-events: auto; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); z-index: 150; }
+        .sticker.tool-active { pointer-events: none; }
         .sticker.dragging { cursor: grabbing; z-index: 300; }
-        .text-label { position: absolute; font-family: var(--font-serif); color: var(--ink-dark); white-space: nowrap; pointer-events: auto; cursor: grab; z-index: 150; text-shadow: 1px 1px 0 rgba(255,255,255,0.8), -1px -1px 0 rgba(255,255,255,0.8), 1px -1px 0 rgba(255,255,255,0.8), -1px 1px 0 rgba(255,255,255,0.8); transform-origin: center center; }
+        .text-label { position: absolute; font-family: var(--font-serif); color: var(--ink-dark); white-space: nowrap; pointer-events: auto; cursor: grab; z-index: 150; transform-origin: center center; }
         .text-label.dragging { cursor: grabbing; z-index: 300; }
         .text-label.selected { outline: 2px dashed rgba(139,69,19,0.6); outline-offset: 2px; }
         #text-input-dialog { position: fixed; background: rgba(42,42,42,0.95); border: 2px solid var(--ink-dark); border-radius: 8px; padding: 16px; z-index: 10000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: none; }
@@ -370,7 +371,8 @@
         <button class="tool-btn" id="btn-text"     data-tool="text"     title="Text">T</button>
         <button class="tool-btn" id="btn-eraser"   data-tool="eraser"   title="Eraser">🧹</button>
         <div class="divider"></div>
-        <button class="tool-btn" id="bold-toggle" title="Bold">B</button>
+        <button class="tool-btn" id="bold-toggle"  title="Bold">B</button>
+        <button class="tool-btn" id="fill-toggle"  title="Fill Shapes">F</button>
         <div class="divider"></div>
         <div class="color-picker">
             <div class="color-swatch active" id="sw-ink"   style="background:#2a2522" data-color="#2a2522"></div>
@@ -449,7 +451,8 @@
     let dragOffsetX = 0, dragOffsetY = 0, contextToken = null;
     let savedImageData = null, drawingFrameId = null;
     let drawings = [], selectedDrawing = null, nextDrawingId = 1;
-    let boldLines = false;
+    let boldLines  = false;
+    let fillShapes = false;
     let draggedText = null, textDragOffsetX = 0, textDragOffsetY = 0;
     let textLabels = [], nextTextId = 1;  // tracked for P2P sync
 
@@ -1252,10 +1255,13 @@
         boldLines = !boldLines;
         document.getElementById('bold-toggle').classList.toggle('active', boldLines);
     }
+    function toggleFill() {
+        fillShapes = !fillShapes;
+        document.getElementById('fill-toggle').classList.toggle('active', fillShapes);
+    }
 
     function setTool(tool) {
         currentTool = currentTool === tool ? null : tool;
-        // Deselect fog tool when drawing tool activated
         if (currentTool) { currentFogTool = null; document.querySelectorAll('.fog-btn').forEach(b=>b.classList.remove('active')); }
         document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
         if (currentTool) {
@@ -1263,6 +1269,8 @@
             if (btn) btn.classList.add('active');
             canvas.classList.add('drawing');
         } else { canvas.classList.remove('drawing'); }
+        // Pass clicks through stickers when a drawing tool is active
+        document.querySelectorAll('.sticker').forEach(s => s.classList.toggle('tool-active', !!currentTool));
     }
 
     function setColor(color, swatchEl) {
@@ -1995,7 +2003,9 @@
     // ═══════════════════════════════════════════════════════════════════════════
     function getShapeSVG(shape) {
         const sw = shape.lineWidth || 3, c = shape.color || '#2a2522';
-        const vis  = `fill="none" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" pointer-events="none"`;
+        const fillColor = shape.filled ? c.replace(/^#/, '') : null;
+        const fillAttr = shape.filled ? `fill="${c}" fill-opacity="0.25"` : `fill="none"`;
+        const vis  = `${fillAttr} stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" pointer-events="none"`;
         const hit  = `fill="none" stroke="transparent" stroke-width="20" vector-effect="non-scaling-stroke" pointer-events="stroke" style="cursor:move"`;
         let visEl = '', hitEl = '';
         if (shape.shapeType==='rect') {
@@ -2013,7 +2023,7 @@
 
     function addShape(shapeType, x, y, w, h, color, lineWidth) {
         if (w < 6 || h < 6) return;
-        const shape = { id: nextShapeId++, shapeType, x, y, w, h, color, lineWidth, rotation: 0, type: 'shape' };
+        const shape = { id: nextShapeId++, shapeType, x, y, w, h, color, lineWidth, filled: fillShapes, rotation: 0, type: 'shape' };
         shapes.push(shape); renderShape(shape);
         broadcast({ type: 'shape_add', shape: { ...shape } });
         pushUndo(
@@ -2169,6 +2179,7 @@
         div.dataset.id = token.id; token.type = 'token';
         if (!token.w || !token.h) { const m={small:49,medium:100,large:150}; const px=m[token.size||'small']||49; token.w=px; token.h=px; }
         div.style.backgroundImage = `url(${token.image})`;
+        if (token.border) div.style.border = `3px solid ${token.border}`;
         updateObjDiv(token, div);
 
         if (token.label) {
@@ -2226,6 +2237,38 @@
 
         const btnStyle = `display:block;width:100%;padding:6px 12px;margin:2px 0;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);border-radius:2px;text-align:left;`;
         const CONDITIONS = ['☠️','😴','🔥','❄️','⚡','🩸','🌀','💀','🛡️','🤢','💫','❌'];
+        const BORDERS = [
+            { label: '⬛', color: '#111111' }, { label: '⬜', color: '#ffffff' },
+            { label: '🟥', color: '#cc0000' }, { label: '🟦', color: '#1a4d7a' },
+            { label: '🟩', color: '#1e8a3a' }, { label: '🟧', color: '#cc6600' },
+            { label: '⬜', color: '#888888' }, { label: '🟪', color: '#7b2fbe' },
+            { label: '🌸', color: '#e91e8c' }, { label: '🟨', color: '#e6c800' },
+            { label: '🩵', color: '#00bcd4' }, { label: '🟫', color: '#6d3a1f' },
+        ];
+
+        // Border color row
+        const borderLabel = document.createElement('div');
+        borderLabel.style.cssText = `font-size:11px;color:#888;padding:4px 4px 2px;font-family:var(--font-serif);`;
+        borderLabel.textContent = 'Border';
+        const borderGrid = document.createElement('div');
+        borderGrid.style.cssText = `display:grid;grid-template-columns:repeat(6,1fr);gap:2px;margin-bottom:6px;`;
+        BORDERS.forEach(({ label, color }) => {
+            const btn = document.createElement('button');
+            const active = token.border === color;
+            btn.style.cssText = `width:28px;height:20px;border-radius:3px;cursor:pointer;border:2px solid ${active?'#fff':'transparent'};background:${color};`;
+            btn.title = color;
+            btn.onclick = e => {
+                e.stopPropagation();
+                token.border = active ? null : color;
+                const el = tokensContainer.querySelector(`[data-id="${token.id}"]`);
+                if (el) el.style.border = token.border ? `3px solid ${token.border}` : 'none';
+                broadcast({ type: 'token_update', id: token.id, data: { border: token.border } });
+                menu.remove();
+            };
+            borderGrid.appendChild(btn);
+        });
+        menu.appendChild(borderLabel);
+        menu.appendChild(borderGrid);
 
         // Conditions picker
         const condLabel = document.createElement('div');
@@ -2359,14 +2402,20 @@
         e.target.value = '';
     });
 
-    async function convertToWebP(file, quality) {
+    async function convertToWebP(file, quality, maxDim = 128) {
         return new Promise(resolve => {
             const reader = new FileReader();
             reader.onload = e => {
                 const img = new Image();
                 img.onload = () => {
-                    const c = document.createElement('canvas'); c.width=img.width; c.height=img.height;
-                    c.getContext('2d').drawImage(img,0,0); resolve(c.toDataURL('image/webp',quality));
+                    let w = img.width, h = img.height;
+                    if (maxDim && (w > maxDim || h > maxDim)) {
+                        const scale = maxDim / Math.max(w, h);
+                        w = Math.round(w * scale); h = Math.round(h * scale);
+                    }
+                    const c = document.createElement('canvas'); c.width = w; c.height = h;
+                    c.getContext('2d').drawImage(img, 0, 0, w, h);
+                    resolve(c.toDataURL('image/webp', quality));
                 };
                 img.src = e.target.result;
             };
@@ -2469,7 +2518,7 @@
     document.getElementById('map-upload').addEventListener('change', async e => {
         const file = e.target.files[0];
         if (!file) return;
-        const url = await convertToWebP(file, 0.75);
+        const url = await convertToWebP(file, 0.75, 2048);
         addMapImage(url);
         e.target.value = '';
     });
@@ -2650,11 +2699,12 @@
                 ctx.putImageData(savedImageData,0,0);
                 const w=pos.x-drawStartX, h=pos.y-drawStartY;
                 ctx.globalCompositeOperation='source-over'; ctx.strokeStyle=drawColor; ctx.lineWidth=boldLines?12:3; ctx.setLineDash([5,5]);
+                if (fillShapes) { ctx.fillStyle = drawColor; ctx.globalAlpha = 0.25; }
                 if (currentTool==='line') { ctx.beginPath(); ctx.moveTo(drawStartX,drawStartY); ctx.lineTo(pos.x,pos.y); ctx.stroke(); }
-                else if (currentTool==='rect') { ctx.strokeRect(drawStartX,drawStartY,w,h); }
-                else if (currentTool==='circle') { const r=Math.sqrt(w*w+h*h)/2; ctx.beginPath(); ctx.arc(drawStartX+w/2,drawStartY+h/2,r,0,Math.PI*2); ctx.stroke(); }
-                else if (currentTool==='triangle') { ctx.beginPath(); ctx.moveTo(drawStartX+w/2,drawStartY); ctx.lineTo(drawStartX+w,drawStartY+h); ctx.lineTo(drawStartX,drawStartY+h); ctx.closePath(); ctx.stroke(); }
-                ctx.setLineDash([]);
+                else if (currentTool==='rect') { if (fillShapes) ctx.fillRect(drawStartX,drawStartY,w,h); ctx.globalAlpha=1; ctx.strokeRect(drawStartX,drawStartY,w,h); }
+                else if (currentTool==='circle') { const r=Math.sqrt(w*w+h*h)/2; ctx.beginPath(); ctx.arc(drawStartX+w/2,drawStartY+h/2,r,0,Math.PI*2); if(fillShapes)ctx.fill(); ctx.globalAlpha=1; ctx.stroke(); }
+                else if (currentTool==='triangle') { ctx.beginPath(); ctx.moveTo(drawStartX+w/2,drawStartY); ctx.lineTo(drawStartX+w,drawStartY+h); ctx.lineTo(drawStartX,drawStartY+h); ctx.closePath(); if(fillShapes)ctx.fill(); ctx.globalAlpha=1; ctx.stroke(); }
+                ctx.globalAlpha=1; ctx.setLineDash([]);
             }
         });
     });
@@ -2900,6 +2950,7 @@
 
     document.getElementById('btn-token-upload')?.addEventListener('click', () => document.getElementById('token-upload').click());
     document.getElementById('bold-toggle')?.addEventListener('click', toggleBold);
+    document.getElementById('fill-toggle')?.addEventListener('click', toggleFill);
     document.getElementById('btn-icons')?.addEventListener('click', toggleIconPalette);
     document.getElementById('btn-close-palette')?.addEventListener('click', toggleIconPalette);
     document.getElementById('btn-undo')?.addEventListener('click', doUndo);
