@@ -3316,10 +3316,27 @@
         // Draw wall texture over dungeon area
         drawWallTexture(startX, startY, px, px, DG.texture);
 
-        // Draw rooms and corridors as floor (semi-transparent so grid shows through)
-        ctx.fillStyle = 'rgba(212, 203, 184, 0.5)';
+        // Draw rooms and corridors as floor
+        ctx.fillStyle = '#d4cbb8';
         [...rooms, ...corridors].forEach(r => {
             ctx.fillRect(startX + r.x*50, startY + r.y*50, r.w*50, r.h*50);
+        });
+
+        // Draw grid lines on room/corridor floors
+        ctx.strokeStyle = 'rgba(42,37,34,0.25)';
+        ctx.lineWidth = 0.8;
+        ctx.setLineDash([]);
+        [...rooms, ...corridors].forEach(r => {
+            const rx = startX + r.x*50, ry = startY + r.y*50;
+            const rw = r.w*50, rh = r.h*50;
+            // Vertical lines
+            for (let i = 1; i < r.w; i++) {
+                ctx.beginPath(); ctx.moveTo(rx + i*50, ry); ctx.lineTo(rx + i*50, ry + rh); ctx.stroke();
+            }
+            // Horizontal lines
+            for (let i = 1; i < r.h; i++) {
+                ctx.beginPath(); ctx.moveTo(rx, ry + i*50); ctx.lineTo(rx + rw, ry + i*50); ctx.stroke();
+            }
         });
 
         // Draw room walls (thin border around each room)
