@@ -237,7 +237,7 @@
 
         #fog-toolbar {
             display: none;
-            position: fixed; right: 0; top: 50%; transform: translateY(-50%);
+            position: fixed; right: 0; top: calc(50% - 60px); transform: translateY(-50%);
             background: rgba(30,30,30,0.55); border: 2px solid rgba(255,255,255,0.15);
             border-radius: 8px 0 0 8px; padding: 10px 8px;
             flex-direction: column; gap: 8px; align-items: center;
@@ -248,7 +248,7 @@
         #fog-toolbar.hidden { transform: translateY(-50%) translateX(100%); }
         #fog-toggle {
             display: none;
-            position: fixed; right: 0; top: calc(50% + 80px);
+            position: fixed; right: 0; top: calc(50% + 180px);
             background: rgba(30,30,30,0.55); border: 2px solid rgba(255,255,255,0.15);
             border-radius: 8px 0 0 8px; padding: 6px 4px;
             color: #aaa; font-size: 11px; cursor: pointer; z-index: 1001;
@@ -3248,6 +3248,7 @@
                 <button class="dg-texture ${DG.texture==='stipple'?'active':''}" data-dg-tex="stipple">Stipple<br><span style="font-size:10px;opacity:0.7">TSR dot style</span></button>
             </div>
             <button id="btn-generate-dungeon">Generate ⚔</button>
+            <button id="btn-clear-dungeon" style="width:100%;padding:8px;background:#5a1a1a;color:#f88;border:none;border-radius:6px;font-family:var(--font-serif);font-size:13px;cursor:pointer;margin-top:6px;">Clear Canvas</button>
         `;
         panel.style.display = 'block';
 
@@ -3265,6 +3266,10 @@
         }));
         document.getElementById('btn-close-dg').addEventListener('click', () => panel.style.display = 'none');
         document.getElementById('btn-generate-dungeon').addEventListener('click', generateDungeon);
+        document.getElementById('btn-clear-dungeon').addEventListener('click', () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            panel.style.display = 'none';
+        });
     }
 
     function generateDungeon() {
