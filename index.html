@@ -417,10 +417,12 @@
 
     <!-- Fog toolbar -->
     <div id="fog-toolbar">
-        <button class="fog-btn fill-btn" id="btn-fill-fog"  title="Fill All Fog">🌫️</button>
-        <button class="fog-btn fill-btn" id="btn-clear-fog" title="Clear All Fog">✂️</button>
-        <button class="fog-btn" id="btn-fog-paint"  title="Paint Fog (3×3)">☁️</button>
-        <button class="fog-btn" id="btn-fog-reveal" title="Reveal (3×3)">🧹</button>
+        <button class="fog-btn fill-btn" id="btn-fill-fog"   title="Fill All Fog">🌫️</button>
+        <button class="fog-btn fill-btn" id="btn-clear-fog"  title="Clear All Fog">✂️</button>
+        <button class="fog-btn" id="btn-fog-paint"           title="Paint Fog (3×3)">☁️</button>
+        <button class="fog-btn" id="btn-fog-reveal"          title="Reveal (3×3)">🧹</button>
+        <button class="fog-btn" id="btn-fog-poly-apply"      title="Polygon Fog (apply)">🔷</button>
+        <button class="fog-btn" id="btn-fog-poly-cut"        title="Polygon Fog (reveal)">🔶</button>
     </div>
     <div id="fog-toggle">FOG</div>
 
@@ -437,6 +439,7 @@
             <canvas id="fog-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:350;"></canvas>
             <canvas id="ping-canvas"    width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:400;"></canvas>
             <canvas id="measure-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:500;"></canvas>
+            <canvas id="fog-poly-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:510;"></canvas>
         </div>
     </div>
 
@@ -1494,8 +1497,144 @@
         });
     }
 
+    function clearAllFog() {
+        fogConfirm('Clear all fog from the map?', () => {
+            fogCells.clear();
+            fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
+            broadcast({ type: 'fog_clear' });
+        });
+    }
+
+    // ── Polygon fog ──────────────────────────────────────────────────────────
+    const fogPolyCanvas = document.getElementById('fog-poly-canvas');
+    const fogPolyCtx    = fogPolyCanvas.getContext('2d');
+    let fogPolyMode     = null;  // 'apply' | 'cut' | null
+    let fogPolyVerts    = [];    // [{x,y}] in grid coords, snapped to intersections
+    let fogPolyMousePos = null;  // current mouse grid pos for preview line
+
+    function snapToIntersection(x, y) {
+        return { x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50 };
+    }
+
+    function pointInPolygon(px, py, verts) {
+        let inside = false;
+        for (let i = 0, j = verts.length - 1; i < verts.length; j = i++) {
+            const xi = verts[i].x, yi = verts[i].y;
+            const xj = verts[j].x, yj = verts[j].y;
+            if (((yi > py) !== (yj > py)) && px < ((xj - xi) * (py - yi) / (yj - yi) + xi))
+                inside = !inside;
+        }
+        return inside;
+    }
+
+    function applyFogPolygon(verts, painting) {
+        if (verts.length < 3) return;
+        // Bounding box of polygon in cell coords
+        const xs = verts.map(v => v.x), ys = verts.map(v => v.y);
+        const minCX = Math.max(0,   Math.floor(Math.min(...xs) / 50));
+        const maxCX = Math.min(99,  Math.ceil( Math.max(...xs) / 50));
+        const minCY = Math.max(0,   Math.floor(Math.min(...ys) / 50));
+        const maxCY = Math.min(99,  Math.ceil( Math.max(...ys) / 50));
+        const changed = [];
+        for (let cx = minCX; cx <= maxCX; cx++) {
+            for (let cy = minCY; cy <= maxCY; cy++) {
+                // Test cell center against polygon
+                const cellCenterX = cx * 50 + 25;
+                const cellCenterY = cy * 50 + 25;
+                if (pointInPolygon(cellCenterX, cellCenterY, verts)) {
+                    const key = `${cx},${cy}`;
+                    if (painting && !fogCells.has(key)) {
+                        fogCells.add(key); drawFogCell(cx, cy);
+                        changed.push({ cx, cy, fog: true });
+                    } else if (!painting && fogCells.has(key)) {
+                        fogCells.delete(key); eraseFogCell(cx, cy);
+                        changed.push({ cx, cy, fog: false });
+                    }
+                }
+            }
+        }
+        if (changed.length) broadcast({ type: 'fog_cells', cells: changed });
+    }
+
+    function drawFogPolyPreview() {
+        fogPolyCtx.clearRect(0, 0, fogPolyCanvas.width, fogPolyCanvas.height);
+        if (!fogPolyVerts.length) return;
+        const color = fogPolyMode === 'apply' ? 'rgba(80,140,255,0.8)' : 'rgba(255,160,40,0.8)';
+        const fill  = fogPolyMode === 'apply' ? 'rgba(80,140,255,0.15)' : 'rgba(255,160,40,0.15)';
+        fogPolyCtx.strokeStyle = color; fogPolyCtx.lineWidth = 2; fogPolyCtx.setLineDash([6,4]);
+        fogPolyCtx.fillStyle = fill;
+        fogPolyCtx.beginPath();
+        fogPolyCtx.moveTo(fogPolyVerts[0].x, fogPolyVerts[0].y);
+        fogPolyVerts.forEach(v => fogPolyCtx.lineTo(v.x, v.y));
+        // Preview line to current mouse
+        if (fogPolyMousePos) fogPolyCtx.lineTo(fogPolyMousePos.x, fogPolyMousePos.y);
+        fogPolyCtx.stroke();
+        if (fogPolyVerts.length > 2) fogPolyCtx.fill();
+        fogPolyCtx.setLineDash([]);
+        // Draw vertex dots
+        fogPolyVerts.forEach((v, i) => {
+            fogPolyCtx.beginPath();
+            fogPolyCtx.arc(v.x, v.y, i === 0 ? 7 : 4, 0, Math.PI*2);
+            fogPolyCtx.fillStyle = i === 0 ? color : 'white';
+            fogPolyCtx.fill();
+            fogPolyCtx.strokeStyle = color; fogPolyCtx.lineWidth = 2;
+            fogPolyCtx.stroke();
+        });
+    }
+
+    function startFogPoly(mode) {
+        fogPolyMode  = fogPolyMode === mode ? null : mode;
+        fogPolyVerts = [];
+        fogPolyMousePos = null;
+        fogPolyCtx.clearRect(0, 0, fogPolyCanvas.width, fogPolyCanvas.height);
+        document.getElementById('btn-fog-poly-apply').classList.toggle('active', fogPolyMode === 'apply');
+        document.getElementById('btn-fog-poly-cut').classList.toggle('active',   fogPolyMode === 'cut');
+        // Deselect brush fog tools
+        if (fogPolyMode) {
+            currentFogTool = null;
+            document.getElementById('btn-fog-paint').classList.remove('active');
+            document.getElementById('btn-fog-reveal').classList.remove('active');
+            currentTool = null;
+            document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active'));
+            canvas.classList.remove('drawing');
+        }
+    }
+
+    // Viewport click handler for polygon vertex placement
+    viewport.addEventListener('click', e => {
+        if (!fogPolyMode || e.button !== 0) return;
+        const pos = viewportToGrid(e.clientX, e.clientY);
+        const snapped = snapToIntersection(pos.x, pos.y);
+        // Close polygon if clicking near first vertex
+        if (fogPolyVerts.length >= 3) {
+            const first = fogPolyVerts[0];
+            const dist  = Math.hypot(snapped.x - first.x, snapped.y - first.y);
+            if (dist < 30) {
+                applyFogPolygon(fogPolyVerts, fogPolyMode === 'apply');
+                fogPolyVerts = []; fogPolyMousePos = null;
+                fogPolyCtx.clearRect(0, 0, fogPolyCanvas.width, fogPolyCanvas.height);
+                return;
+            }
+        }
+        fogPolyVerts.push(snapped);
+        drawFogPolyPreview();
+    });
+
+    // Double-click closes polygon
+    viewport.addEventListener('dblclick', e => {
+        if (!fogPolyMode || fogPolyVerts.length < 3) return;
+        e.preventDefault();
+        // Remove the extra vertex added by the preceding single click
+        fogPolyVerts.pop();
+        applyFogPolygon(fogPolyVerts, fogPolyMode === 'apply');
+        fogPolyVerts = []; fogPolyMousePos = null;
+        fogPolyCtx.clearRect(0, 0, fogPolyCanvas.width, fogPolyCanvas.height);
+    });
+
+    // Escape cancels in-progress polygon
+    // (wired into existing keydown handler below)
+
     function applyFogSnapshot(cells) {
-        fogCells = new Set();
         cells.forEach(({ cx, cy }) => { fogCells.add(`${cx},${cy}`); });
         redrawFog();
     }
@@ -1505,7 +1644,8 @@
         document.querySelectorAll('.fog-btn').forEach(b => b.classList.remove('active'));
         if (currentFogTool === 'paint')  document.getElementById('btn-fog-paint').classList.add('active');
         if (currentFogTool === 'reveal') document.getElementById('btn-fog-reveal').classList.add('active');
-        // Deselect main tool when fog tool active, and vice versa
+        // Cancel any in-progress polygon
+        if (fogPolyMode) { fogPolyVerts=[]; fogPolyMousePos=null; fogPolyCtx?.clearRect(0,0,fogPolyCanvas?.width,fogPolyCanvas?.height); fogPolyMode=null; document.getElementById('btn-fog-poly-apply').classList.remove('active'); document.getElementById('btn-fog-poly-cut').classList.remove('active'); }
         if (currentFogTool) { currentTool = null; document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active')); canvas.classList.remove('drawing'); }
     }
 
@@ -1522,6 +1662,8 @@
     // Wire fog toolbar buttons
     document.getElementById('btn-fill-fog')?.addEventListener('click', fillFog);
     document.getElementById('btn-clear-fog')?.addEventListener('click', clearAllFog);
+    document.getElementById('btn-fog-poly-apply')?.addEventListener('click', () => startFogPoly('apply'));
+    document.getElementById('btn-fog-poly-cut')?.addEventListener('click',   () => startFogPoly('cut'));
     document.getElementById('btn-fog-paint')?.addEventListener('click', () => setFogTool('paint'));
     document.getElementById('btn-fog-reveal')?.addEventListener('click', () => setFogTool('reveal'));
     document.getElementById('fog-toggle')?.addEventListener('click', () => {
@@ -2011,7 +2153,14 @@
             if (type === 'text')    { const i=textLabels.findIndex(l=>l.id===data.id); if(i>-1) textLabels.splice(i,1); broadcast({type:'text_delete', id:data.id}); }
             if (type === 'map')     { mapImages = mapImages.filter(m=>m.id!==data.id); broadcast({type:'map_delete', id:data.id}); }
         }
-        if (e.key === 'Escape') { deselectObject(); if (measureActive) clearMeasure(); }
+        if (e.key === 'Escape') {
+            deselectObject();
+            if (measureActive) clearMeasure();
+            if (fogPolyMode && fogPolyVerts.length > 0) {
+                fogPolyVerts = []; fogPolyMousePos = null;
+                fogPolyCtx.clearRect(0, 0, fogPolyCanvas.width, fogPolyCanvas.height);
+            }
+        }
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -2507,7 +2656,27 @@
             map.locked = !map.locked;
             if (selectedObject?.data.id === map.id) deselectObject();
             if (map.locked) {
-                broadcast({ type: 'map_add', map: { ...map } });
+                const sizeKB = Math.round((map.image?.length || 0) / 1024);
+                if (sizeKB > 600) {
+                    const overlay = document.createElement('div');
+                    overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;`;
+                    const box = document.createElement('div');
+                    box.style.cssText = `background:#1e1e1e;border:2px solid rgba(255,180,0,0.4);border-radius:10px;padding:22px 26px;font-family:var(--font-serif);color:#ddd;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.5);max-width:320px;`;
+                    box.innerHTML = `<div style="font-size:22px;margin-bottom:10px;">⚠️</div>
+                        <div style="font-size:14px;margin-bottom:6px;color:#f0c040;">Large Map Image</div>
+                        <div style="font-size:12px;color:#aaa;margin-bottom:16px;">This map is <b style="color:#fff">${sizeKB}KB</b> — above the recommended 600KB. It may slow down player connections and could cause save failures.<br><br>Consider using a smaller or lower quality source image.</div>`;
+                    const row = document.createElement('div'); row.style.cssText = `display:flex;gap:10px;justify-content:center;`;
+                    const cont = document.createElement('button'); cont.textContent = 'Lock Anyway';
+                    cont.style.cssText = `padding:6px 18px;background:#8b4513;color:white;border:none;border-radius:5px;font-family:var(--font-serif);cursor:pointer;`;
+                    const cancel = document.createElement('button'); cancel.textContent = 'Cancel';
+                    cancel.style.cssText = `padding:6px 16px;background:#333;color:#aaa;border:none;border-radius:5px;font-family:var(--font-serif);cursor:pointer;`;
+                    cont.onclick = () => { overlay.remove(); broadcast({ type: 'map_add', map: { ...map } }); };
+                    cancel.onclick = () => { overlay.remove(); map.locked = false; };
+                    row.appendChild(cont); row.appendChild(cancel);
+                    box.appendChild(row); overlay.appendChild(box); document.body.appendChild(overlay);
+                } else {
+                    broadcast({ type: 'map_add', map: { ...map } });
+                }
             } else {
                 broadcast({ type: 'map_update', id: map.id, data: { locked: false } });
             }
@@ -2794,6 +2963,12 @@
         if (isFogPainting && currentFogTool) {
             const pos = viewportToGrid(e.clientX, e.clientY);
             applyFogBrush(pos.x, pos.y, currentFogTool === 'paint');
+        }
+        // Polygon fog preview line
+        if (fogPolyMode && fogPolyVerts.length > 0) {
+            const pos = viewportToGrid(e.clientX, e.clientY);
+            fogPolyMousePos = snapToIntersection(pos.x, pos.y);
+            drawFogPolyPreview();
         }
         if (isRotating && selectedObject) {
             const angle = Math.atan2(e.clientY-rotateCenterY, e.clientX-rotateCenterX)*180/Math.PI;
