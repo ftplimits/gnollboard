@@ -1322,6 +1322,12 @@
     viewport.addEventListener('mousedown', e => {
         if (e.button === 2) {
             e.preventDefault(); deselectObject();
+            // Cancel in-progress fog polygon
+            if (fogPolyMode && fogPolyVerts.length > 0) {
+                fogPolyVerts = []; fogPolyMousePos = null;
+                fogPolyCtx.clearRect(0, 0, fogPolyCanvas.width, fogPolyCanvas.height);
+                return;
+            }
             if (currentTool) { currentTool = null; document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active')); canvas.classList.remove('drawing'); return; }
             isPanning = true; panStartX = e.clientX - panX; panStartY = e.clientY - panY; viewport.style.cursor = 'grabbing';
         }
@@ -3310,9 +3316,8 @@
         // Draw wall texture over dungeon area
         drawWallTexture(startX, startY, px, px, DG.texture);
 
-        // Draw rooms and corridors as floor (parchment color)
-        const floorColor = '#d4cbb8';
-        ctx.fillStyle = floorColor;
+        // Draw rooms and corridors as floor (semi-transparent so grid shows through)
+        ctx.fillStyle = 'rgba(212, 203, 184, 0.5)';
         [...rooms, ...corridors].forEach(r => {
             ctx.fillRect(startX + r.x*50, startY + r.y*50, r.w*50, r.h*50);
         });
