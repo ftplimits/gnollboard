@@ -22,6 +22,7 @@
         #viewport { width: 100%; height: 100%; overflow: hidden; position: relative; z-index: 1; background: #3a3a3a; }
         #grid-container { position: absolute; width: 5000px; height: 5000px; transform-origin: 0 0; }
         #map-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        #map-container-below { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
         #map-handle-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 12; }
         .map-image { position: absolute; cursor: move; pointer-events: auto; user-select: none; }
         .map-image.locked { cursor: default; }
@@ -452,6 +453,7 @@
     <div id="viewport">
         <div id="grid-container">
             <div id="grid-background"></div>
+            <div id="map-container-below"></div>
             <div id="map-container"></div>
             <div id="map-handle-container"></div>
             <canvas id="drawing-canvas" width="5000" height="5000"></canvas>
@@ -839,7 +841,7 @@
     function applySnapshot(snap) {
         tokensContainer.innerHTML = ''; stickersContainer.innerHTML = '';
         shapesContainer.innerHTML = ''; document.getElementById('text-container').innerHTML = '';
-        mapContainer.innerHTML = ''; mapHandleContainer.innerHTML = '';
+        mapContainer.innerHTML = ''; mapContainerBelow.innerHTML = ''; mapHandleContainer.innerHTML = '';
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         tokens = []; stickers = []; shapes = []; textLabels = []; mapImages = [];
         deselectObject();
@@ -1067,6 +1069,7 @@
             case 'map_delete': {
                 mapImages = mapImages.filter(m=>m.id!==msg.id);
                 mapContainer.querySelector(`[data-id="${msg.id}"]`)?.remove();
+                mapContainerBelow.querySelector(`[data-id="${msg.id}"]`)?.remove();
                 break;
             }
 
@@ -1778,7 +1781,7 @@
     function applySavePayload(data) {
         tokensContainer.innerHTML=''; stickersContainer.innerHTML='';
         shapesContainer.innerHTML=''; document.getElementById('text-container').innerHTML='';
-        mapContainer.innerHTML=''; mapHandleContainer.innerHTML='';
+        mapContainer.innerHTML=''; mapContainerBelow.innerHTML=''; mapHandleContainer.innerHTML='';
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         tokens=[]; stickers=[]; shapes=[]; textLabels=[]; mapImages=[];
         deselectObject();
@@ -2646,6 +2649,7 @@
     let mapImages = [], nextMapId = 1, draggedMap = null;
     let mapDragOffsetX = 0, mapDragOffsetY = 0;
     const mapContainer       = document.getElementById('map-container');
+    const mapContainerBelow  = document.getElementById('map-container-below');
     const mapHandleContainer = document.getElementById('map-handle-container');
 
     function addMapImage(imageDataUrl) {
@@ -2694,8 +2698,8 @@
             showMapContextMenu(e.clientX, e.clientY, map, el);
         });
 
-        if (map.belowGrid) el.style.zIndex = '0';
-        mapContainer.appendChild(el);
+        if (map.belowGrid) mapContainerBelow.appendChild(el);
+        else mapContainer.appendChild(el);
     }
 
     function showMapContextMenu(x, y, map, el) {
@@ -2708,7 +2712,8 @@
         layerBtn.style.cssText = btnStyle + 'background:#3a4a2a;';
         layerBtn.onclick = () => {
             map.belowGrid = !map.belowGrid;
-            el.style.zIndex = map.belowGrid ? '0' : '';
+            const target = map.belowGrid ? mapContainerBelow : mapContainer;
+            target.appendChild(el); // moves it from one container to the other
             broadcast({ type: 'map_update', id: map.id, data: { belowGrid: map.belowGrid } });
             menu.remove();
         };
