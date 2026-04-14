@@ -45,6 +45,7 @@
             pointer-events: none; z-index: 202; }
         .token-condition { font-size: 13px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8)); }
         .token.hidden { opacity: 0.3; }
+        .token.hidden-player { display: none; }
         .token.dragging { z-index: 300; cursor: grabbing; }
         .sticker { position: absolute; cursor: grab; pointer-events: auto; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); z-index: 150; }
         .sticker.tool-active { pointer-events: none; }
@@ -397,6 +398,15 @@
         <div class="divider"></div>
         <button class="tool-btn" id="btn-undo" title="Undo (Ctrl+Z)">↩</button>
         <button class="tool-btn" id="btn-redo" title="Redo (Ctrl+Y)">↪</button>
+        <div class="divider"></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+            <div style="font-size:9px;color:#aaa;font-family:var(--font-serif);">Grid</div>
+            <div style="display:flex;gap:4px;">
+                <div class="grid-swatch active" id="gs-default" title="Default" style="background:#2a2522;width:16px;height:16px;border-radius:3px;cursor:pointer;border:2px solid white;box-sizing:border-box;" data-grid-color="default"></div>
+                <div class="grid-swatch"        id="gs-white"   title="White"   style="background:#ffffff;width:16px;height:16px;border-radius:3px;cursor:pointer;border:2px solid #555;box-sizing:border-box;" data-grid-color="white"></div>
+                <div class="grid-swatch"        id="gs-red"     title="Red"     style="background:#cc0000;width:16px;height:16px;border-radius:3px;cursor:pointer;border:2px solid transparent;box-sizing:border-box;" data-grid-color="red"></div>
+            </div>
+        </div>
     </div>
 
     <div id="toolbar-toggle">▲ tools</div>
@@ -1330,12 +1340,15 @@
     viewport.addEventListener('mousedown', e => {
         if (e.button === 2) {
             e.preventDefault(); deselectObject();
-            // Cancel in-progress fog polygon
+            // Cancel fog poly in progress
             if (fogPolyMode && fogPolyVerts.length > 0) {
                 fogPolyVerts = []; fogPolyMousePos = null;
                 fogPolyCtx.clearRect(0, 0, fogPolyCanvas.width, fogPolyCanvas.height);
                 return;
             }
+            // Deactivate any fog tool (poly or brush)
+            if (fogPolyMode) { startFogPoly(fogPolyMode); return; }
+            if (currentFogTool) { setFogTool(null); return; }
             if (currentTool) { currentTool = null; document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active')); canvas.classList.remove('drawing'); return; }
             isPanning = true; panStartX = e.clientX - panX; panStartY = e.clientY - panY; viewport.style.cursor = 'grabbing';
         }
@@ -2199,7 +2212,7 @@
     function getShapeSVG(shape) {
         const sw = shape.lineWidth || 3, c = shape.color || '#2a2522';
         const fillColor = shape.filled ? c.replace(/^#/, '') : null;
-        const fillAttr = shape.filled ? `fill="${c}" fill-opacity="0.25"` : `fill="none"`;
+        const fillAttr = shape.filled ? `fill="${c}" fill-opacity="0.75"` : `fill="none"`;
         const vis  = `${fillAttr} stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" pointer-events="none"`;
         const hit  = `fill="none" stroke="transparent" stroke-width="20" vector-effect="non-scaling-stroke" pointer-events="stroke" style="cursor:move"`;
         let visEl = '', hitEl = '';
@@ -2370,7 +2383,11 @@
 
     function renderToken(token) {
         const div = document.createElement('div');
-        div.className = 'token'; if (token.hidden) div.classList.add('hidden');
+        div.className = 'token';
+        if (token.hidden) {
+            if (isHost) div.classList.add('hidden');
+            else div.classList.add('hidden-player');
+        }
         div.dataset.id = token.id; token.type = 'token';
         if (!token.w || !token.h) { const m={small:49,medium:100,large:150}; const px=m[token.size||'small']||49; token.w=px; token.h=px; }
         div.style.backgroundImage = `url(${token.image})`;
@@ -2416,7 +2433,12 @@
 
         div.addEventListener('mousedown', e => {
             if (e.button !== 0) return; e.stopPropagation();
-            if (e.shiftKey) { token.hidden=!token.hidden; div.classList.toggle('hidden'); broadcast({type:'token_update',id:token.id,data:{hidden:token.hidden}}); return; }
+            if (e.shiftKey) {
+                token.hidden = !token.hidden;
+                if (isHost) { div.classList.toggle('hidden', token.hidden); div.classList.remove('hidden-player'); }
+                else { div.classList.toggle('hidden-player', token.hidden); div.classList.remove('hidden'); }
+                broadcast({type:'token_update',id:token.id,data:{hidden:token.hidden}}); return;
+            }
             selectObject('token', token, div);
             draggedToken = token; div.classList.add('dragging');
             const pos = viewportToGrid(e.clientX, e.clientY);
@@ -2672,16 +2694,28 @@
             showMapContextMenu(e.clientX, e.clientY, map, el);
         });
 
+        if (map.belowGrid) el.style.zIndex = '0';
         mapContainer.appendChild(el);
     }
 
     function showMapContextMenu(x, y, map, el) {
         const menu = document.createElement('div');
-        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:var(--font-serif);`;
+        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:var(--font-serif);min-width:130px;`;
+        const btnStyle = `display:block;width:100%;padding:6px 12px;margin:2px 0;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);border-radius:2px;text-align:left;`;
+
+        const layerBtn = document.createElement('button');
+        layerBtn.textContent = map.belowGrid ? '⬆️ Above Grid' : '⬇️ Below Grid';
+        layerBtn.style.cssText = btnStyle + 'background:#3a4a2a;';
+        layerBtn.onclick = () => {
+            map.belowGrid = !map.belowGrid;
+            el.style.zIndex = map.belowGrid ? '0' : '';
+            broadcast({ type: 'map_update', id: map.id, data: { belowGrid: map.belowGrid } });
+            menu.remove();
+        };
 
         const lockBtn = document.createElement('button');
         lockBtn.textContent = map.locked ? '🔓 Unlock' : '🔒 Lock';
-        lockBtn.style.cssText = `display:block;width:100%;padding:6px 12px;margin:2px 0;background:#2a4a6a;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);border-radius:2px;`;
+        lockBtn.style.cssText = btnStyle + 'background:#2a4a6a;';
         lockBtn.onclick = () => {
             map.locked = !map.locked;
             if (selectedObject?.data.id === map.id) deselectObject();
@@ -2724,7 +2758,7 @@
             menu.remove();
         };
 
-        menu.appendChild(lockBtn); menu.appendChild(delBtn);
+        menu.appendChild(layerBtn); menu.appendChild(lockBtn); menu.appendChild(delBtn);
         document.body.appendChild(menu);
         const close = () => { menu.remove(); document.removeEventListener('click', close); };
         setTimeout(() => document.addEventListener('click', close), 10);
@@ -2935,7 +2969,7 @@
                 ctx.putImageData(savedImageData,0,0);
                 const w=pos.x-drawStartX, h=pos.y-drawStartY;
                 ctx.globalCompositeOperation='source-over'; ctx.strokeStyle=drawColor; ctx.lineWidth=boldLines?12:3; ctx.setLineDash([5,5]);
-                if (fillShapes) { ctx.fillStyle = drawColor; ctx.globalAlpha = 0.25; }
+                if (fillShapes) { ctx.fillStyle = drawColor; ctx.globalAlpha = 0.75; }
                 if (currentTool==='line') { ctx.beginPath(); ctx.moveTo(drawStartX,drawStartY); ctx.lineTo(pos.x,pos.y); ctx.stroke(); }
                 else if (currentTool==='rect') { if (fillShapes) ctx.fillRect(drawStartX,drawStartY,w,h); ctx.globalAlpha=1; ctx.strokeRect(drawStartX,drawStartY,w,h); }
                 else if (currentTool==='circle') { const r=Math.sqrt(w*w+h*h)/2; ctx.beginPath(); ctx.arc(drawStartX+w/2,drawStartY+h/2,r,0,Math.PI*2); if(fillShapes)ctx.fill(); ctx.globalAlpha=1; ctx.stroke(); }
@@ -3196,6 +3230,23 @@
     document.getElementById('btn-icons')?.addEventListener('click', toggleIconPalette);
     document.getElementById('btn-close-palette')?.addEventListener('click', toggleIconPalette);
     document.getElementById('btn-undo')?.addEventListener('click', doUndo);
+
+    // Grid color swatches
+    const GRID_COLORS = {
+        default: { stroke: '%232a2522', bg1: '%23d2cbbc', bg2: '%237e7466' },
+        white:   { stroke: '%23ffffff', bg1: '%23d2cbbc', bg2: '%237e7466' },
+        red:     { stroke: '%23cc0000', bg1: '%23d2cbbc', bg2: '%237e7466' },
+    };
+    function setGridColor(key) {
+        const g = GRID_COLORS[key];
+        const svg = `url("data:image/svg+xml,%3Csvg width='50' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 0 Q 12 -0.3 25 0.2 Q 37 -0.4 50 0' stroke='${g.stroke}' stroke-width='1' fill='none' opacity='0.5'/%3E%3Cpath d='M 0 0 Q -0.4 12 0.3 25 Q -0.2 37 0 50' stroke='${g.stroke}' stroke-width='1' fill='none' opacity='0.5'/%3E%3C/svg%3E"), radial-gradient(circle at center, ${g.bg1.replace('%23','#')}, ${g.bg2.replace('%23','#')})`;
+        document.getElementById('grid-background').style.background = svg;
+        document.querySelectorAll('.grid-swatch').forEach(s => s.style.border = `2px solid ${s.dataset.gridColor === key ? 'white' : 'transparent'}`);
+        document.getElementById('gs-white').style.border = key === 'white' ? '2px solid white' : '2px solid #555';
+    }
+    document.querySelectorAll('.grid-swatch').forEach(s => {
+        s.addEventListener('click', () => setGridColor(s.dataset.gridColor));
+    });
     document.getElementById('btn-redo')?.addEventListener('click', doRedo);
     document.getElementById('toolbar-toggle')?.addEventListener('click', toggleToolbar);
     document.getElementById('session-toggle-btn')?.addEventListener('click', toggleP2PPanel);
