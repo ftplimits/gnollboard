@@ -1513,7 +1513,10 @@
     let fogPolyMousePos = null;  // current mouse grid pos for preview line
 
     function snapToIntersection(x, y) {
-        return { x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50 };
+        return {
+            x: Math.round((x - FOG_OFFSET) / 50) * 50 + FOG_OFFSET,
+            y: Math.round((y - FOG_OFFSET) / 50) * 50 + FOG_OFFSET
+        };
     }
 
     function pointInPolygon(px, py, verts) {
@@ -1539,8 +1542,8 @@
         for (let cx = minCX; cx <= maxCX; cx++) {
             for (let cy = minCY; cy <= maxCY; cy++) {
                 // Test cell center against polygon
-                const cellCenterX = cx * 50 + 25;
-                const cellCenterY = cy * 50 + 25;
+                const cellCenterX = cx * 50 + FOG_OFFSET + 25;
+                const cellCenterY = cy * 50 + FOG_OFFSET + 25;
                 if (pointInPolygon(cellCenterX, cellCenterY, verts)) {
                     const key = `${cx},${cy}`;
                     if (painting && !fogCells.has(key)) {
