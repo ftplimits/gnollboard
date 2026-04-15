@@ -22,7 +22,7 @@
         #viewport { width: 100%; height: 100%; overflow: hidden; position: relative; z-index: 1; background: #3a3a3a; }
         #grid-container { position: absolute; width: 5000px; height: 5000px; transform-origin: 0 0; background: radial-gradient(circle at center, #d2cbbc, #7e7466); }
         #map-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
-        #map-container-below { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+        #map-container-below { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 6; pointer-events: none; }
         #map-handle-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 12; }
         .map-image { position: absolute; cursor: move; pointer-events: auto; user-select: none; }
         .map-image.locked { cursor: default; }
@@ -47,6 +47,7 @@
         .token-condition { font-size: 13px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8)); }
         .token.hidden { opacity: 0.3; }
         .token.hidden-player { display: none; }
+        .token.multi-selected { outline: 2px solid #4af; outline-offset: 2px; }
         .token.dragging { z-index: 300; cursor: grabbing; }
         .sticker { position: absolute; cursor: grab; pointer-events: auto; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); z-index: 150; }
         .sticker.tool-active { pointer-events: none; }
@@ -216,6 +217,11 @@
         }
         #measure-toggle:hover { background: rgba(60,60,60,0.8); color: white; }
         #measure-toggle.active { background: rgba(139,69,19,0.7); border-color: rgba(180,100,40,0.6); color: white; }
+        #btn-clear-board { display: none; position: fixed; top: 12px; right: 234px; z-index: 1001;
+            background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px; padding: 6px 10px; color: #ccc; font-family: var(--font-serif);
+            font-size: 13px; cursor: pointer; backdrop-filter: blur(4px); }
+        #btn-clear-board:hover { background: rgba(80,20,20,0.8); color: #f88; }
         #btn-save { display: none; position: fixed; top: 12px; right: 110px; z-index: 1001;
             background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
             border-radius: 6px; padding: 6px 10px; color: #ccc; font-family: var(--font-serif);
@@ -312,6 +318,7 @@
             <button id="name-prompt-btn">Join Session</button>
         </div>
     </div>
+    <button id="btn-clear-board" title="Clear Board">💀</button>
     <button id="btn-save" title="Save Game">💾 Save</button>
     <button id="btn-load" title="Load Game">📂 Load</button>
     <button id="measure-toggle" title="Measure Tool">📏 Measure</button>
@@ -437,6 +444,7 @@
         <button class="fog-btn" id="btn-fog-poly-cut"        title="Polygon Fog — reveal (Shift = snap to cell centers)">🔶</button>
         <button class="fog-btn" id="btn-fog-preset-define"   title="Define Fog Preset (Shift = snap to cell centers)">📌</button>
         <button class="fog-btn" id="btn-fog-preset-toggle"   title="Toggle Fog Preset">🔘</button>
+        <button class="fog-btn" id="btn-fog-preset-delete"   title="Delete Fog Preset (click inside preset to remove it)">🗑️</button>
     </div>
     <div id="fog-toggle">FOG</div>
 
@@ -468,6 +476,7 @@
     let drawStartX = 0, drawStartY = 0, penPath = [];
     let tokens = [], nextTokenId = 1, draggedToken = null;
     let dragOffsetX = 0, dragOffsetY = 0, contextToken = null;
+    let multiSelected = []; // [{token, div, offX, offY}] for ctrl+click multi-move
     let savedImageData = null, drawingFrameId = null;
     let drawings = [], selectedDrawing = null, nextDrawingId = 1;
     let boldLines  = false;
@@ -1094,11 +1103,30 @@
                 }
                 break;
             }
+            case 'preset_delete': {
+                fogPresets = fogPresets.filter(p => p.id !== msg.id);
+                drawPresetOutlines();
+                break;
+            }
             case 'preset_update': {
                 const p = fogPresets.find(x => x.id === msg.id);
                 if (p) { p.fogged = msg.fogged; drawPresetOutlines(); }
                 break;
             }
+            case 'grid_color':
+                setGridColor(msg.key, true);
+                break;
+
+            case 'board_clear':
+                tokensContainer.innerHTML=''; stickersContainer.innerHTML='';
+                shapesContainer.innerHTML=''; document.getElementById('text-container').innerHTML='';
+                mapContainer.innerHTML=''; mapContainerBelow.innerHTML='';
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                tokens=[]; stickers=[]; shapes=[]; textLabels=[]; mapImages=[];
+                fogPresets=[]; drawPresetOutlines();
+                deselectObject();
+                break;
+
             case 'fog_fill':
                 fogCells.clear();
                 for (let cx = 0; cx < 100; cx++)
@@ -1139,6 +1167,7 @@
         const tbTog   = document.getElementById('toolbar-toggle');
         const btnSave = document.getElementById('btn-save');
         const btnLoad = document.getElementById('btn-load');
+        const btnClear  = document.getElementById('btn-clear-board');
         const btnMap  = document.getElementById('btn-map-upload-tb');
         const btnCenter = document.getElementById('btn-center-view');
         if (fogTb)     fogTb.style.display     = isHost ? 'flex'  : 'none';
@@ -1147,6 +1176,7 @@
         if (tbTog)     tbTog.style.display     = isHost ? 'block' : 'none';
         if (btnSave)   btnSave.style.display   = isHost ? 'block' : 'none';
         if (btnLoad)   btnLoad.style.display   = isHost ? 'block' : 'none';
+        if (btnClear)  btnClear.style.display  = isHost ? 'block' : 'none';
         if (btnMap)    btnMap.style.display    = isHost ? 'block' : 'none';
         if (btnCenter) btnCenter.style.display = isHost ? 'block' : 'none';
         // Reposition toolbar toggle after toolbar becomes visible
@@ -1437,6 +1467,7 @@
 
     viewport.addEventListener('mousedown', e => {
         if (e.button === 1) { e.preventDefault(); const pos = viewportToGrid(e.clientX,e.clientY); triggerPing(pos.x,pos.y); }
+        if (e.button === 0 && e.altKey) { e.preventDefault(); e.stopPropagation(); const pos = viewportToGrid(e.clientX,e.clientY); triggerPing(pos.x,pos.y); }
     });
     viewport.addEventListener('auxclick', e => { if (e.button===1) e.preventDefault(); });
 
@@ -1772,6 +1803,7 @@
         presetDefVerts = []; presetDefMouse = null;
         document.getElementById('btn-fog-preset-define').classList.toggle('active', fogPresetMode === 'define');
         document.getElementById('btn-fog-preset-toggle').classList.toggle('active', fogPresetMode === 'toggle');
+        document.getElementById('btn-fog-preset-delete').classList.toggle('active', fogPresetMode === 'delete');
         if (fogPresetMode) {
             currentFogTool = null;
             document.getElementById('btn-fog-paint').classList.remove('active');
@@ -1834,6 +1866,16 @@
                     return;
                 }
             }
+        } else if (fogPresetMode === 'delete') {
+            for (let i = fogPresets.length - 1; i >= 0; i--) {
+                if (pointInPolygon(pos.x, pos.y, fogPresets[i].verts)) {
+                    const id = fogPresets[i].id;
+                    fogPresets.splice(i, 1);
+                    broadcast({ type: 'preset_delete', id });
+                    drawPresetOutlines();
+                    return;
+                }
+            }
         }
     });
 
@@ -1852,6 +1894,7 @@
 
     document.getElementById('btn-fog-preset-define')?.addEventListener('click', () => startFogPresetMode('define'));
     document.getElementById('btn-fog-preset-toggle')?.addEventListener('click', () => startFogPresetMode('toggle'));
+    document.getElementById('btn-fog-preset-delete')?.addEventListener('click', () => startFogPresetMode('delete'));
 
     function applyFogSnapshot(cells) {
         cells.forEach(({ cx, cy }) => { fogCells.add(`${cx},${cy}`); });
@@ -1995,6 +2038,42 @@
     }
 
     // ── Save dialog ──────────────────────────────────────────────────────────
+    document.getElementById('btn-clear-board').addEventListener('click', () => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;`;
+        const box = document.createElement('div');
+        box.style.cssText = `background:#1e1e1e;border:2px solid rgba(255,60,60,0.4);border-radius:10px;padding:24px 28px;font-family:var(--font-serif);color:#ddd;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.6);max-width:340px;`;
+        box.innerHTML = `<div style="font-size:36px;margin-bottom:10px;">💀</div>
+            <div style="font-size:15px;margin-bottom:6px;color:#f88;">Clear Board</div>
+            <div style="font-size:12px;color:#aaa;margin-bottom:18px;">This will erase everything — tokens, icons, shapes, drawings, maps, fog and presets. This cannot be undone.</div>`;
+        const row = document.createElement('div'); row.style.cssText = `display:flex;gap:10px;justify-content:center;`;
+        const yes = document.createElement('button'); yes.textContent = 'Clear Everything';
+        yes.style.cssText = `padding:7px 18px;background:#8b1a1a;color:white;border:none;border-radius:5px;font-family:var(--font-serif);cursor:pointer;`;
+        const no  = document.createElement('button'); no.textContent = 'Cancel';
+        no.style.cssText  = `padding:7px 16px;background:#333;color:#aaa;border:none;border-radius:5px;font-family:var(--font-serif);cursor:pointer;`;
+        yes.onclick = () => {
+            overlay.remove();
+            // Clear everything
+            tokensContainer.innerHTML=''; stickersContainer.innerHTML='';
+            shapesContainer.innerHTML=''; document.getElementById('text-container').innerHTML='';
+            mapContainer.innerHTML=''; mapContainerBelow.innerHTML=''; mapHandleContainer.innerHTML='';
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            tokens=[]; stickers=[]; shapes=[]; textLabels=[]; mapImages=[];
+            fogCells.clear(); fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
+            fogPresets=[]; fogPolyVerts=[]; presetDefVerts=[];
+            fogPolyCtx.clearRect(0, 0, fogPolyCanvas.width, fogPolyCanvas.height);
+            fogPresetCtx.clearRect(0, 0, fogPresetCanvas.width, fogPresetCanvas.height);
+            deselectObject();
+            // Broadcast full clear to peers
+            broadcast({ type: 'fog_clear' });
+            broadcast({ type: 'board_clear' });
+        };
+        no.onclick = () => overlay.remove();
+        row.appendChild(yes); row.appendChild(no);
+        box.appendChild(row); overlay.appendChild(box); document.body.appendChild(overlay);
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    });
+
     document.getElementById('btn-save').addEventListener('click', () => {
         document.getElementById('save-name-input').value = '';
         document.getElementById('save-status').textContent = '';
@@ -2435,12 +2514,19 @@
         div.className = 'shape-obj'; div.setAttribute('data-id', shape.id);
         shape.type = 'shape';
         div.innerHTML = getShapeSVG(shape);
-        if (shape.locked) div.style.cursor = 'default';
+        if (shape.locked)  div.style.cursor  = 'default';
+        if (shape.hidden)  div.style.opacity = '0.2';
         updateObjDiv(shape, div);
 
         const handler = e => {
             if (e.button !== 0 || currentTool || shape.locked) return;
             e.stopPropagation();
+            if (e.shiftKey) {
+                shape.hidden = !shape.hidden;
+                div.style.opacity = shape.hidden ? '0.2' : '';
+                broadcast({ type: 'shape_update', id: shape.id, data: { hidden: shape.hidden } });
+                return;
+            }
             selectObject('shape', shape, div);
             draggedShape = shape; div.classList.add('dragging');
             const pos = viewportToGrid(e.clientX, e.clientY);
@@ -2516,11 +2602,19 @@
         img.src = sticker.iconUrl; img.draggable = false; img.style.pointerEvents = 'none';
         img.style.width = '100%'; img.style.height = '100%';
         if (sticker.locked) div.style.cursor = 'default';
+        if (sticker.hidden) div.style.opacity = '0.2';
         div.appendChild(img); updateObjDiv(sticker, div);
 
         div.addEventListener('mousedown', e => {
             if (e.button === 0 && !currentTool && !selectedIconUrl && !sticker.locked) {
-                e.stopPropagation(); selectObject('sticker', sticker, div);
+                e.stopPropagation();
+                if (e.shiftKey) {
+                    sticker.hidden = !sticker.hidden;
+                    div.style.opacity = sticker.hidden ? '0.2' : '';
+                    broadcast({ type: 'sticker_update', id: sticker.id, data: { hidden: sticker.hidden } });
+                    return;
+                }
+                selectObject('sticker', sticker, div);
                 draggedSticker = sticker; div.classList.add('dragging');
                 const pos = viewportToGrid(e.clientX, e.clientY);
                 stickerDragOffsetX = pos.x - sticker.x; stickerDragOffsetY = pos.y - sticker.y;
@@ -2640,6 +2734,25 @@
                 if (isHost) { div.classList.toggle('hidden', token.hidden); div.classList.remove('hidden-player'); }
                 else { div.classList.toggle('hidden-player', token.hidden); div.classList.remove('hidden'); }
                 broadcast({type:'token_update',id:token.id,data:{hidden:token.hidden}}); return;
+            }
+            if (e.ctrlKey || e.metaKey) {
+                // Ctrl+click adds/removes from multiSelected
+                e.stopPropagation();
+                const existing = multiSelected.findIndex(m => m.token.id === token.id);
+                if (existing > -1) {
+                    multiSelected[existing].div.classList.remove('multi-selected');
+                    multiSelected.splice(existing, 1);
+                } else {
+                    const pos = viewportToGrid(e.clientX, e.clientY);
+                    div.classList.add('multi-selected');
+                    multiSelected.push({ token, div, offX: pos.x - token.x, offY: pos.y - token.y });
+                }
+                return;
+            }
+            // Clear multi-select if not ctrl-clicking
+            if (multiSelected.length && !e.ctrlKey) {
+                multiSelected.forEach(m => m.div.classList.remove('multi-selected'));
+                multiSelected = [];
             }
             selectObject('token', token, div);
             draggedToken = token; div.classList.add('dragging');
@@ -3260,7 +3373,9 @@
         }
         if (isRotating && selectedObject) {
             const angle = Math.atan2(e.clientY-rotateCenterY, e.clientX-rotateCenterX)*180/Math.PI;
-            selectedObject.data.rotation = rotateStartObjAngle + (angle-rotateStartAngle);
+            let newRot = rotateStartObjAngle + (angle-rotateStartAngle);
+            if (shiftHeld) newRot = Math.round(newRot / 45) * 45;
+            selectedObject.data.rotation = newRot;
             updateObjTransform(selectedObject.data, selectedObject.div);
             broadcastMove('rotate_'+selectedObject.data.id, { type: selectedObject.type+'_update', id: selectedObject.data.id, data:{ rotation: selectedObject.data.rotation } });
             return;
@@ -3322,10 +3437,20 @@
         // Token drag
         if (draggedToken) {
             const pos = viewportToGrid(e.clientX,e.clientY);
-            draggedToken.x=pos.x-dragOffsetX; draggedToken.y=pos.y-dragOffsetY;
-            updateObjDiv(draggedToken, tokensContainer.querySelector(`[data-id="${draggedToken.id}"]`));
-            updateSelectionOverlay();
-            broadcastMove('token_'+draggedToken.id, { type:'token_move', id:draggedToken.id, x:draggedToken.x, y:draggedToken.y });
+            if (multiSelected.length > 1 && multiSelected.find(m => m.token.id === draggedToken.id)) {
+                // Move all selected tokens together
+                multiSelected.forEach(m => {
+                    m.token.x = pos.x - m.offX; m.token.y = pos.y - m.offY;
+                    updateObjDiv(m.token, m.div);
+                    broadcastMove('token_'+m.token.id, { type:'token_move', id:m.token.id, x:m.token.x, y:m.token.y });
+                });
+                updateSelectionOverlay();
+            } else {
+                draggedToken.x=pos.x-dragOffsetX; draggedToken.y=pos.y-dragOffsetY;
+                updateObjDiv(draggedToken, tokensContainer.querySelector(`[data-id="${draggedToken.id}"]`));
+                updateSelectionOverlay();
+                broadcastMove('token_'+draggedToken.id, { type:'token_move', id:draggedToken.id, x:draggedToken.x, y:draggedToken.y });
+            }
         }
 
         // Text drag
@@ -3407,11 +3532,20 @@
         }
 
         if (draggedToken) {
-            const snapped = snapToGrid(draggedToken.x, draggedToken.y);
-            draggedToken.x=snapped.x; draggedToken.y=snapped.y;
-            const div = tokensContainer.querySelector(`[data-id="${draggedToken.id}"]`);
-            updateObjDiv(draggedToken, div); div?.classList.remove('dragging');
-            broadcast({ type:'token_move', id:draggedToken.id, x:draggedToken.x, y:draggedToken.y });
+            if (multiSelected.length > 1 && multiSelected.find(m => m.token.id === draggedToken.id)) {
+                multiSelected.forEach(m => {
+                    const snapped = snapToGrid(m.token.x, m.token.y);
+                    m.token.x = snapped.x; m.token.y = snapped.y;
+                    updateObjDiv(m.token, m.div); m.div.classList.remove('dragging');
+                    broadcast({ type:'token_move', id:m.token.id, x:m.token.x, y:m.token.y });
+                });
+            } else {
+                const snapped = snapToGrid(draggedToken.x, draggedToken.y);
+                draggedToken.x=snapped.x; draggedToken.y=snapped.y;
+                const div = tokensContainer.querySelector(`[data-id="${draggedToken.id}"]`);
+                updateObjDiv(draggedToken, div); div?.classList.remove('dragging');
+                broadcast({ type:'token_move', id:draggedToken.id, x:draggedToken.x, y:draggedToken.y });
+            }
             updateSelectionOverlay(); draggedToken=null;
         }
         if (draggedText) { draggedText.classList.remove('dragging'); draggedText=null; }
@@ -3461,7 +3595,7 @@
         white:   '%23ffffff',
         red:     '%23cc0000',
     };
-    function setGridColor(key) {
+    function setGridColor(key, fromPeer = false) {
         const stroke = GRID_COLORS[key];
         const svg = `url("data:image/svg+xml,%3Csvg width='50' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 0 Q 12 -0.3 25 0.2 Q 37 -0.4 50 0' stroke='${stroke}' stroke-width='1' fill='none' opacity='0.5'/%3E%3Cpath d='M 0 0 Q -0.4 12 0.3 25 Q -0.2 37 0 50' stroke='${stroke}' stroke-width='1' fill='none' opacity='0.5'/%3E%3C/svg%3E")`;
         document.getElementById('grid-background').style.background = svg;
@@ -3472,6 +3606,7 @@
                 ? (isActive ? '2px solid white' : '2px solid #555')
                 : (isActive ? '2px solid white' : '2px solid transparent');
         });
+        if (!fromPeer) broadcast({ type: 'grid_color', key });
     }
     document.querySelectorAll('.grid-swatch').forEach(s => {
         s.addEventListener('click', () => setGridColor(s.dataset.gridColor));
