@@ -1339,25 +1339,40 @@
         updateTransform();
     }
 
+    let rightDownX = 0, rightDownY = 0, rightMoved = false;
+
     viewport.addEventListener('wheel', e => { e.preventDefault(); e.deltaY < 0 ? zoomIn(e.clientX,e.clientY) : zoomOut(e.clientX,e.clientY); }, { passive: false });
     viewport.addEventListener('mousedown', e => {
         if (e.button === 2) {
-            e.preventDefault(); deselectObject();
-            // Cancel fog poly in progress
-            if (fogPolyMode && fogPolyVerts.length > 0) {
-                fogPolyVerts = []; fogPolyMousePos = null;
-                fogPolyCtx.clearRect(0, 0, fogPolyCanvas.width, fogPolyCanvas.height);
-                return;
-            }
-            // Deactivate any fog tool (poly or brush)
-            if (fogPolyMode) { startFogPoly(fogPolyMode); return; }
-            if (currentFogTool) { setFogTool(null); return; }
-            if (currentTool) { currentTool = null; document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active')); canvas.classList.remove('drawing'); return; }
+            e.preventDefault();
+            rightDownX = e.clientX; rightDownY = e.clientY; rightMoved = false;
+            // Always start pan immediately — we'll decide on mouseup whether to clear tool
             isPanning = true; panStartX = e.clientX - panX; panStartY = e.clientY - panY; viewport.style.cursor = 'grabbing';
         }
     });
-    viewport.addEventListener('mousemove', e => { if (isPanning) { panX = e.clientX-panStartX; panY = e.clientY-panStartY; updateTransform(); } });
-    viewport.addEventListener('mouseup',   e => { if (e.button===2 && isPanning) { isPanning=false; viewport.style.cursor='default'; } });
+    viewport.addEventListener('mousemove', e => {
+        if (isPanning) { panX = e.clientX-panStartX; panY = e.clientY-panStartY; updateTransform(); }
+        if (e.buttons === 2) {
+            const d = Math.hypot(e.clientX - rightDownX, e.clientY - rightDownY);
+            if (d > 6) rightMoved = true;
+        }
+    });
+    viewport.addEventListener('mouseup', e => {
+        if (e.button !== 2) return;
+        isPanning = false; viewport.style.cursor = 'default';
+        if (rightMoved) return; // was a pan — don't clear tools or deselect
+
+        // In-place right click — clear tools in priority order
+        deselectObject();
+        if (fogPolyMode && fogPolyVerts.length > 0) {
+            fogPolyVerts = []; fogPolyMousePos = null;
+            fogPolyCtx.clearRect(0, 0, fogPolyCanvas.width, fogPolyCanvas.height);
+            return;
+        }
+        if (fogPolyMode) { startFogPoly(fogPolyMode); return; }
+        if (currentFogTool) { setFogTool(null); return; }
+        if (currentTool) { currentTool = null; document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active')); canvas.classList.remove('drawing'); }
+    });
 
     document.addEventListener('contextmenu', e => { if (e.target.closest('#vtt-logo')) return; e.preventDefault(); });
 
