@@ -23,6 +23,7 @@
         #grid-container { position: absolute; width: 5000px; height: 5000px; transform-origin: 0 0; background: radial-gradient(circle at center, #d2cbbc, #7e7466); }
         #map-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
         #map-container-below { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 6; pointer-events: none; }
+        #map-container-below .map-image { pointer-events: auto; }
         #map-handle-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 12; }
         .map-image { position: absolute; cursor: move; pointer-events: auto; user-select: none; }
         .map-image.locked { cursor: default; }
@@ -1879,9 +1880,22 @@
         } else if (fogPresetMode === 'delete') {
             for (let i = fogPresets.length - 1; i >= 0; i--) {
                 if (pointInPolygon(pos.x, pos.y, fogPresets[i].verts)) {
-                    const id = fogPresets[i].id;
+                    const preset = fogPresets[i];
+                    // Also clear the fog inside this preset
+                    const changed = [];
+                    for (let cx = 0; cx < 100; cx++) {
+                        for (let cy = 0; cy < 100; cy++) {
+                            const cellCX = cx * 50 + FOG_OFFSET + 25;
+                            const cellCY = cy * 50 + FOG_OFFSET + 25;
+                            if (pointInPolygon(cellCX, cellCY, preset.verts)) {
+                                const key = `${cx},${cy}`;
+                                if (fogCells.has(key)) { fogCells.delete(key); eraseFogCell(cx, cy); changed.push({cx,cy,fog:false}); }
+                            }
+                        }
+                    }
+                    if (changed.length) broadcast({ type: 'fog_cells', cells: changed });
                     fogPresets.splice(i, 1);
-                    broadcast({ type: 'preset_delete', id });
+                    broadcast({ type: 'preset_delete', id: preset.id });
                     drawPresetOutlines();
                     return;
                 }
@@ -2813,10 +2827,23 @@
                 }
                 return;
             }
-            // Clear multi-select if not ctrl-clicking
-            if (multiSelected.length && !e.ctrlKey) {
+            // Clear multi-select if not ctrl-clicking AND not clicking a token already in the group
+            const inGroup = multiSelected.some(m => m.token.id === token.id);
+            if (multiSelected.length && !e.ctrlKey && !inGroup) {
                 multiSelected.forEach(m => m.div.classList.remove('multi-selected'));
                 multiSelected = [];
+            }
+            // If clicking a token in the group, start dragging entire group
+            if (inGroup && multiSelected.length > 1) {
+                draggedToken = token; div.classList.add('dragging');
+                const pos = viewportToGrid(e.clientX, e.clientY);
+                dragOffsetX = pos.x - token.x; dragOffsetY = pos.y - token.y;
+                // Update all offsets relative to current mouse position
+                multiSelected.forEach(m => {
+                    m.offX = pos.x - m.token.x;
+                    m.offY = pos.y - m.token.y;
+                });
+                return;
             }
             selectObject('token', token, div);
             draggedToken = token; div.classList.add('dragging');
