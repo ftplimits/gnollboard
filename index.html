@@ -3252,16 +3252,21 @@
 
     // Grid color swatches
     const GRID_COLORS = {
-        default: { stroke: '%232a2522', bg1: '%23d2cbbc', bg2: '%237e7466' },
-        white:   { stroke: '%23ffffff', bg1: '%23d2cbbc', bg2: '%237e7466' },
-        red:     { stroke: '%23cc0000', bg1: '%23d2cbbc', bg2: '%237e7466' },
+        default: '%232a2522',
+        white:   '%23ffffff',
+        red:     '%23cc0000',
     };
     function setGridColor(key) {
-        const g = GRID_COLORS[key];
-        const svg = `url("data:image/svg+xml,%3Csvg width='50' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 0 Q 12 -0.3 25 0.2 Q 37 -0.4 50 0' stroke='${g.stroke}' stroke-width='1' fill='none' opacity='0.5'/%3E%3Cpath d='M 0 0 Q -0.4 12 0.3 25 Q -0.2 37 0 50' stroke='${g.stroke}' stroke-width='1' fill='none' opacity='0.5'/%3E%3C/svg%3E"), radial-gradient(circle at center, ${g.bg1.replace('%23','#')}, ${g.bg2.replace('%23','#')})`;
+        const stroke = GRID_COLORS[key];
+        const svg = `url("data:image/svg+xml,%3Csvg width='50' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 0 Q 12 -0.3 25 0.2 Q 37 -0.4 50 0' stroke='${stroke}' stroke-width='1' fill='none' opacity='0.5'/%3E%3Cpath d='M 0 0 Q -0.4 12 0.3 25 Q -0.2 37 0 50' stroke='${stroke}' stroke-width='1' fill='none' opacity='0.5'/%3E%3C/svg%3E")`;
         document.getElementById('grid-background').style.background = svg;
-        document.querySelectorAll('.grid-swatch').forEach(s => s.style.border = `2px solid ${s.dataset.gridColor === key ? 'white' : 'transparent'}`);
-        document.getElementById('gs-white').style.border = key === 'white' ? '2px solid white' : '2px solid #555';
+        document.getElementById('grid-background').style.backgroundColor = 'transparent';
+        document.querySelectorAll('.grid-swatch').forEach(s => {
+            const isActive = s.dataset.gridColor === key;
+            s.style.border = s.dataset.gridColor === 'white'
+                ? (isActive ? '2px solid white' : '2px solid #555')
+                : (isActive ? '2px solid white' : '2px solid transparent');
+        });
     }
     document.querySelectorAll('.grid-swatch').forEach(s => {
         s.addEventListener('click', () => setGridColor(s.dataset.gridColor));
