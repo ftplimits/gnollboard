@@ -433,9 +433,9 @@
         <button class="fog-btn fill-btn" id="btn-clear-fog"  title="Clear All Fog">✂️</button>
         <button class="fog-btn" id="btn-fog-paint"           title="Paint Fog (3×3)">☁️</button>
         <button class="fog-btn" id="btn-fog-reveal"          title="Reveal (3×3)">🧹</button>
-        <button class="fog-btn" id="btn-fog-poly-apply"      title="Polygon Fog (apply)">🔷</button>
-        <button class="fog-btn" id="btn-fog-poly-cut"        title="Polygon Fog (reveal)">🔶</button>
-        <button class="fog-btn" id="btn-fog-preset-define"   title="Define Fog Preset">📌</button>
+        <button class="fog-btn" id="btn-fog-poly-apply"      title="Polygon Fog — apply (Shift = snap to cell centers)">🔷</button>
+        <button class="fog-btn" id="btn-fog-poly-cut"        title="Polygon Fog — reveal (Shift = snap to cell centers)">🔶</button>
+        <button class="fog-btn" id="btn-fog-preset-define"   title="Define Fog Preset (Shift = snap to cell centers)">📌</button>
         <button class="fog-btn" id="btn-fog-preset-toggle"   title="Toggle Fog Preset">🔘</button>
     </div>
     <div id="fog-toggle">FOG</div>
@@ -472,6 +472,9 @@
     let drawings = [], selectedDrawing = null, nextDrawingId = 1;
     let boldLines  = false;
     let fillShapes = false;
+    let shiftHeld  = false;
+    window.addEventListener('keydown', e => { if (e.key === 'Shift') shiftHeld = true;  }, { capture: true, passive: true });
+    window.addEventListener('keyup',   e => { if (e.key === 'Shift') shiftHeld = false; }, { capture: true, passive: true });
     let draggedText = null, textDragOffsetX = 0, textDragOffsetY = 0;
     let textLabels = [], nextTextId = 1;  // tracked for P2P sync
 
@@ -1583,7 +1586,14 @@
     let fogPolyVerts    = [];    // [{x,y}] in grid coords, snapped to intersections
     let fogPolyMousePos = null;  // current mouse grid pos for preview line
 
-    function snapToIntersection(x, y) {
+    function snapToIntersection(x, y, useCenter = false) {
+        if (useCenter) {
+            // Snap to nearest cell center
+            return {
+                x: Math.floor((x - FOG_OFFSET) / 50) * 50 + FOG_OFFSET + 25,
+                y: Math.floor((y - FOG_OFFSET) / 50) * 50 + FOG_OFFSET + 25
+            };
+        }
         return {
             x: Math.round((x - FOG_OFFSET) / 50) * 50 + FOG_OFFSET,
             y: Math.round((y - FOG_OFFSET) / 50) * 50 + FOG_OFFSET
@@ -1678,7 +1688,7 @@
     viewport.addEventListener('click', e => {
         if (!fogPolyMode || e.button !== 0) return;
         const pos = viewportToGrid(e.clientX, e.clientY);
-        const snapped = snapToIntersection(pos.x, pos.y);
+        const snapped = snapToIntersection(pos.x, pos.y, shiftHeld);
         // Close polygon if clicking near first vertex
         if (fogPolyVerts.length >= 3) {
             const first = fogPolyVerts[0];
@@ -1799,7 +1809,7 @@
         const pos = viewportToGrid(e.clientX, e.clientY);
 
         if (fogPresetMode === 'define') {
-            const snapped = snapToIntersection(pos.x, pos.y);
+            const snapped = snapToIntersection(pos.x, pos.y, shiftHeld);
             // Close if near first vertex
             if (presetDefVerts.length >= 3) {
                 const first = presetDefVerts[0];
@@ -2352,6 +2362,11 @@
                 const s = { id: nextStickerId++, iconUrl: src.iconUrl, x: snapped.x, y: snapped.y, w: src.w, h: src.h, size: src.size || 'small', flipped: false, type: 'sticker' };
                 stickers.push(s); renderSticker(s);
                 broadcast({ type: 'sticker_add', sticker: { ...s } });
+            } else if (copiedObject.type === 'shape') {
+                const src = copiedObject.data;
+                const s = { id: nextShapeId++, shapeType: src.shapeType, x: snapped.x, y: snapped.y, w: src.w, h: src.h, color: src.color, lineWidth: src.lineWidth, filled: src.filled, rotation: src.rotation || 0, type: 'shape' };
+                shapes.push(s); renderShape(s);
+                broadcast({ type: 'shape_add', shape: { ...s } });
             }
             return;
         }
@@ -2420,10 +2435,11 @@
         div.className = 'shape-obj'; div.setAttribute('data-id', shape.id);
         shape.type = 'shape';
         div.innerHTML = getShapeSVG(shape);
+        if (shape.locked) div.style.cursor = 'default';
         updateObjDiv(shape, div);
 
         const handler = e => {
-            if (e.button !== 0 || currentTool) return;
+            if (e.button !== 0 || currentTool || shape.locked) return;
             e.stopPropagation();
             selectObject('shape', shape, div);
             draggedShape = shape; div.classList.add('dragging');
@@ -2432,12 +2448,10 @@
         };
         const ctxHandler = e => { e.preventDefault(); e.stopPropagation(); showShapeContextMenu(e.clientX,e.clientY,shape,div); };
 
-        // Attach to the transparent hit elements in the SVG, not the div
         div.querySelectorAll('[stroke="transparent"]').forEach(el => {
             el.addEventListener('mousedown', handler);
             el.addEventListener('contextmenu', ctxHandler);
         });
-        // Also allow drag from div when already selected (selection overlay handles resize/rotate)
         div.addEventListener('mousedown', e => { if (div.classList.contains('selected')) handler(e); });
 
         shapesContainer.appendChild(div);
@@ -2445,16 +2459,30 @@
 
     function showShapeContextMenu(x, y, shape, div) {
         const menu = document.createElement('div');
-        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:var(--font-serif);`;
+        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--parchment-light);border:2px solid var(--ink-dark);border-radius:4px;padding:8px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-family:var(--font-serif);min-width:120px;`;
+        const btnStyle = `display:block;width:100%;padding:6px 12px;margin:2px 0;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);border-radius:2px;text-align:left;`;
+
+        const lockBtn = document.createElement('button');
+        lockBtn.textContent = shape.locked ? '🔓 Unlock' : '🔒 Lock';
+        lockBtn.style.cssText = btnStyle + 'background:#2a4a6a;';
+        lockBtn.onclick = () => {
+            shape.locked = !shape.locked;
+            div.style.cursor = shape.locked ? 'default' : 'move';
+            if (selectedObject?.data.id === shape.id) deselectObject();
+            broadcast({ type: 'shape_update', id: shape.id, data: { locked: shape.locked } });
+            menu.remove();
+        };
+
         const del = document.createElement('button');
-        del.textContent = 'Delete';
-        del.style.cssText = `display:block;width:100%;padding:6px 12px;background:#dc143c;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);border-radius:2px;`;
+        del.textContent = '✕ Delete';
+        del.style.cssText = btnStyle + 'background:#dc143c;margin-top:4px;';
         del.onclick = () => {
             shapes = shapes.filter(s => s.id !== shape.id); div.remove();
             if (selectedObject?.data.id === shape.id) deselectObject();
             broadcast({ type: 'shape_delete', id: shape.id }); menu.remove();
         };
-        menu.appendChild(del); document.body.appendChild(menu);
+        menu.appendChild(lockBtn); menu.appendChild(del);
+        document.body.appendChild(menu);
         const close = () => { menu.remove(); document.removeEventListener('click', close); };
         setTimeout(() => document.addEventListener('click', close), 10);
     }
@@ -3221,13 +3249,13 @@
         // Polygon fog preview line
         if (fogPolyMode && fogPolyVerts.length > 0) {
             const pos = viewportToGrid(e.clientX, e.clientY);
-            fogPolyMousePos = snapToIntersection(pos.x, pos.y);
+            fogPolyMousePos = snapToIntersection(pos.x, pos.y, shiftHeld);
             drawFogPolyPreview();
         }
         // Preset define preview
         if (fogPresetMode === 'define' && presetDefVerts.length > 0) {
             const pos = viewportToGrid(e.clientX, e.clientY);
-            presetDefMouse = snapToIntersection(pos.x, pos.y);
+            presetDefMouse = snapToIntersection(pos.x, pos.y, shiftHeld);
             drawPresetOutlines();
         }
         if (isRotating && selectedObject) {
@@ -3325,7 +3353,7 @@
         }
 
         // Shape drag
-        if (draggedShape) {
+        if (draggedShape && !draggedShape.locked) {
             const pos = viewportToGrid(e.clientX,e.clientY);
             draggedShape.x=pos.x-shapeDragOffsetX; draggedShape.y=pos.y-shapeDragOffsetY;
             updateObjDiv(draggedShape, shapesContainer.querySelector(`[data-id="${draggedShape.id}"]`));
