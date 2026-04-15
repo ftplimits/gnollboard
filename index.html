@@ -87,15 +87,6 @@
         }
         #toolbar-toggle:hover { background: rgba(100,100,100,0.95); }
         #icon-palette { position: fixed; bottom: 120px; right: 20px; width: 320px; max-height: 500px; background: var(--parchment-light); border: 3px solid var(--ink-dark); border-radius: 8px; box-shadow: 0 -8px 24px rgba(0,0,0,0.3); z-index: 2000; overflow: hidden; }
-        #dungeon-panel { position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%); width: 380px; background: var(--parchment-light); border: 3px solid var(--ink-dark); border-radius: 8px; box-shadow: 0 -8px 24px rgba(0,0,0,0.3); z-index: 2000; padding: 16px; font-family: var(--font-serif); }
-        #dungeon-panel h3 { margin: 0 0 14px; font-size: 18px; color: var(--ink-dark); display:flex; justify-content:space-between; align-items:center; }
-        .dg-row { display: flex; gap: 8px; margin-bottom: 12px; }
-        .dg-label { font-size: 12px; color: #666; margin-bottom: 5px; }
-        .dg-toggle { flex: 1; padding: 7px 4px; background: var(--parchment-mid); border: 2px solid var(--ink-medium); border-radius: 5px; font-family: var(--font-serif); font-size: 12px; cursor: pointer; text-align: center; color: var(--ink-dark); transition: all 0.15s; }
-        .dg-toggle.active, .dg-texture.active { background: var(--accent); color: white; border-color: var(--accent-hover); }
-        .dg-texture { flex: 1; padding: 7px 4px; background: var(--parchment-mid); border: 2px solid var(--ink-medium); border-radius: 5px; font-family: var(--font-serif); font-size: 12px; cursor: pointer; text-align: center; color: var(--ink-dark); transition: all 0.15s; }
-        #btn-generate-dungeon { width: 100%; padding: 10px; background: var(--accent); color: white; border: none; border-radius: 6px; font-family: var(--font-serif); font-size: 15px; cursor: pointer; margin-top: 4px; }
-        #btn-generate-dungeon:hover { background: var(--accent-hover); }
         .palette-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--parchment-mid); border-bottom: 2px solid var(--ink-dark); }
         .palette-header h3 { margin: 0; font-family: var(--font-serif); font-size: 20px; color: var(--ink-dark); }
         .palette-header button { background: transparent; border: none; font-size: 24px; cursor: pointer; color: var(--ink-dark); padding: 0; width: 30px; height: 30px; line-height: 1; }
@@ -373,7 +364,6 @@
         <button class="tool-btn" id="btn-token-upload" title="Upload Token">👤</button>
         <button class="tool-btn" id="btn-map-upload-tb" title="Upload Map">🗺️</button>
         <button class="tool-btn" id="btn-icons" title="Icons" style="padding:4px 6px;"><img src="./icons/wooden-door.webp" style="width:22px;height:22px;display:block;pointer-events:none;"></button>
-        <button class="tool-btn" id="btn-dungeon-gen" title="Generate Dungeon">🎲</button>
         <div class="divider"></div>
         <button class="tool-btn" id="btn-pen"      data-tool="pen"      title="Pen">✏️</button>
         <button class="tool-btn" id="btn-line"     data-tool="line"     title="Line">╱</button>
@@ -423,8 +413,6 @@
     </div>
 
     <!-- Dungeon Generator Panel -->
-    <div id="dungeon-panel" style="display:none;"></div>
-
     <div id="text-input-dialog">
         <input type="text" id="text-input-field" placeholder="Enter text...">
         <button id="btn-text-ok">OK</button>
@@ -447,6 +435,8 @@
         <button class="fog-btn" id="btn-fog-reveal"          title="Reveal (3×3)">🧹</button>
         <button class="fog-btn" id="btn-fog-poly-apply"      title="Polygon Fog (apply)">🔷</button>
         <button class="fog-btn" id="btn-fog-poly-cut"        title="Polygon Fog (reveal)">🔶</button>
+        <button class="fog-btn" id="btn-fog-preset-define"   title="Define Fog Preset">📌</button>
+        <button class="fog-btn" id="btn-fog-preset-toggle"   title="Toggle Fog Preset">🔘</button>
     </div>
     <div id="fog-toggle">FOG</div>
 
@@ -465,6 +455,7 @@
             <canvas id="ping-canvas"    width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:400;"></canvas>
             <canvas id="measure-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:500;"></canvas>
             <canvas id="fog-poly-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:510;"></canvas>
+            <canvas id="fog-preset-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:515;"></canvas>
         </div>
     </div>
 
@@ -832,6 +823,7 @@
             textLabels:  textLabels.map(t => ({ ...t })),
             // Only send locked maps — unlocked ones have no image yet and are host-only
             mapImages:   mapImages.filter(m => m.locked && m.image).map(m => ({ ...m })),
+            fogPresets:  fogPresets.map(p => ({ ...p })),
             canvasData:  canvas.toDataURL('image/webp', 0.85),
             fogCellData: [...fogCells].map(key => { const [cx,cy] = key.split(',').map(Number); return {cx,cy}; })
         };
@@ -850,6 +842,9 @@
         (snap.shapes     ||[]).forEach(s => { shapes.push(s);     renderShape(s); });
         (snap.textLabels ||[]).forEach(t => { textLabels.push(t); renderTextLabel(t); });
         (snap.mapImages  ||[]).forEach(m => { mapImages.push(m);  renderMapImage(m); });
+        fogPresets = snap.fogPresets || [];
+        if (fogPresets.length) nextPresetId = Math.max(...fogPresets.map(p => p.id)) + 1;
+        drawPresetOutlines();
         if (snap.canvasData) { const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = snap.canvasData; }
         if (snap.fogCellData) applyFogSnapshot(snap.fogCellData);
         if (tokens.length)     nextTokenId   = Math.max(...tokens.map(t=>t.id))   + 1;
@@ -1087,6 +1082,20 @@
                 redrawFog();
                 break;
 
+            case 'preset_add': {
+                const p = msg.preset;
+                if (!fogPresets.find(x => x.id === p.id)) {
+                    fogPresets.push(p);
+                    if (p.id >= nextPresetId) nextPresetId = p.id + 1;
+                    drawPresetOutlines();
+                }
+                break;
+            }
+            case 'preset_update': {
+                const p = fogPresets.find(x => x.id === msg.id);
+                if (p) { p.fogged = msg.fogged; drawPresetOutlines(); }
+                break;
+            }
             case 'fog_fill':
                 fogCells.clear();
                 for (let cx = 0; cx < 100; cx++)
@@ -1139,6 +1148,9 @@
         if (btnCenter) btnCenter.style.display = isHost ? 'block' : 'none';
         // Reposition toolbar toggle after toolbar becomes visible
         if (isHost) { const tbEl = document.getElementById('toolbar'); if (tbEl && tbTog) tbTog.style.bottom = tbEl.offsetHeight + 'px'; }
+        drawPresetOutlines();
+        const presetCv = document.getElementById("fog-preset-canvas");
+        if (presetCv) presetCv.style.display = isHost ? "" : "none";
     }
 
     function toggleP2PPanel() {
@@ -1370,6 +1382,7 @@
             return;
         }
         if (fogPolyMode) { startFogPoly(fogPolyMode); return; }
+        if (fogPresetMode) { startFogPresetMode(fogPresetMode); return; }
         if (currentFogTool) { setFogTool(null); return; }
         if (currentTool) { currentTool = null; document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active')); canvas.classList.remove('drawing'); }
     });
@@ -1695,6 +1708,141 @@
     // Escape cancels in-progress polygon
     // (wired into existing keydown handler below)
 
+
+    // ── Fog Presets ──────────────────────────────────────────────────────────
+    const fogPresetCanvas = document.getElementById('fog-preset-canvas');
+    const fogPresetCtx    = fogPresetCanvas.getContext('2d');
+    let fogPresets        = [];   // [{id, verts, fogged}]
+    let nextPresetId      = 1;
+    let fogPresetMode     = null; // 'define' | 'toggle' | null
+    let presetDefVerts    = [];   // vertices being defined
+    let presetDefMouse    = null;
+
+    function drawPresetOutlines() {
+        fogPresetCtx.clearRect(0, 0, fogPresetCanvas.width, fogPresetCanvas.height);
+        if (!isHost) return;
+        fogPresets.forEach(p => {
+            if (p.verts.length < 2) return;
+            const color = p.fogged ? 'rgba(60,200,80,0.9)' : 'rgba(60,200,80,0.45)';
+            fogPresetCtx.strokeStyle = color;
+            fogPresetCtx.lineWidth = 1.5;
+            fogPresetCtx.setLineDash([6, 4]);
+            fogPresetCtx.beginPath();
+            fogPresetCtx.moveTo(p.verts[0].x, p.verts[0].y);
+            p.verts.forEach(v => fogPresetCtx.lineTo(v.x, v.y));
+            fogPresetCtx.closePath();
+            fogPresetCtx.stroke();
+            fogPresetCtx.setLineDash([]);
+        });
+        // Draw in-progress define preview
+        if (fogPresetMode === 'define' && presetDefVerts.length > 0) {
+            fogPresetCtx.strokeStyle = 'rgba(60,200,80,0.8)';
+            fogPresetCtx.lineWidth = 1.5;
+            fogPresetCtx.setLineDash([4, 4]);
+            fogPresetCtx.beginPath();
+            fogPresetCtx.moveTo(presetDefVerts[0].x, presetDefVerts[0].y);
+            presetDefVerts.forEach(v => fogPresetCtx.lineTo(v.x, v.y));
+            if (presetDefMouse) fogPresetCtx.lineTo(presetDefMouse.x, presetDefMouse.y);
+            fogPresetCtx.stroke();
+            fogPresetCtx.setLineDash([]);
+            // Vertex dots
+            presetDefVerts.forEach((v, i) => {
+                fogPresetCtx.beginPath();
+                fogPresetCtx.arc(v.x, v.y, i === 0 ? 7 : 4, 0, Math.PI*2);
+                fogPresetCtx.fillStyle = i === 0 ? 'rgba(60,200,80,0.9)' : 'white';
+                fogPresetCtx.fill();
+                fogPresetCtx.strokeStyle = 'rgba(60,200,80,0.9)';
+                fogPresetCtx.lineWidth = 2; fogPresetCtx.stroke();
+            });
+        }
+    }
+
+    function startFogPresetMode(mode) {
+        fogPresetMode = fogPresetMode === mode ? null : mode;
+        presetDefVerts = []; presetDefMouse = null;
+        document.getElementById('btn-fog-preset-define').classList.toggle('active', fogPresetMode === 'define');
+        document.getElementById('btn-fog-preset-toggle').classList.toggle('active', fogPresetMode === 'toggle');
+        if (fogPresetMode) {
+            currentFogTool = null;
+            document.getElementById('btn-fog-paint').classList.remove('active');
+            document.getElementById('btn-fog-reveal').classList.remove('active');
+            if (fogPolyMode) startFogPoly(fogPolyMode);
+            currentTool = null;
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+            canvas.classList.remove('drawing');
+        }
+        drawPresetOutlines();
+    }
+
+    function applyPresetFog(preset, fogged) {
+        preset.fogged = fogged;
+        const changed = [];
+        for (let cx = 0; cx < 100; cx++) {
+            for (let cy = 0; cy < 100; cy++) {
+                const cellCX = cx * 50 + FOG_OFFSET + 25;
+                const cellCY = cy * 50 + FOG_OFFSET + 25;
+                if (pointInPolygon(cellCX, cellCY, preset.verts)) {
+                    const key = `${cx},${cy}`;
+                    if (fogged && !fogCells.has(key)) { fogCells.add(key); drawFogCell(cx, cy); changed.push({cx,cy,fog:true}); }
+                    else if (!fogged && fogCells.has(key)) { fogCells.delete(key); eraseFogCell(cx, cy); changed.push({cx,cy,fog:false}); }
+                }
+            }
+        }
+        if (changed.length) broadcast({ type: 'fog_cells', cells: changed });
+        broadcast({ type: 'preset_update', id: preset.id, fogged: preset.fogged });
+        drawPresetOutlines();
+    }
+
+    // Viewport click for preset define and toggle
+    viewport.addEventListener('click', e => {
+        if (!fogPresetMode || e.button !== 0) return;
+        const pos = viewportToGrid(e.clientX, e.clientY);
+
+        if (fogPresetMode === 'define') {
+            const snapped = snapToIntersection(pos.x, pos.y);
+            // Close if near first vertex
+            if (presetDefVerts.length >= 3) {
+                const first = presetDefVerts[0];
+                if (Math.hypot(snapped.x - first.x, snapped.y - first.y) < 30) {
+                    const preset = { id: nextPresetId++, verts: [...presetDefVerts], fogged: true };
+                    fogPresets.push(preset);
+                    applyPresetFog(preset, true);
+                    broadcast({ type: 'preset_add', preset: { id: preset.id, verts: preset.verts, fogged: preset.fogged } });
+                    presetDefVerts = []; presetDefMouse = null;
+                    drawPresetOutlines();
+                    return;
+                }
+            }
+            presetDefVerts.push(snapped);
+            drawPresetOutlines();
+
+        } else if (fogPresetMode === 'toggle') {
+            // Find which preset was clicked
+            for (const preset of fogPresets) {
+                if (pointInPolygon(pos.x, pos.y, preset.verts)) {
+                    applyPresetFog(preset, !preset.fogged);
+                    return;
+                }
+            }
+        }
+    });
+
+    // Double-click closes define
+    viewport.addEventListener('dblclick', e => {
+        if (fogPresetMode !== 'define' || presetDefVerts.length < 3) return;
+        e.preventDefault();
+        presetDefVerts.pop();
+        const preset = { id: nextPresetId++, verts: [...presetDefVerts], fogged: true };
+        fogPresets.push(preset);
+        applyPresetFog(preset, true);
+        broadcast({ type: 'preset_add', preset: { id: preset.id, verts: preset.verts, fogged: preset.fogged } });
+        presetDefVerts = []; presetDefMouse = null;
+        drawPresetOutlines();
+    });
+
+    document.getElementById('btn-fog-preset-define')?.addEventListener('click', () => startFogPresetMode('define'));
+    document.getElementById('btn-fog-preset-toggle')?.addEventListener('click', () => startFogPresetMode('toggle'));
+
     function applyFogSnapshot(cells) {
         cells.forEach(({ cx, cy }) => { fogCells.add(`${cx},${cy}`); });
         redrawFog();
@@ -1789,6 +1937,7 @@
             shapes:     shapes.map(s => ({ ...s })),
             textLabels: textLabels.map(t => ({ ...t })),
             mapImages:  mapImages.filter(m => m.locked && m.image).map(m => ({ ...m })),
+            fogPresets: fogPresets.map(p => ({ ...p })),
             fogBitmask: fogB64
         };
     }
@@ -1805,6 +1954,9 @@
         (data.shapes     ||[]).forEach(s=>{shapes.push(s);renderShape(s);});
         (data.textLabels ||[]).forEach(t=>{textLabels.push(t);renderTextLabel(t);});
         (data.mapImages  ||[]).forEach(m=>{mapImages.push(m);renderMapImage(m);});
+        fogPresets = data.fogPresets || [];
+        if (fogPresets.length) nextPresetId = Math.max(...fogPresets.map(p=>p.id)) + 1;
+        drawPresetOutlines();
         // Handle bitmask (new), compact string, or legacy array format
         if (data.fogBitmask) {
             const raw  = atob(data.fogBitmask);
@@ -2220,6 +2372,10 @@
             if (fogPolyMode && fogPolyVerts.length > 0) {
                 fogPolyVerts = []; fogPolyMousePos = null;
                 fogPolyCtx.clearRect(0, 0, fogPolyCanvas.width, fogPolyCanvas.height);
+            }
+            if (fogPresetMode === 'define' && presetDefVerts.length > 0) {
+                presetDefVerts = []; presetDefMouse = null;
+                drawPresetOutlines();
             }
         }
     });
@@ -3068,6 +3224,12 @@
             fogPolyMousePos = snapToIntersection(pos.x, pos.y);
             drawFogPolyPreview();
         }
+        // Preset define preview
+        if (fogPresetMode === 'define' && presetDefVerts.length > 0) {
+            const pos = viewportToGrid(e.clientX, e.clientY);
+            presetDefMouse = snapToIntersection(pos.x, pos.y);
+            drawPresetOutlines();
+        }
         if (isRotating && selectedObject) {
             const angle = Math.atan2(e.clientY-rotateCenterY, e.clientX-rotateCenterX)*180/Math.PI;
             selectedObject.data.rotation = rotateStartObjAngle + (angle-rotateStartAngle);
@@ -3306,216 +3468,6 @@
         else if (e.key === 'Escape') cancelTextInput();
     });
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // DUNGEON GENERATOR
-    // ═══════════════════════════════════════════════════════════════════════════
-    const DG = {
-        size: 'medium',    // small | medium | large
-        density: 'moderate', // sparse | moderate | dense
-        texture: 'hatch'   // hatch | solid | stipple
-    };
-
-    const DG_SIZES = { small: 25, medium: 50, large: 100 };
-    const DG_DENSITY = {
-        sparse:   { rooms: [4,  7 ], minRoom: 6, maxRoom: 12 },
-        moderate: { rooms: [8,  14], minRoom: 4, maxRoom: 8  },
-        dense:    { rooms: [16, 26], minRoom: 2, maxRoom: 5  }
-    };
-
-    function openDungeonPanel() {
-        const panel = document.getElementById('dungeon-panel');
-        if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
-        panel.innerHTML = `
-            <h3>🎲 Dungeon Generator <button id="btn-close-dg" style="background:transparent;border:none;font-size:18px;cursor:pointer;color:var(--ink-dark);">✕</button></h3>
-            <div class="dg-label">Size</div>
-            <div class="dg-row">
-                <button class="dg-toggle ${DG.size==='small'?'active':''}"    data-dg-size="small">Small<br><span style="font-size:10px;opacity:0.7">25×25</span></button>
-                <button class="dg-toggle ${DG.size==='medium'?'active':''}"   data-dg-size="medium">Medium<br><span style="font-size:10px;opacity:0.7">50×50</span></button>
-                <button class="dg-toggle ${DG.size==='large'?'active':''}"    data-dg-size="large">Large<br><span style="font-size:10px;opacity:0.7">100×100</span></button>
-            </div>
-            <div class="dg-label">Room Density</div>
-            <div class="dg-row">
-                <button class="dg-toggle ${DG.density==='sparse'?'active':''}"   data-dg-density="sparse">Sparse<br><span style="font-size:10px;opacity:0.7">Few large rooms</span></button>
-                <button class="dg-toggle ${DG.density==='moderate'?'active':''}" data-dg-density="moderate">Moderate<br><span style="font-size:10px;opacity:0.7">Balanced</span></button>
-                <button class="dg-toggle ${DG.density==='dense'?'active':''}"    data-dg-density="dense">Dense<br><span style="font-size:10px;opacity:0.7">Many small rooms</span></button>
-            </div>
-            <div class="dg-label">Wall Texture</div>
-            <div class="dg-row">
-                <button class="dg-texture ${DG.texture==='hatch'?'active':''}"   data-dg-tex="hatch">Hatched<br><span style="font-size:10px;opacity:0.7">OSR crosshatch</span></button>
-                <button class="dg-texture ${DG.texture==='solid'?'active':''}"   data-dg-tex="solid">Solid Stone<br><span style="font-size:10px;opacity:0.7">Dark fill</span></button>
-                <button class="dg-texture ${DG.texture==='stipple'?'active':''}" data-dg-tex="stipple">Stipple<br><span style="font-size:10px;opacity:0.7">TSR dot style</span></button>
-            </div>
-            <button id="btn-generate-dungeon">Generate ⚔</button>
-            <button id="btn-clear-dungeon" style="width:100%;padding:8px;background:#5a1a1a;color:#f88;border:none;border-radius:6px;font-family:var(--font-serif);font-size:13px;cursor:pointer;margin-top:6px;">Clear Canvas</button>
-        `;
-        panel.style.display = 'block';
-
-        panel.querySelectorAll('[data-dg-size]').forEach(b => b.addEventListener('click', () => {
-            DG.size = b.dataset.dgSize;
-            panel.querySelectorAll('[data-dg-size]').forEach(x => x.classList.toggle('active', x===b));
-        }));
-        panel.querySelectorAll('[data-dg-density]').forEach(b => b.addEventListener('click', () => {
-            DG.density = b.dataset.dgDensity;
-            panel.querySelectorAll('[data-dg-density]').forEach(x => x.classList.toggle('active', x===b));
-        }));
-        panel.querySelectorAll('[data-dg-tex]').forEach(b => b.addEventListener('click', () => {
-            DG.texture = b.dataset.dgTex;
-            panel.querySelectorAll('[data-dg-tex]').forEach(x => x.classList.toggle('active', x===b));
-        }));
-        document.getElementById('btn-close-dg').addEventListener('click', () => panel.style.display = 'none');
-        document.getElementById('btn-generate-dungeon').addEventListener('click', generateDungeon);
-        document.getElementById('btn-clear-dungeon').addEventListener('click', () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            panel.style.display = 'none';
-        });
-    }
-
-    function generateDungeon() {
-        const cells = DG_SIZES[DG.size];
-        const px    = cells * 50;          // pixel size of dungeon area
-        const off   = FOG_OFFSET;
-        // Center within the 5000x5000 grid
-        const startX = Math.round((5000 - px) / 2 / 50) * 50 + off;
-        const startY = Math.round((5000 - px) / 2 / 50) * 50 + off;
-
-        const { rooms: roomRange, minRoom, maxRoom } = DG_DENSITY[DG.density];
-        const numRooms = roomRange[0] + Math.floor(Math.random() * (roomRange[1] - roomRange[0]));
-
-        // BSP-style room placement — attempt to place rooms without overlap
-        const rooms = [];
-        const maxAttempts = numRooms * 20;
-        for (let attempt = 0; attempt < maxAttempts && rooms.length < numRooms; attempt++) {
-            const rw = minRoom + Math.floor(Math.random() * (maxRoom - minRoom + 1));
-            const rh = minRoom + Math.floor(Math.random() * (maxRoom - minRoom + 1));
-            const rx = Math.floor(Math.random() * (cells - rw - 2)) + 1;
-            const ry = Math.floor(Math.random() * (cells - rh - 2)) + 1;
-            // Check overlap (with 1 cell buffer)
-            const overlap = rooms.some(r =>
-                rx < r.x + r.w + 1 && rx + rw + 1 > r.x &&
-                ry < r.y + r.h + 1 && ry + rh + 1 > r.y
-            );
-            if (!overlap) rooms.push({ x: rx, y: ry, w: rw, h: rh });
-        }
-
-        // Connect rooms with L-shaped corridors
-        const corridors = [];
-        for (let i = 1; i < rooms.length; i++) {
-            const a = rooms[i-1], b = rooms[i];
-            const ax = a.x + Math.floor(a.w/2), ay = a.y + Math.floor(a.h/2);
-            const bx = b.x + Math.floor(b.w/2), by = b.y + Math.floor(b.h/2);
-            // Horizontal then vertical
-            if (Math.random() < 0.5) {
-                corridors.push({ x: Math.min(ax,bx), y: ay, w: Math.abs(ax-bx)+1, h: 1 });
-                corridors.push({ x: bx, y: Math.min(ay,by), w: 1, h: Math.abs(ay-by)+1 });
-            } else {
-                corridors.push({ x: ax, y: Math.min(ay,by), w: 1, h: Math.abs(ay-by)+1 });
-                corridors.push({ x: Math.min(ax,bx), y: by, w: Math.abs(ax-bx)+1, h: 1 });
-            }
-        }
-
-        // Clear canvas and draw
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Draw wall texture over dungeon area
-        drawWallTexture(startX, startY, px, px, DG.texture);
-
-        // Draw rooms and corridors as floor
-        ctx.fillStyle = '#d4cbb8';
-        [...rooms, ...corridors].forEach(r => {
-            ctx.fillRect(startX + r.x*50, startY + r.y*50, r.w*50, r.h*50);
-        });
-
-        // Draw grid lines on room/corridor floors
-        ctx.strokeStyle = 'rgba(42,37,34,0.25)';
-        ctx.lineWidth = 0.8;
-        ctx.setLineDash([]);
-        [...rooms, ...corridors].forEach(r => {
-            const rx = startX + r.x*50, ry = startY + r.y*50;
-            const rw = r.w*50, rh = r.h*50;
-            // Vertical lines
-            for (let i = 1; i < r.w; i++) {
-                ctx.beginPath(); ctx.moveTo(rx + i*50, ry); ctx.lineTo(rx + i*50, ry + rh); ctx.stroke();
-            }
-            // Horizontal lines
-            for (let i = 1; i < r.h; i++) {
-                ctx.beginPath(); ctx.moveTo(rx, ry + i*50); ctx.lineTo(rx + rw, ry + i*50); ctx.stroke();
-            }
-        });
-
-        // Draw room walls (thin border around each room)
-        ctx.strokeStyle = '#3a2a1a';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([]);
-        rooms.forEach(r => {
-            ctx.strokeRect(startX + r.x*50 + 1, startY + r.y*50 + 1, r.w*50 - 2, r.h*50 - 2);
-        });
-
-        // Fill fog over entire dungeon area
-        fogCells.clear();
-        const cellStartX = Math.round((startX - off) / 50);
-        const cellStartY = Math.round((startY - off) / 50);
-        for (let cx = cellStartX; cx < cellStartX + cells; cx++) {
-            for (let cy = cellStartY; cy < cellStartY + cells; cy++) {
-                if (cx >= 0 && cx < 100 && cy >= 0 && cy < 100)
-                    fogCells.add(`${cx},${cy}`);
-            }
-        }
-        redrawFog();
-
-        // Pan view to center on dungeon
-        const dungeonCenterX = startX + px/2, dungeonCenterY = startY + px/2;
-        panX = window.innerWidth/2  - dungeonCenterX * zoom;
-        panY = window.innerHeight/2 - dungeonCenterY * zoom;
-        updateTransform();
-
-        // Broadcast canvas and fog to peers
-        broadcast({ type: 'pen_commit' }); // triggers canvas sync
-        const fogArr = [...fogCells].map(key => { const [cx,cy]=key.split(',').map(Number); return {cx,cy,fog:true}; });
-        broadcast({ type: 'fog_fill' });
-
-        // Close panel
-        document.getElementById('dungeon-panel').style.display = 'none';
-    }
-
-    function drawWallTexture(x, y, w, h, texture) {
-        ctx.save();
-        ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
-
-        if (texture === 'solid') {
-            ctx.fillStyle = '#2a2218';
-            ctx.fillRect(x, y, w, h);
-        } else if (texture === 'hatch') {
-            // Parchment base
-            ctx.fillStyle = '#b8a898';
-            ctx.fillRect(x, y, w, h);
-            // Diagonal crosshatch lines
-            ctx.strokeStyle = '#7a6a5a';
-            ctx.lineWidth = 0.8;
-            const spacing = 8;
-            for (let i = -(h); i < w + h; i += spacing) {
-                ctx.beginPath(); ctx.moveTo(x + i, y); ctx.lineTo(x + i + h, y + h); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(x + i, y + h); ctx.lineTo(x + i + h, y); ctx.stroke();
-            }
-        } else if (texture === 'stipple') {
-            // Slightly darker parchment base
-            ctx.fillStyle = '#b0a090';
-            ctx.fillRect(x, y, w, h);
-            // Random dots
-            ctx.fillStyle = '#5a4a3a';
-            const seed = 42;
-            let s = seed;
-            const rng = () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
-            const dotCount = Math.floor(w * h / 60);
-            for (let i = 0; i < dotCount; i++) {
-                const dx = x + rng() * w, dy = y + rng() * h;
-                const r = 0.5 + rng() * 1.2;
-                ctx.beginPath(); ctx.arc(dx, dy, r, 0, Math.PI*2); ctx.fill();
-            }
-        }
-        ctx.restore();
-    }
-
-    document.getElementById('btn-dungeon-gen')?.addEventListener('click', openDungeonPanel);
 
     // ═══════════════════════════════════════════════════════════════════════════
     // INIT
