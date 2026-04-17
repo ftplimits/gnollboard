@@ -219,7 +219,7 @@
         }
         #btn-help:hover { background: rgba(220,180,0,0.9); }
         #measure-toggle {
-            position: fixed; top: 12px; right: 50px; z-index: 1001;
+            position: fixed; top: 12px; right: 46px; z-index: 1001;
             background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
             border-radius: 6px; padding: 6px 10px; color: #ccc; font-family: var(--font-serif);
             font-size: 13px; cursor: pointer; backdrop-filter: blur(4px);
@@ -227,17 +227,17 @@
         }
         #measure-toggle:hover { background: rgba(60,60,60,0.8); color: white; }
         #measure-toggle.active { background: rgba(139,69,19,0.7); border-color: rgba(180,100,40,0.6); color: white; }
-        #btn-clear-board { display: none; position: fixed; top: 12px; right: 314px; z-index: 1001;
+        #btn-clear-board { display: none; position: fixed; top: 12px; right: 218px; z-index: 1001;
             background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
             border-radius: 6px; padding: 6px 10px; color: #ccc; font-family: var(--font-serif);
             font-size: 13px; cursor: pointer; backdrop-filter: blur(4px); }
         #btn-clear-board:hover { background: rgba(80,20,20,0.8); color: #f88; }
-        #btn-save { display: none; position: fixed; top: 12px; right: 150px; z-index: 1001;
+        #btn-save { display: none; position: fixed; top: 12px; right: 88px; z-index: 1001;
             background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
             border-radius: 6px; padding: 6px 10px; color: #ccc; font-family: var(--font-serif);
             font-size: 13px; cursor: pointer; backdrop-filter: blur(4px); }
         #btn-save:hover { background: rgba(60,60,60,0.8); color: white; }
-        #btn-load { display: none; position: fixed; top: 12px; right: 230px; z-index: 1001;
+        #btn-load { display: none; position: fixed; top: 12px; right: 153px; z-index: 1001;
             background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
             border-radius: 6px; padding: 6px 10px; color: #ccc; font-family: var(--font-serif);
             font-size: 13px; cursor: pointer; backdrop-filter: blur(4px); }
@@ -486,6 +486,62 @@
     let currentTool = null, drawColor = '#2a2522', isDrawing = false;
     let drawStartX = 0, drawStartY = 0, penPath = [];
     let tokens = [], nextTokenId = 1, draggedToken = null;
+
+    // ── Attachment system ─────────────────────────────────────────────────────
+    let pendingAttach = null; // {source: {type,data,div}} waiting for target click
+
+    function getObjById(type, id) {
+        if (type==='token')   return tokens.find(t=>t.id===id);
+        if (type==='sticker') return stickers.find(s=>s.id===id);
+        if (type==='shape')   return shapes.find(s=>s.id===id);
+        if (type==='text')    return textLabels.find(l=>l.id===id);
+        return null;
+    }
+
+    function getObjPos(obj) {
+        if (obj.type==='text') return { x: obj.x, y: obj.y };
+        return { x: obj.x, y: obj.y };
+    }
+
+    function moveAttached(parentType, parentId, dx, dy) {
+        // Move all objects attached to this parent
+        const all = [...tokens, ...stickers, ...shapes, ...textLabels];
+        all.forEach(obj => {
+            if (obj.attachedTo && obj.attachedTo.type === parentType && obj.attachedTo.id === parentId) {
+                obj.x += dx; obj.y += dy;
+                const container = obj.type==='token' ? tokensContainer : obj.type==='sticker' ? stickersContainer : obj.type==='shape' ? shapesContainer : document.getElementById('text-container');
+                const div = container.querySelector(`[data-id="${obj.id}"]`);
+                if (div) updateObjDiv(obj, div);
+                broadcastMove(obj.type+'_'+obj.id, { type: obj.type+'_move', id: obj.id, x: obj.x, y: obj.y });
+                // Recurse for chains
+                moveAttached(obj.type, obj.id, dx, dy);
+            }
+        });
+    }
+
+    function startAttachMode(sourceObj) {
+        pendingAttach = sourceObj;
+        viewport.style.cursor = 'crosshair';
+        // Show hint
+        const hint = document.createElement('div');
+        hint.id = 'attach-hint';
+        hint.style.cssText = `position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(20,20,20,0.85);color:#f0c040;font-family:var(--font-serif);padding:7px 16px;border-radius:6px;font-size:13px;z-index:2000;pointer-events:none;border:1px solid rgba(255,200,0,0.3);`;
+        hint.textContent = '📎 Click an object to attach to it — Escape to cancel';
+        document.body.appendChild(hint);
+    }
+
+    function cancelAttach() {
+        pendingAttach = null;
+        viewport.style.cursor = 'default';
+        document.getElementById('attach-hint')?.remove();
+    }
+
+    function attachObjects(source, targetType, targetId) {
+        source.data.attachedTo = { type: targetType, id: targetId };
+        const updateType = source.type + '_update';
+        broadcast({ type: updateType, id: source.data.id, data: { attachedTo: source.data.attachedTo } });
+        cancelAttach();
+    }
     let dragOffsetX = 0, dragOffsetY = 0, contextToken = null;
     let multiSelected = []; // [{token, div, offX, offY}] for ctrl+click multi-move
     let savedImageData = null, drawingFrameId = null;
@@ -504,6 +560,7 @@
 
     // Selection / resize
     let selectedObject = null;
+    let attachingFrom  = null; // { type, data } waiting for user to click a parent
     let isResizing = false, resizeCorner = null;
     let resizeStartMouse = { x: 0, y: 0 };
     let resizeStartObj = {};
@@ -2389,6 +2446,64 @@
         return { x: (cx-rect.left)/zoom, y: (cy-rect.top)/zoom };
     }
 
+
+    function moveAttached(type, id, dx, dy) {
+        if (!dx && !dy) return;
+        moveChildren(id, dx, dy);
+    }
+
+    // ── Attachment system ────────────────────────────────────────────────────
+    // Objects can have parentId — when parent moves, children move with it.
+    function getAllObjects() {
+        return [
+            ...tokens.map(o => ({ type:'token', data:o, container: tokensContainer })),
+            ...stickers.map(o => ({ type:'sticker', data:o, container: stickersContainer })),
+            ...shapes.map(o => ({ type:'shape', data:o, container: shapesContainer })),
+            ...textLabels.map(o => ({ type:'text', data:o, container: document.getElementById('text-container') })),
+        ];
+    }
+
+    function getChildren(parentId) {
+        return getAllObjects().filter(o => o.data.parentId === parentId);
+    }
+
+    function moveChildren(parentId, dx, dy) {
+        getChildren(parentId).forEach(({ type, data, container }) => {
+            data.x += dx; data.y += dy;
+            const el = container.querySelector(`[data-id="${data.id}"]`);
+            if (el) updateObjDiv(data, el);
+            broadcastMove(type+'_'+data.id, { type: type+'_move', id: data.id, x: data.x, y: data.y });
+            // Recurse for nested attachments
+            moveChildren(data.id, dx, dy);
+        });
+    }
+
+    function makeAttachBtn(obj, type, menu, btnStyle) {
+        const attached = obj.parentId ? 'Detach' : 'Attach To...';
+        const btn = document.createElement('button');
+        btn.textContent = '🔗 ' + attached;
+        btn.style.cssText = btnStyle + 'background:#3a3a5a;';
+        btn.onclick = () => {
+            menu.remove();
+            if (obj.parentId) {
+                // Detach
+                obj.parentId = null;
+                broadcast({ type: type+'_update', id: obj.id, data: { parentId: null } });
+            } else {
+                // Enter attach mode
+                attachingFrom = { type, data: obj };
+                viewport.style.cursor = 'crosshair';
+                // Show hint
+                const hint = document.createElement('div');
+                hint.id = 'attach-hint';
+                hint.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(30,30,60,0.9);color:#aaf;font-family:var(--font-serif);font-size:13px;padding:8px 16px;border-radius:6px;z-index:9998;pointer-events:none;border:1px solid rgba(100,100,255,0.4);';
+                hint.textContent = '🔗 Click an object to attach to it — Escape to cancel';
+                document.body.appendChild(hint);
+            }
+        };
+        return btn;
+    }
+
     function snapToGrid(x, y) {
         const cell = 50;
         const cx = Math.floor(x/cell)*cell+25, cy = Math.floor(y/cell)*cell+25;
@@ -2422,6 +2537,12 @@
             div.style.top    = Math.round(obj.y) + 'px';
             div.style.width  = Math.round(obj.w) + 'px';
             div.style.height = Math.round(obj.h) + 'px';
+        } else if (obj.type === 'shape') {
+            const { w, h } = getObjSize(obj);
+            div.style.width  = w + 'px'; div.style.height = h + 'px';
+            div.style.left   = Math.round(obj.x - w/2 + 8) + 'px';
+            div.style.top    = Math.round(obj.y - h/2 + 8) + 'px';
+            updateObjTransform(obj, div);
         } else {
             const { w, h } = getObjSize(obj);
             div.style.width  = w + 'px'; div.style.height = h + 'px';
@@ -2461,6 +2582,18 @@
     }
 
     function selectObject(type, data, div) {
+        // If in attach mode, complete the attachment
+        if (attachingFrom) {
+            const from = attachingFrom;
+            attachingFrom = null;
+            viewport.style.cursor = 'default';
+            document.getElementById('attach-hint')?.remove();
+            // Prevent circular attachment
+            if (from.data.id === data.id) return;
+            from.data.parentId = data.id;
+            broadcast({ type: from.type+'_update', id: from.data.id, data: { parentId: data.id } });
+            return;
+        }
         if (selectedObject) selectedObject.div.classList.remove('selected');
         selectedObject = { type, data, div };
         div.classList.add('selected');
@@ -2546,6 +2679,12 @@
             if (type === 'map')     { mapImages = mapImages.filter(m=>m.id!==data.id); broadcast({type:'map_delete', id:data.id}); }
         }
         if (e.key === 'Escape') {
+            if (attachingFrom) {
+                attachingFrom = null;
+                viewport.style.cursor = 'default';
+                document.getElementById('attach-hint')?.remove();
+                return;
+            }
             if (multiSelected.length) {
                 multiSelected.forEach(m => m.div.classList.remove('multi-selected'));
                 multiSelected = [];
@@ -2657,6 +2796,7 @@
             if (selectedObject?.data.id === shape.id) deselectObject();
             broadcast({ type: 'shape_delete', id: shape.id }); menu.remove();
         };
+        menu.appendChild(makeAttachBtn(shape, 'shape', menu, btnStyle));
         menu.appendChild(lockBtn); menu.appendChild(del);
         document.body.appendChild(menu);
         const close = () => { menu.remove(); document.removeEventListener('click', close); };
@@ -2750,6 +2890,8 @@
             broadcast({ type: 'sticker_delete', id: sticker.id }); menu.remove();
         };
 
+        const btnStyleSt = `display:block;width:100%;padding:6px 12px;margin:2px 0;color:white;border:1px solid var(--ink-dark);cursor:pointer;font-family:var(--font-serif);border-radius:2px;text-align:left;`;
+        menu.appendChild(makeAttachBtn(sticker, 'sticker', menu, btnStyleSt));
         menu.appendChild(lockBtn); menu.appendChild(flip); menu.appendChild(del);
         document.body.appendChild(menu);
         const close = () => { menu.remove(); document.removeEventListener('click', close); };
@@ -2996,6 +3138,7 @@
             broadcast({ type: 'token_delete', id: token.id }); menu.remove();
         };
 
+        menu.appendChild(makeAttachBtn(token, 'token', menu, btnStyle));
         menu.appendChild(labelBtn); menu.appendChild(flip); menu.appendChild(del);
         document.body.appendChild(menu);
         const close = () => { menu.remove(); document.removeEventListener('click', close); };
@@ -3278,6 +3421,7 @@
             delBtn.style.cssText = btnStyle + 'background:#dc143c;margin-top:4px;';
             delBtn.onclick = () => { deleteTextLabel(lbl, el); menu.remove(); };
 
+            menu.appendChild(makeAttachBtn(lbl, 'text', menu, btnStyle));
             menu.appendChild(lockBtn); menu.appendChild(delBtn);
             document.body.appendChild(menu);
             const close = () => { menu.remove(); document.removeEventListener('click', close); };
@@ -3549,10 +3693,12 @@
                 });
                 updateSelectionOverlay();
             } else {
+                const prevX = draggedToken.x, prevY = draggedToken.y;
                 draggedToken.x=pos.x-dragOffsetX; draggedToken.y=pos.y-dragOffsetY;
                 updateObjDiv(draggedToken, tokensContainer.querySelector(`[data-id="${draggedToken.id}"]`));
                 updateSelectionOverlay();
                 broadcastMove('token_'+draggedToken.id, { type:'token_move', id:draggedToken.id, x:draggedToken.x, y:draggedToken.y });
+                moveAttached('token', draggedToken.id, draggedToken.x-prevX, draggedToken.y-prevY);
             }
         }
 
@@ -3564,29 +3710,35 @@
             const id = parseInt(draggedText.getAttribute('data-id'));
             const lbl = textLabels.find(l=>l.id===id);
             if (lbl) {
+                const prevX = lbl.x, prevY = lbl.y;
                 lbl.x = nx; lbl.y = ny;
                 updateObjDiv(lbl, draggedText);
                 updateSelectionOverlay();
                 broadcastMove('text_'+id, {type:'text_move',id,x:nx,y:ny});
+                moveAttached('text', id, nx-prevX, ny-prevY);
             }
         }
 
         // Sticker drag
         if (draggedSticker) {
             const pos = viewportToGrid(e.clientX,e.clientY);
+            const prevX = draggedSticker.x, prevY = draggedSticker.y;
             draggedSticker.x=pos.x-stickerDragOffsetX; draggedSticker.y=pos.y-stickerDragOffsetY;
             updateObjDiv(draggedSticker, stickersContainer.querySelector(`[data-id="${draggedSticker.id}"]`));
             updateSelectionOverlay();
             broadcastMove('sticker_'+draggedSticker.id, { type:'sticker_move', id:draggedSticker.id, x:draggedSticker.x, y:draggedSticker.y });
+            moveAttached('sticker', draggedSticker.id, draggedSticker.x-prevX, draggedSticker.y-prevY);
         }
 
         // Shape drag
         if (draggedShape && !draggedShape.locked) {
             const pos = viewportToGrid(e.clientX,e.clientY);
+            const prevX = draggedShape.x, prevY = draggedShape.y;
             draggedShape.x=pos.x-shapeDragOffsetX; draggedShape.y=pos.y-shapeDragOffsetY;
             updateObjDiv(draggedShape, shapesContainer.querySelector(`[data-id="${draggedShape.id}"]`));
             updateSelectionOverlay();
             broadcastMove('shape_'+draggedShape.id, { type:'shape_move', id:draggedShape.id, x:draggedShape.x, y:draggedShape.y });
+            moveAttached('shape', draggedShape.id, draggedShape.x-prevX, draggedShape.y-prevY);
         }
 
         // Map drag
