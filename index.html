@@ -2023,7 +2023,9 @@
     // SAVE / LOAD SYSTEM  (Cloudflare Worker + KV + pako compression)
     // ═══════════════════════════════════════════════════════════════════════════
     // Worker URL — update this after deploying gnollboard-worker.js to Cloudflare
-    const WORKER_URL = 'https://gnollboard-saves.gnollboard.workers.dev';
+    const WORKER_URL = window.location.search.includes('instance_id')
+        ? '/gnollsaves'   // Discord Activity — routed via URL mapping
+        : 'https://gnollboard-saves.gnollboard.workers.dev'; // Browser direct
 
     function channelId() {
         const params = new URLSearchParams(window.location.search);
