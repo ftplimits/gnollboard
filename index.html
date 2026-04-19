@@ -22,8 +22,8 @@
         #viewport { width: 100%; height: 100%; overflow: hidden; position: relative; z-index: 1; background: #3a3a3a; }
         #grid-container { position: absolute; width: 5000px; height: 5000px; transform-origin: 0 0; background: radial-gradient(circle at center, #d2cbbc, #7e7466); }
         #map-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
-        #map-container-below { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 6; pointer-events: none; }
-        #map-container-below .map-image { pointer-events: auto; }
+        #map-container-below { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
+        #map-container-below .map-image { pointer-events: auto; z-index: 4; position: absolute; }
         #map-handle-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 12; }
         .map-image { position: absolute; cursor: move; pointer-events: auto; user-select: none; }
         .map-image.locked { cursor: default; }
@@ -227,17 +227,17 @@
         }
         #measure-toggle:hover { background: rgba(60,60,60,0.8); color: white; }
         #measure-toggle.active { background: rgba(139,69,19,0.7); border-color: rgba(180,100,40,0.6); color: white; }
-        #btn-clear-board { display: none; position: fixed; top: 12px; right: 218px; z-index: 1001;
+        #btn-clear-board { display: none; position: fixed; top: 12px; right: 274px; z-index: 1001;
             background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
             border-radius: 6px; padding: 6px 10px; color: #ccc; font-family: var(--font-serif);
             font-size: 13px; cursor: pointer; backdrop-filter: blur(4px); }
         #btn-clear-board:hover { background: rgba(80,20,20,0.8); color: #f88; }
-        #btn-save { display: none; position: fixed; top: 12px; right: 88px; z-index: 1001;
+        #btn-save { display: none; position: fixed; top: 12px; right: 140px; z-index: 1001;
             background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
             border-radius: 6px; padding: 6px 10px; color: #ccc; font-family: var(--font-serif);
             font-size: 13px; cursor: pointer; backdrop-filter: blur(4px); }
         #btn-save:hover { background: rgba(60,60,60,0.8); color: white; }
-        #btn-load { display: none; position: fixed; top: 12px; right: 153px; z-index: 1001;
+        #btn-load { display: none; position: fixed; top: 12px; right: 207px; z-index: 1001;
             background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
             border-radius: 6px; padding: 6px 10px; color: #ccc; font-family: var(--font-serif);
             font-size: 13px; cursor: pointer; backdrop-filter: blur(4px); }
@@ -1426,6 +1426,13 @@
         document.querySelectorAll('.sticker').forEach(s => s.classList.toggle('tool-active', !!currentTool));
     }
 
+    function clearTool() {
+        currentTool = null;
+        canvas.classList.remove('drawing');
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.sticker').forEach(s => s.classList.remove('tool-active'));
+    }
+
     function setColor(color, swatchEl) {
         drawColor = color;
         document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
@@ -1436,7 +1443,7 @@
     // PAN / ZOOM / TRANSFORM
     // ═══════════════════════════════════════════════════════════════════════════
     function updateTransform() {
-        const gridSize = 5000, margin = 200;
+        const gridSize = 5000, margin = 100;
         const minPanX = -(gridSize * zoom) + window.innerWidth  - margin;
         const minPanY = -(gridSize * zoom) + window.innerHeight - margin;
         panX = Math.max(minPanX, Math.min(margin, panX));
@@ -1495,7 +1502,7 @@
         if (fogPolyMode) { startFogPoly(fogPolyMode); return; }
         if (fogPresetMode) { startFogPresetMode(fogPresetMode); return; }
         if (currentFogTool) { setFogTool(null); return; }
-        if (currentTool) { currentTool = null; document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active')); canvas.classList.remove('drawing'); }
+        if (currentTool) { clearTool(); }
     });
 
     document.addEventListener('contextmenu', e => { if (e.target.closest('#vtt-logo')) return; e.preventDefault(); });
@@ -1787,9 +1794,7 @@
             currentFogTool = null;
             document.getElementById('btn-fog-paint').classList.remove('active');
             document.getElementById('btn-fog-reveal').classList.remove('active');
-            currentTool = null;
-            document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active'));
-            canvas.classList.remove('drawing');
+            clearTool();
         }
     }
 
@@ -1887,9 +1892,7 @@
             document.getElementById('btn-fog-paint').classList.remove('active');
             document.getElementById('btn-fog-reveal').classList.remove('active');
             if (fogPolyMode) startFogPoly(fogPolyMode);
-            currentTool = null;
-            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-            canvas.classList.remove('drawing');
+            clearTool();
         }
         drawPresetOutlines();
     }
@@ -1999,7 +2002,7 @@
         if (currentFogTool === 'reveal') document.getElementById('btn-fog-reveal').classList.add('active');
         // Cancel any in-progress polygon
         if (fogPolyMode) { fogPolyVerts=[]; fogPolyMousePos=null; fogPolyCtx?.clearRect(0,0,fogPolyCanvas?.width,fogPolyCanvas?.height); fogPolyMode=null; document.getElementById('btn-fog-poly-apply').classList.remove('active'); document.getElementById('btn-fog-poly-cut').classList.remove('active'); }
-        if (currentFogTool) { currentTool = null; document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active')); canvas.classList.remove('drawing'); }
+        if (currentFogTool) { clearTool(); }
     }
 
     // Fog tool mouse handling directly on viewport
@@ -2503,7 +2506,21 @@
 
     function moveAttached(type, id, dx, dy) {
         if (!dx && !dy) return;
+        // Move children (parent→child)
         moveChildren(id, dx, dy);
+        // If this object has a parent, move the parent and all its other children too
+        const self = getAllObjects().find(o => o.data.id === id);
+        if (self?.data.parentId) {
+            const parent = getAllObjects().find(o => o.data.id === self.data.parentId);
+            if (parent) {
+                parent.data.x += dx; parent.data.y += dy;
+                const el = parent.container.querySelector(`[data-id="${parent.data.id}"]`);
+                if (el) updateObjDiv(parent.data, el);
+                broadcastMove(parent.type+'_'+parent.data.id, { type: parent.type+'_move', id: parent.data.id, x: parent.data.x, y: parent.data.y });
+                // Move siblings (other children of same parent)
+                moveChildren(parent.data.id, dx, dy);
+            }
+        }
     }
 
     // ── Attachment system ────────────────────────────────────────────────────
@@ -2706,7 +2723,15 @@
             const snapped = snapToGrid(pos.x, pos.y);
             if (copiedObject.type === 'token') {
                 const src = copiedObject.data;
-                const t = { id: nextTokenId++, image: src.image, x: snapped.x, y: snapped.y, w: src.w, h: src.h, rotation: 0, flipped: false, type: 'token' };
+                const t = {
+                    id: nextTokenId++, image: src.image,
+                    x: snapped.x, y: snapped.y, w: src.w, h: src.h,
+                    rotation: src.rotation || 0, flipped: src.flipped || false,
+                    border: src.border || null,
+                    label: src.label || null,
+                    conditions: src.conditions ? [...src.conditions] : [],
+                    type: 'token'
+                };
                 tokens.push(t); renderToken(t);
                 broadcast({ type: 'token_add', token: { ...t } });
             } else if (copiedObject.type === 'sticker') {
@@ -2863,7 +2888,7 @@
     // ═══════════════════════════════════════════════════════════════════════════
     function selectIcon(iconUrl, iconDiv) {
         if (!iconUrl) { selectedIconUrl=null; currentTool=null; canvas.classList.remove('drawing'); viewport.style.cursor='default'; document.querySelectorAll('.icon-item').forEach(i=>i.classList.remove('selected')); return; }
-        selectedIconUrl = iconUrl; currentTool = null;
+        selectedIconUrl = iconUrl; clearTool();
         canvas.classList.add('drawing');
         document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active'));
         document.querySelectorAll('.icon-item').forEach(i=>i.classList.remove('selected'));
