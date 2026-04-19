@@ -9,6 +9,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Grid VTT</title>
     <script src="./peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
@@ -604,8 +605,6 @@
     // P2P STATE
     // ═══════════════════════════════════════════════════════════════════════════
     const CLIENT_ID    = '1491605237109100574';
-    const JSONBIN_KEY  = '$2a$10$Et2PJHIivNU8.4G4kiFPm.MLBHuLnostN1BrsG4ewcogrRpEIcPH2';
-    const JSONBIN_BASE = '/jsonbin/v3';
     let inDiscord   = false;
 
     let peer = null;
@@ -2021,47 +2020,112 @@
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // SAVE / LOAD SYSTEM  (JSONBin.io — 12 named slots per channel)
+    // SAVE / LOAD SYSTEM  (GitHub Gist + pako compression)
     // ═══════════════════════════════════════════════════════════════════════════
+    // PAT stored in localStorage under 'gnoll_github_pat'
+    // Index gist ID stored per channel under 'gnoll_gist_index_<channel>'
 
-    // Index bin ID is stored in localStorage keyed to channel — one index per channel
+    function getGithubPAT() { return localStorage.getItem('gnoll_github_pat') || ''; }
+
     function indexKey() {
         const params = new URLSearchParams(window.location.search);
-        return 'gnoll_index_' + (params.get('channel_id') || 'browser');
+        return 'gnoll_gist_index_' + (params.get('channel_id') || 'browser');
+    }
+
+    function gistHeaders() {
+        return {
+            'Authorization': `token ${getGithubPAT()}`,
+            'Accept': 'application/vnd.github+json',
+            'Content-Type': 'application/json'
+        };
+    }
+
+    // Compress JSON → base64 string using pako deflate
+    function compress(obj) {
+        const json  = JSON.stringify(obj);
+        const compressed = pako.deflate(json);
+        // Convert Uint8Array to base64
+        let bin = '';
+        compressed.forEach(b => bin += String.fromCharCode(b));
+        return btoa(bin);
+    }
+
+    // Decompress base64 string → object
+    function decompress(b64) {
+        const bin  = atob(b64);
+        const arr  = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        return JSON.parse(pako.inflate(arr, { to: 'string' }));
     }
 
     async function getIndex() {
-        const binId = localStorage.getItem(indexKey());
-        if (!binId) return [];
+        const gistId = localStorage.getItem(indexKey());
+        if (!gistId) return [];
         try {
-            const r = await fetch(`${JSONBIN_BASE}/b/${binId}/latest`, {
-                headers: { 'X-Master-Key': JSONBIN_KEY }
-            });
+            const r = await fetch(`https://api.github.com/gists/${gistId}`, { headers: gistHeaders() });
+            if (!r.ok) return [];
             const j = await r.json();
-            return Array.isArray(j.record) ? j.record : [];
+            return JSON.parse(j.files['gnoll_index.json'].content);
         } catch { return []; }
     }
 
     async function setIndex(slots) {
-        const binId = localStorage.getItem(indexKey());
-        if (!binId) {
-            // Create new index bin
-            const r = await fetch(`${JSONBIN_BASE}/b`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY, 'X-Bin-Private': 'true' },
-                body: JSON.stringify(slots)
-            });
+        const gistId = localStorage.getItem(indexKey());
+        const body = JSON.stringify({
+            description: 'Gnollboard save index',
+            public: false,
+            files: { 'gnoll_index.json': { content: JSON.stringify(slots) } }
+        });
+        if (!gistId) {
+            const r = await fetch('https://api.github.com/gists', { method: 'POST', headers: gistHeaders(), body });
+            if (!r.ok) throw new Error(`Index create failed: ${r.status}`);
             const j = await r.json();
-            localStorage.setItem(indexKey(), j.metadata.id);
+            localStorage.setItem(indexKey(), j.id);
         } else {
-            await fetch(`${JSONBIN_BASE}/b/${binId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY },
-                body: JSON.stringify(slots)
-            });
+            const r = await fetch(`https://api.github.com/gists/${gistId}`, { method: 'PATCH', headers: gistHeaders(), body });
+            if (!r.ok) throw new Error(`Index update failed: ${r.status}`);
         }
     }
 
+    // ── PAT setup overlay ──
+    function showPATSetup(onSuccess) {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;`;
+        const box = document.createElement('div');
+        box.style.cssText = `background:#1a1a2a;border:2px solid rgba(100,120,255,0.4);border-radius:12px;padding:28px 32px;font-family:var(--font-serif);color:#ddd;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,0.7);`;
+        box.innerHTML = `
+            <div style="font-size:20px;color:#aaf;margin-bottom:12px;">🔑 GitHub Token Setup</div>
+            <div style="font-size:13px;color:#aaa;line-height:1.6;margin-bottom:16px;">
+                Gnollboard saves to GitHub Gists for unlimited storage. You need a free GitHub Personal Access Token with <b style="color:#ddf">Gist</b> scope only.<br><br>
+                <a href="https://github.com/settings/tokens/new?scopes=gist&description=Gnollboard" target="_blank" style="color:#7af;">Click here to create one →</a>
+            </div>
+            <input id="pat-input" type="password" placeholder="Paste token here (ghp_...)" style="width:100%;box-sizing:border-box;padding:9px 12px;background:#111;border:1px solid #444;border-radius:6px;color:#eee;font-size:13px;margin-bottom:8px;">
+            <div id="pat-status" style="font-size:12px;color:#f88;min-height:18px;margin-bottom:12px;"></div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button id="pat-cancel" style="padding:7px 16px;background:#333;color:#aaa;border:none;border-radius:5px;font-family:var(--font-serif);cursor:pointer;">Cancel</button>
+                <button id="pat-save"   style="padding:7px 18px;background:#2a4a8a;color:white;border:none;border-radius:5px;font-family:var(--font-serif);cursor:pointer;">Save Token</button>
+            </div>`;
+        overlay.appendChild(box); document.body.appendChild(overlay);
+        document.getElementById('pat-cancel').onclick = () => overlay.remove();
+        document.getElementById('pat-save').onclick = async () => {
+            const pat = document.getElementById('pat-input').value.trim();
+            if (!pat) { document.getElementById('pat-status').textContent = 'Please paste your token.'; return; }
+            document.getElementById('pat-status').textContent = 'Verifying...';
+            document.getElementById('pat-status').style.color = '#aaa';
+            // Test the token
+            const r = await fetch('https://api.github.com/gists?per_page=1', { headers: { 'Authorization': `token ${pat}`, 'Accept': 'application/vnd.github+json' } });
+            if (!r.ok) { document.getElementById('pat-status').style.color='#f88'; document.getElementById('pat-status').textContent = `✗ Invalid token (HTTP ${r.status}). Check scopes include Gist.`; return; }
+            localStorage.setItem('gnoll_github_pat', pat);
+            overlay.remove();
+            if (onSuccess) onSuccess();
+        };
+        document.getElementById('pat-input').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('pat-save').click(); });
+    }
+
+    function requirePAT(fn) {
+        if (getGithubPAT()) { fn(); return; }
+        showPATSetup(fn);
+    }
     function buildSavePayload() {
         // Encode fog as a bitmask — 100×100 = 10000 bits = 1250 bytes → ~1.6KB base64
         const bits = new Uint8Array(1250);
@@ -2163,10 +2227,17 @@
     });
 
     document.getElementById('btn-save').addEventListener('click', () => {
-        document.getElementById('save-name-input').value = '';
-        document.getElementById('save-status').textContent = '';
-        document.getElementById('save-dialog').classList.remove('hidden');
-        document.getElementById('save-name-input').focus();
+        requirePAT(() => {
+            document.getElementById('save-name-input').value = '';
+            const raw    = JSON.stringify(buildSavePayload());
+            const comp   = compress(buildSavePayload());
+            const rawKB  = Math.round(raw.length / 1024);
+            const compKB = Math.round(comp.length / 1024);
+            const color  = compKB > 800 ? '#f88' : compKB > 500 ? '#fa0' : '#8f8';
+            document.getElementById('save-status').innerHTML = `<span style="color:${color}">~${compKB}KB compressed (${rawKB}KB raw) — Gist limit ~1MB</span>`;
+            document.getElementById('save-dialog').classList.remove('hidden');
+            document.getElementById('save-name-input').focus();
+        });
     });
 
     document.getElementById('btn-load').addEventListener('click', openLoadDialog);
@@ -2174,33 +2245,55 @@
     document.getElementById('save-cancel-btn').addEventListener('click', () => {
         document.getElementById('save-dialog').classList.add('hidden');
     });
+    // Allow re-entering PAT from save dialog footer
+    document.getElementById('save-name-input').closest?.('.sl-overlay')?.addEventListener('click', () => {});
+    // Expose token reset
+    document.getElementById('save-status').addEventListener('dblclick', () => {
+        if (!confirm('Reset GitHub token? You will need to re-enter it.')) return;
+        localStorage.removeItem('gnoll_github_pat');
+        document.getElementById('save-dialog').classList.add('hidden');
+    });
 
     document.getElementById('save-confirm-btn').addEventListener('click', async () => {
         const name = document.getElementById('save-name-input').value.trim();
         if (!name) { document.getElementById('save-status').textContent = 'Please enter a name.'; return; }
         const status = document.getElementById('save-status');
-        status.textContent = 'Saving...';
+        status.style.color = '';
+        status.textContent = 'Compressing...';
         try {
-            // Create a new bin for this save
-            const payload = buildSavePayload();
-            const r = await fetch(`${JSONBIN_BASE}/b`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY, 'X-Bin-Private': 'true', 'X-Bin-Name': name },
-                body: JSON.stringify(payload)
-            });
-            const j = await r.json();
-            const binId = j.metadata.id;
+            const b64      = compress(buildSavePayload());
+            const compKB   = Math.round(b64.length / 1024);
+            status.textContent = `Saving (${compKB}KB)...`;
 
-            // Update index — keep max 12 slots, newest first
+            // Each save is its own gist file; gist description = slot name
+            const body = JSON.stringify({
+                description: `Gnollboard: ${name}`,
+                public: false,
+                files: { 'gnoll_save.b64': { content: b64 } }
+            });
+            const r = await fetch('https://api.github.com/gists', {
+                method: 'POST', headers: gistHeaders(), body
+            });
+            if (!r.ok) {
+                const msg = r.status === 401 ? 'Token invalid or expired — re-enter via Save button.' : `HTTP ${r.status}`;
+                status.style.color = '#f88';
+                status.textContent = `✗ Save failed: ${msg}`;
+                return;
+            }
+            const j = await r.json();
+            const gistId = j.id;
+
             let slots = await getIndex();
-            slots.unshift({ name, binId, savedAt: new Date().toLocaleString() });
+            slots.unshift({ name, gistId, savedAt: new Date().toLocaleString(), sizeKB: compKB });
             if (slots.length > 12) slots = slots.slice(0, 12);
             await setIndex(slots);
 
-            status.textContent = '✓ Saved!';
-            setTimeout(() => document.getElementById('save-dialog').classList.add('hidden'), 800);
+            status.style.color = '#8f8';
+            status.textContent = `✓ Saved! (${compKB}KB compressed)`;
+            setTimeout(() => document.getElementById('save-dialog').classList.add('hidden'), 900);
         } catch(e) {
-            status.textContent = 'Save failed. Check connection.';
+            status.style.color = '#f88';
+            status.textContent = `Save failed: ${e.message || 'network error'}`;
             console.error(e);
         }
     });
@@ -2213,74 +2306,78 @@
 
     // ── Load dialog ──────────────────────────────────────────────────────────
     async function openLoadDialog() {
-        const status = document.getElementById('load-status');
-        const slots  = document.getElementById('load-slots');
-        status.textContent = 'Loading saves...';
-        slots.innerHTML = '';
-        document.getElementById('load-dialog').classList.remove('hidden');
+        requirePAT(async () => {
+            const status = document.getElementById('load-status');
+            const slotsEl = document.getElementById('load-slots');
+            status.textContent = 'Loading saves...'; status.style.color = '';
+            slotsEl.innerHTML = '';
+            document.getElementById('load-dialog').classList.remove('hidden');
 
-        const index = await getIndex();
-        status.textContent = '';
-        if (!index.length) { slots.innerHTML = '<div style="color:#666;font-size:13px;padding:8px 0">No saves found.</div>'; return; }
+            const index = await getIndex();
+            status.textContent = '';
+            if (!index.length) { slotsEl.innerHTML = '<div style="color:#666;font-size:13px;padding:8px 0">No saves found.</div>'; return; }
 
-        index.forEach((slot, i) => {
-            const row = document.createElement('div');
-            row.className = 'sl-row';
-            row.innerHTML = `
-                <div style="flex:1">
-                    <div class="sl-name">${slot.name}</div>
-                    <div class="sl-date">${slot.savedAt || ''}</div>
-                </div>`;
-            const loadBtn = document.createElement('button');
-            loadBtn.className = 'sl-load-btn'; loadBtn.textContent = 'Load';
-            loadBtn.addEventListener('click', async () => {
-                status.textContent = 'Loading...';
-                try {
-                    const r = await fetch(`${JSONBIN_BASE}/b/${slot.binId}/latest`, {
-                        headers: { 'X-Master-Key': JSONBIN_KEY }
-                    });
-                    const j = await r.json();
-                    applySavePayload(j.record);
-                    // Broadcast new state to all connected peers
-                    Object.values(connections).forEach(conn => { if (conn.open) sendSnapshot(conn); });
-                    status.textContent = `✓ Loaded "${slot.name}"`;
-                    setTimeout(() => document.getElementById('load-dialog').classList.add('hidden'), 800);
-                } catch(e) {
-                    status.textContent = 'Load failed.';
-                    console.error(e);
-                }
-            });
-            const delBtn = document.createElement('button');
-            delBtn.className = 'sl-del-btn'; delBtn.textContent = '✕';
-            delBtn.addEventListener('click', async () => {
-                // confirm() blocked in Discord iframe — use inline overlay
-                const overlay = document.createElement('div');
-                overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;`;
-                const box = document.createElement('div');
-                box.style.cssText = `background:#1e1e1e;border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:20px 24px;font-family:var(--font-serif);color:#ddd;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.5);`;
-                box.innerHTML = `<div style="font-size:14px;margin-bottom:16px;">Delete "<b>${slot.name}</b>"?</div>`;
-                const row2 = document.createElement('div'); row2.style.cssText = `display:flex;gap:10px;justify-content:center;`;
-                const yes = document.createElement('button'); yes.textContent = 'Delete';
-                yes.style.cssText = `padding:6px 20px;background:#8b1a1a;color:white;border:none;border-radius:5px;font-family:var(--font-serif);cursor:pointer;`;
-                const no  = document.createElement('button'); no.textContent  = 'Cancel';
-                no.style.cssText  = `padding:6px 16px;background:#333;color:#aaa;border:none;border-radius:5px;font-family:var(--font-serif);cursor:pointer;`;
-                yes.onclick = async () => {
-                    overlay.remove();
+            index.forEach((slot, i) => {
+                const row = document.createElement('div');
+                row.className = 'sl-row';
+                const sizeLabel = slot.sizeKB ? `<span style="color:#888;font-size:11px;margin-left:6px;">${slot.sizeKB}KB</span>` : '';
+                row.innerHTML = `
+                    <div style="flex:1">
+                        <div class="sl-name">${slot.name}${sizeLabel}</div>
+                        <div class="sl-date">${slot.savedAt || ''}</div>
+                    </div>`;
+                const loadBtn = document.createElement('button');
+                loadBtn.className = 'sl-load-btn'; loadBtn.textContent = 'Load';
+                loadBtn.addEventListener('click', async () => {
+                    status.textContent = 'Fetching...'; status.style.color = '';
                     try {
-                        await fetch(`${JSONBIN_BASE}/b/${slot.binId}`, { method: 'DELETE', headers: { 'X-Master-Key': JSONBIN_KEY } });
-                        let idx = await getIndex();
-                        idx.splice(i, 1);
-                        await setIndex(idx);
-                        openLoadDialog();
-                    } catch(e) { status.textContent = 'Delete failed.'; }
-                };
-                no.onclick = () => overlay.remove();
-                row2.appendChild(yes); row2.appendChild(no);
-                box.appendChild(row2); overlay.appendChild(box); document.body.appendChild(overlay);
+                        const r = await fetch(`https://api.github.com/gists/${slot.gistId}`, { headers: gistHeaders() });
+                        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                        const j   = await r.json();
+                        const b64 = j.files['gnoll_save.b64'].content;
+                        status.textContent = 'Decompressing...';
+                        const data = decompress(b64);
+                        applySavePayload(data);
+                        Object.values(connections).forEach(conn => { if (conn.open) sendSnapshot(conn); });
+                        status.style.color = '#8f8';
+                        status.textContent = `✓ Loaded "${slot.name}"`;
+                        setTimeout(() => document.getElementById('load-dialog').classList.add('hidden'), 800);
+                    } catch(e) {
+                        status.style.color = '#f88';
+                        status.textContent = `Load failed: ${e.message}`;
+                        console.error(e);
+                    }
+                });
+                const delBtn = document.createElement('button');
+                delBtn.className = 'sl-del-btn'; delBtn.textContent = '✕';
+                delBtn.addEventListener('click', async () => {
+                    const overlay = document.createElement('div');
+                    overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;`;
+                    const box = document.createElement('div');
+                    box.style.cssText = `background:#1e1e1e;border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:20px 24px;font-family:var(--font-serif);color:#ddd;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.5);`;
+                    box.innerHTML = `<div style="font-size:14px;margin-bottom:16px;">Delete "<b>${slot.name}</b>"?</div>`;
+                    const row2 = document.createElement('div'); row2.style.cssText = `display:flex;gap:10px;justify-content:center;`;
+                    const yes = document.createElement('button'); yes.textContent = 'Delete';
+                    yes.style.cssText = `padding:6px 20px;background:#8b1a1a;color:white;border:none;border-radius:5px;font-family:var(--font-serif);cursor:pointer;`;
+                    const no = document.createElement('button'); no.textContent = 'Cancel';
+                    no.style.cssText = `padding:6px 16px;background:#333;color:#aaa;border:none;border-radius:5px;font-family:var(--font-serif);cursor:pointer;`;
+                    yes.onclick = async () => {
+                        overlay.remove();
+                        try {
+                            await fetch(`https://api.github.com/gists/${slot.gistId}`, { method: 'DELETE', headers: gistHeaders() });
+                            let idx = await getIndex();
+                            idx.splice(i, 1);
+                            await setIndex(idx);
+                            openLoadDialog();
+                        } catch(e) { status.textContent = 'Delete failed.'; }
+                    };
+                    no.onclick = () => overlay.remove();
+                    row2.appendChild(yes); row2.appendChild(no);
+                    box.appendChild(row2); overlay.appendChild(box); document.body.appendChild(overlay);
+                });
+                row.appendChild(loadBtn); row.appendChild(delBtn);
+                slotsEl.appendChild(row);
             });
-            row.appendChild(loadBtn);
-            row.appendChild(delBtn);
-            slots.appendChild(row);
         });
     }
 
