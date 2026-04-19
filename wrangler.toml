@@ -1,7 +1,0 @@
-name = "gnollboard-saves"
-main = "gnollboard-worker.js"
-compatibility_date = "2024-01-01"
-
-[[kv_namespaces]]
-binding = "GNOLL_SAVES"
-id = "5c7519c8e259424090db019825c1455c"
