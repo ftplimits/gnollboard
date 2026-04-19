@@ -2097,7 +2097,9 @@
             <div style="font-size:20px;color:#aaf;margin-bottom:12px;">🔑 GitHub Token Setup</div>
             <div style="font-size:13px;color:#aaa;line-height:1.6;margin-bottom:16px;">
                 Gnollboard saves to GitHub Gists for unlimited storage. You need a free GitHub Personal Access Token with <b style="color:#ddf">Gist</b> scope only.<br><br>
-                <a href="https://github.com/settings/tokens/new?scopes=gist&description=Gnollboard" target="_blank" style="color:#7af;">Click here to create one →</a>
+                Create one at GitHub → Settings → Developer Settings → Personal Access Tokens → Tokens (classic). Or copy this URL into a browser:<br>
+                <span id="pat-url" style="display:block;margin-top:8px;padding:6px 10px;background:#0d1117;border:1px solid #333;border-radius:4px;font-size:11px;color:#7af;word-break:break-all;cursor:pointer;user-select:all;" title="Click to select all">https://github.com/settings/tokens/new?scopes=gist&description=Gnollboard</span>
+                <span style="font-size:11px;color:#666;">↑ Click the URL above to select it, then copy</span>
             </div>
             <input id="pat-input" type="password" placeholder="Paste token here (ghp_...)" style="width:100%;box-sizing:border-box;padding:9px 12px;background:#111;border:1px solid #444;border-radius:6px;color:#eee;font-size:13px;margin-bottom:8px;">
             <div id="pat-status" style="font-size:12px;color:#f88;min-height:18px;margin-bottom:12px;"></div>
