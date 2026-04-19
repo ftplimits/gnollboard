@@ -2194,7 +2194,12 @@
             const compKB = Math.round(b64.length / 1024);
             status.textContent = `Saving (${compKB}KB)...`;
 
-            const r = await fetch(`${WORKER_URL}/slot`, {
+            const saveUrl = `${WORKER_URL}/slot`;
+            console.log('[Gnollboard] WORKER_URL:', WORKER_URL);
+            console.log('[Gnollboard] Posting to:', saveUrl);
+            console.log('[Gnollboard] instance_id in URL:', window.location.search.includes('instance_id'));
+
+            const r = await fetch(saveUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
                 body: b64
