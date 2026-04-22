@@ -1253,6 +1253,7 @@
         drawPresetOutlines();
         const presetCv = document.getElementById("fog-preset-canvas");
         if (presetCv) presetCv.style.display = isHost ? "" : "none";
+        if (isHost) startAutosave(); else stopAutosave();
     }
 
     function toggleP2PPanel() {
@@ -2220,6 +2221,8 @@
             if (slots.length > 12) slots = slots.slice(0, 12);
             await setIndex(slots);
 
+            lastSaveName = name; // unlock autosave
+
             status.style.color = '#8f8';
             status.textContent = `✓ Saved! (${compKB}KB)`;
             setTimeout(() => document.getElementById('save-dialog').classList.add('hidden'), 900);
@@ -2245,8 +2248,49 @@
         document.getElementById('load-dialog').classList.remove('hidden');
 
         const index = await getIndex();
+
+        // Check for autosave and prepend if found
+        try {
+            const ar = await fetch(`${WORKER_URL}/index/${channelId()}_autosave`);
+            if (ar.ok) {
+                const autoslots = await ar.json();
+                if (autoslots.length) {
+                    const a = autoslots[0];
+                    const arow = document.createElement('div');
+                    arow.className = 'sl-row';
+                    arow.style.borderLeft = '3px solid #4a8a4a';
+                    arow.innerHTML = `<div style="flex:1"><div class="sl-name" style="color:#8f8">🔄 ${a.name}</div><div class="sl-date">${a.savedAt || ''} — ${a.sizeKB||'?'}KB</div></div>`;
+                    const loadBtn = document.createElement('button');
+                    loadBtn.className = 'sl-load-btn'; loadBtn.textContent = 'Restore';
+                    loadBtn.addEventListener('click', async () => {
+                        status.textContent = 'Fetching autosave...'; status.style.color = '';
+                        try {
+                            const r = await fetch(`${WORKER_URL}/slot/${a.slotId}`);
+                            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                            const data = decompress(await r.text());
+                            applySavePayload(data);
+                            Object.values(connections).forEach(conn => { if (conn.open) sendSnapshot(conn); });
+                            status.style.color = '#8f8';
+                            status.textContent = `✓ Restored autosave`;
+                            setTimeout(() => document.getElementById('load-dialog').classList.add('hidden'), 800);
+                        } catch(e) {
+                            status.style.color = '#f88';
+                            status.textContent = `Restore failed: ${e.message}`;
+                        }
+                    });
+                    arow.appendChild(loadBtn);
+                    slotsEl.appendChild(arow);
+                    if (index.length) {
+                        const divider = document.createElement('div');
+                        divider.style.cssText = 'border-top:1px solid #333;margin:6px 0;';
+                        slotsEl.appendChild(divider);
+                    }
+                }
+            }
+        } catch(e) { /* no autosave found */ }
+
         status.textContent = '';
-        if (!index.length) { slotsEl.innerHTML = '<div style="color:#666;font-size:13px;padding:8px 0">No saves found.</div>'; return; }
+        if (!index.length && !slotsEl.children.length) { slotsEl.innerHTML = '<div style="color:#666;font-size:13px;padding:8px 0">No saves found.</div>'; return; }
 
         index.forEach((slot, i) => {
             const row = document.createElement('div');
@@ -2319,6 +2363,79 @@
             if (e.target === document.getElementById(id)) document.getElementById(id).classList.add('hidden');
         });
     });
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // AUTOSAVE  (90 second interval, host only, requires prior manual save)
+    // ═══════════════════════════════════════════════════════════════════════════
+    let lastSaveName = null;
+    let autosaveTimer = null;
+    let autosaveIndicator = null;
+
+    function createAutosaveIndicator() {
+        const el = document.createElement('div');
+        el.id = 'autosave-indicator';
+        el.style.cssText = `position:fixed;bottom:14px;right:16px;font-family:var(--font-serif);font-size:11px;color:#666;z-index:1000;pointer-events:none;opacity:0;transition:opacity 0.5s;`;
+        document.body.appendChild(el);
+        return el;
+    }
+
+    function showAutosaveStatus(msg, color) {
+        if (!autosaveIndicator) autosaveIndicator = createAutosaveIndicator();
+        autosaveIndicator.textContent = msg;
+        autosaveIndicator.style.color = color || '#666';
+        autosaveIndicator.style.opacity = '1';
+        clearTimeout(autosaveIndicator._fade);
+        autosaveIndicator._fade = setTimeout(() => { autosaveIndicator.style.opacity = '0'; }, 3000);
+    }
+
+    async function doAutosave() {
+        if (!isHost || !lastSaveName) return;
+        try {
+            const b64    = compress(buildSavePayload());
+            const compKB = Math.round(b64.length / 1024);
+            // Save to a dedicated autosave slot keyed by channel
+            // Delete previous autosave slot if one exists
+            try {
+                const prev = await fetch(`${WORKER_URL}/index/${channelId()}_autosave`);
+                if (prev.ok) {
+                    const prevSlots = await prev.json();
+                    if (prevSlots[0]?.slotId) {
+                        await fetch(`${WORKER_URL}/slot/${prevSlots[0].slotId}`, { method: 'DELETE' });
+                    }
+                }
+            } catch(e) { /* no previous autosave */ }
+
+            const r = await fetch(`${WORKER_URL}/slot`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: b64
+            });
+            if (!r.ok) { showAutosaveStatus('⚠ Autosave failed', '#f88'); return; }
+            const j      = await r.json();
+            const slotId = j.id;
+
+            // Store autosave entry in a dedicated autosave index key
+            const autosaveSlot = { name: `Autosave — ${lastSaveName}`, slotId, savedAt: new Date().toLocaleString(), sizeKB: compKB, isAutosave: true };
+            await fetch(`${WORKER_URL}/index/${channelId()}_autosave`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify([autosaveSlot])
+            });
+
+            showAutosaveStatus(`💾 Autosaved — ${lastSaveName} (${compKB}KB)`, '#8a8');
+        } catch(e) {
+            showAutosaveStatus('⚠ Autosave failed', '#f88');
+        }
+    }
+
+    function startAutosave() {
+        if (autosaveTimer) clearInterval(autosaveTimer);
+        autosaveTimer = setInterval(doAutosave, 90 * 1000);
+    }
+
+    function stopAutosave() {
+        if (autosaveTimer) { clearInterval(autosaveTimer); autosaveTimer = null; }
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // MEASURE TOOL  (local only — no broadcast)
