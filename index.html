@@ -721,14 +721,12 @@
         window.addEventListener('message', e => {
             try {
                 const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-                if (Array.isArray(data)) console.log('Discord msg:', data[0], data[1]);
             } catch(_) {}
         });
     }
 
     async function initApp() {
         const instanceId = getDiscordInstanceId();
-        console.log('initApp — instanceId:', instanceId, '| full search:', window.location.search);
 
         if (!instanceId) {
             // Browser testing mode
@@ -2094,12 +2092,6 @@
     }
 
     function applySavePayload(data) {
-        console.log('[applySavePayload] applying:', {
-            tokens: data.tokens?.length, stickers: data.stickers?.length,
-            shapes: data.shapes?.length, textLabels: data.textLabels?.length,
-            mapImages: data.mapImages?.length, fogPresets: data.fogPresets?.length,
-            hasFogBitmask: !!data.fogBitmask
-        });
         tokensContainer.innerHTML=''; stickersContainer.innerHTML='';
         shapesContainer.innerHTML=''; document.getElementById('text-container').innerHTML='';
         mapContainer.innerHTML=''; mapContainerBelow.innerHTML=''; mapHandleContainer.innerHTML='';
@@ -2184,8 +2176,10 @@
         const comp   = compress(buildSavePayload());
         const rawKB  = Math.round(raw.length / 1024);
         const compKB = Math.round(comp.length / 1024);
-        const color  = compKB > 800 ? '#f88' : compKB > 500 ? '#fa0' : '#8f8';
-        document.getElementById('save-status').innerHTML = `<span style="color:${color}">~${compKB}KB compressed (${rawKB}KB raw)</span>`;
+        const color    = compKB > 20480 ? '#f88' : compKB > 12800 ? '#fa0' : '#8f8';
+        const compDisp = compKB > 1024 ? `${(compKB/1024).toFixed(1)}MB` : `${compKB}KB`;
+        const rawDisp  = rawKB  > 1024 ? `${(rawKB /1024).toFixed(1)}MB` : `${rawKB}KB`;
+        document.getElementById('save-status').innerHTML = `<span style="color:${color}">~${compDisp} compressed (${rawDisp} raw) — limit 25MB</span><br><span style="color:#666;font-size:11px;">Saves auto-delete after 3 months of inactivity</span>`;
         document.getElementById('save-dialog').classList.remove('hidden');
         document.getElementById('save-name-input').focus();
     });
@@ -2207,22 +2201,7 @@
             const compKB = Math.round(b64.length / 1024);
             status.textContent = `Saving (${compKB}KB)...`;
 
-            const payload = buildSavePayload();
-            console.log('[Save] payload summary:', {
-                tokens:     payload.tokens.length,
-                stickers:   payload.stickers.length,
-                shapes:     payload.shapes.length,
-                textLabels: payload.textLabels.length,
-                mapImages:  payload.mapImages.length,
-                fogPresets: payload.fogPresets.length,
-                fogBitmask: payload.fogBitmask?.length + ' chars',
-                compressedKB: compKB
-            });
-
             const saveUrl = `${WORKER_URL}/slot`;
-            console.log('[Save] WORKER_URL:', WORKER_URL);
-            console.log('[Save] posting to:', saveUrl);
-
             const r = await fetch(saveUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
@@ -2286,18 +2265,8 @@
                     const r = await fetch(`${WORKER_URL}/slot/${slot.slotId}`);
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     const b64  = await r.text();
-                    console.log('[Load] fetched b64 length:', b64.length, 'first 40:', b64.slice(0,40));
                     status.textContent = 'Decompressing...';
                     const data = decompress(b64);
-                    console.log('[Load] decompressed payload:', {
-                        tokens:     data.tokens?.length,
-                        stickers:   data.stickers?.length,
-                        shapes:     data.shapes?.length,
-                        textLabels: data.textLabels?.length,
-                        mapImages:  data.mapImages?.length,
-                        fogPresets: data.fogPresets?.length,
-                        hasFogBitmask: !!data.fogBitmask
-                    });
                     applySavePayload(data);
                     Object.values(connections).forEach(conn => { if (conn.open) sendSnapshot(conn); });
                     status.style.color = '#8f8';
