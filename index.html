@@ -1443,10 +1443,12 @@
     // ═══════════════════════════════════════════════════════════════════════════
     function updateTransform() {
         const gridSize = 5000, margin = 100;
-        const minPanX = -(gridSize * zoom) + window.innerWidth  - margin;
-        const minPanY = -(gridSize * zoom) + window.innerHeight - margin;
-        panX = Math.max(minPanX, Math.min(margin, panX));
-        panY = Math.max(minPanY, Math.min(margin, panY));
+        const scaledSize = gridSize * zoom;
+        const minPanX = -scaledSize + window.innerWidth  - margin;
+        const minPanY = -scaledSize + window.innerHeight - margin;
+        // Only clamp if the grid is larger than the viewport — otherwise allow free pan
+        if (scaledSize > window.innerWidth)  panX = Math.max(minPanX, Math.min(margin, panX));
+        if (scaledSize > window.innerHeight) panY = Math.max(minPanY, Math.min(margin, panY));
         gridContainer.style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
         if (selectedObject) updateSelectionOverlay();
     }
@@ -2590,25 +2592,6 @@
     }
 
 
-    function moveAttached(type, id, dx, dy) {
-        if (!dx && !dy) return;
-        // Move children (parent→child)
-        moveChildren(id, dx, dy);
-        // If this object has a parent, move the parent and all its other children too
-        const self = getAllObjects().find(o => o.data.id === id);
-        if (self?.data.parentId) {
-            const parent = getAllObjects().find(o => o.data.id === self.data.parentId);
-            if (parent) {
-                parent.data.x += dx; parent.data.y += dy;
-                const el = parent.container.querySelector(`[data-id="${parent.data.id}"]`);
-                if (el) updateObjDiv(parent.data, el);
-                broadcastMove(parent.type+'_'+parent.data.id, { type: parent.type+'_move', id: parent.data.id, x: parent.data.x, y: parent.data.y });
-                // Move siblings (other children of same parent)
-                moveChildren(parent.data.id, dx, dy);
-            }
-        }
-    }
-
     // ── Attachment system ────────────────────────────────────────────────────
     // Objects can have parentId — when parent moves, children move with it.
     function getAllObjects() {
@@ -2624,15 +2607,35 @@
         return getAllObjects().filter(o => o.data.parentId === parentId);
     }
 
-    function moveChildren(parentId, dx, dy) {
+    // excludeId prevents double-moving the object already being dragged
+    function moveChildren(parentId, dx, dy, excludeId) {
         getChildren(parentId).forEach(({ type, data, container }) => {
+            if (data.id === excludeId) return;
             data.x += dx; data.y += dy;
             const el = container.querySelector(`[data-id="${data.id}"]`);
             if (el) updateObjDiv(data, el);
             broadcastMove(type+'_'+data.id, { type: type+'_move', id: data.id, x: data.x, y: data.y });
-            // Recurse for nested attachments
-            moveChildren(data.id, dx, dy);
+            moveChildren(data.id, dx, dy, excludeId);
         });
+    }
+
+    function moveAttached(type, id, dx, dy) {
+        if (!dx && !dy) return;
+        // Move children of the dragged object
+        moveChildren(id, dx, dy, null);
+        // If this object is a child, also move its parent and siblings (but not itself)
+        const self = getAllObjects().find(o => o.data.id === id);
+        if (self?.data.parentId) {
+            const parent = getAllObjects().find(o => o.data.id === self.data.parentId);
+            if (parent) {
+                parent.data.x += dx; parent.data.y += dy;
+                const el = parent.container.querySelector(`[data-id="${parent.data.id}"]`);
+                if (el) updateObjDiv(parent.data, el);
+                broadcastMove(parent.type+'_'+parent.data.id, { type: parent.type+'_move', id: parent.data.id, x: parent.data.x, y: parent.data.y });
+                // Move siblings but exclude the token already being dragged
+                moveChildren(parent.data.id, dx, dy, id);
+            }
+        }
     }
 
     function makeAttachBtn(obj, type, menu, btnStyle) {
@@ -3932,6 +3935,18 @@
 
     window.addEventListener('mouseup', e => {
         if (e.button !== 0) return;
+
+        // Always reset drawing state — catches mouseup outside canvas
+        if (isDrawing) {
+            if (currentTool === 'pen') {
+                if (penBatchTimer) { clearInterval(penBatchTimer); penBatchTimer = null; }
+                if (penBatchPoints.length > 1) broadcast({ type:'pen_points', points:[...penBatchPoints], color:penBatchColor, lineWidth:penBatchWidth });
+                if (penPath.length > 0) broadcast({ type:'pen_commit' });
+                penBatchPoints = [];
+            }
+            if (savedImageData) { savedImageData = null; }
+            isDrawing = false; penPath = [];
+        }
 
         if (isFogPainting) { isFogPainting = false; redrawFog(); return; }
 
