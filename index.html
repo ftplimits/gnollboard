@@ -449,6 +449,7 @@
 
 
         /* ── Notes ── */
+        /* ── Note tabs ── */
         #note-bar {
             position: fixed; top: 0; left: 130px;
             display: flex; align-items: flex-start; gap: 2px;
@@ -461,7 +462,6 @@
             border-radius: 0 0 6px 6px; cursor: pointer;
             user-select: none; transition: background 0.15s, color 0.15s;
             max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-            position: relative;
         }
         .note-tab:hover { background: rgba(50,40,22,0.92); }
         .note-tab.active { background: rgba(20,16,10,0.95); color: #fff; }
@@ -473,30 +473,65 @@
             transition: color 0.15s, background 0.15s;
         }
         #note-add-btn:hover { color: #e8d080; background: rgba(50,40,22,0.9); }
+
+        /* ── Note panel ── */
         #note-panel {
             position: fixed; top: 32px; left: 130px;
-            width: 300px; min-height: 200px; max-height: 460px;
+            width: 340px;
             background: rgba(0,0,0,0.5);
             border: 2px solid rgba(200,168,60,0.4);
-            border-radius: 8px 8px 0 0;
+            border-radius: 0 8px 8px 8px;
             z-index: 1999; display: none; flex-direction: column;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.7);
         }
         #note-panel.open { display: flex; }
-        #note-textarea {
-            flex: 1; background: transparent; border: none; outline: none; resize: none;
+
+        /* ── Toolbar ── */
+        #note-toolbar {
+            display: flex; align-items: center; flex-wrap: wrap; gap: 2px;
+            padding: 5px 8px;
+            background: rgba(0,0,0,0.35);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            border-radius: 0 6px 0 0;
+        }
+        .nt-btn {
+            padding: 3px 7px; min-width: 26px;
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px; color: #c8a870; font-family: var(--font-serif);
+            font-size: 12px; cursor: pointer; line-height: 1.4; text-align: center;
+            transition: background 0.1s, color 0.1s; user-select: none;
+        }
+        .nt-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
+        .nt-btn.active { background: rgba(200,168,60,0.25); color: #ffe080; border-color: rgba(200,168,60,0.4); }
+        .nt-sep { width: 1px; height: 18px; background: rgba(255,255,255,0.12); margin: 0 3px; }
+        .nt-select {
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px; color: #c8a870; font-family: var(--font-serif);
+            font-size: 11px; cursor: pointer; padding: 2px 4px; outline: none;
+        }
+        .nt-select option { background: #1a1510; color: #e8d080; }
+
+        /* ── Editor ── */
+        #note-editor {
+            outline: none; min-height: 160px;
             color: #e8d8b0; font-family: var(--font-serif); font-size: 14px;
-            line-height: 1.6; padding: 14px 16px;
-            min-height: 180px; max-height: 420px;
-            caret-color: #e8d080;
+            line-height: 1.7; padding: 12px 16px;
+            caret-color: #e8d080; word-break: break-word;
         }
-        #note-textarea::placeholder { color: rgba(200,180,120,0.35); }
-        #note-resize-handle {
-            height: 8px; cursor: ns-resize;
-            background: rgba(255,255,255,0.04);
-            border-top: 1px solid rgba(255,255,255,0.08);
-        }
-        #note-resize-handle:hover { background: rgba(255,255,255,0.1); }
+        #note-editor:empty::before { content: attr(data-placeholder); color: rgba(200,180,120,0.35); pointer-events: none; }
+        #note-editor h1 { font-size: 20px; color: #ffe080; margin: 8px 0 4px; border-bottom: 1px solid rgba(255,220,80,0.2); padding-bottom: 3px; }
+        #note-editor h2 { font-size: 17px; color: #e8d080; margin: 6px 0 3px; }
+        #note-editor h3 { font-size: 14px; color: #c8b070; margin: 4px 0 2px; font-style: italic; }
+        #note-editor ul { margin: 4px 0 4px 20px; padding: 0; }
+        #note-editor ol { margin: 4px 0 4px 20px; padding: 0; }
+        #note-editor li { margin: 2px 0; }
+        #note-editor hr { border: none; border-top: 1px solid rgba(200,168,60,0.3); margin: 8px 0; }
+        #note-editor b, #note-editor strong { color: #fff; }
+        #note-editor i, #note-editor em { color: #d4c090; }
+        #note-editor table { border-collapse: collapse; width: 100%; margin: 6px 0; }
+        #note-editor td, #note-editor th { border: 1px solid rgba(200,168,60,0.3); padding: 4px 8px; font-size: 13px; min-width: 40px; }
+        #note-editor th { background: rgba(200,168,60,0.12); color: #ffe080; }
+        #note-editor td:focus, #note-editor th:focus { outline: 1px solid rgba(200,168,60,0.5); background: rgba(200,168,60,0.06); }
 
     </style>
 </head>
@@ -740,8 +775,32 @@
         <button id="note-add-btn" title="Add note">+</button>
     </div>
     <div id="note-panel">
-        <textarea id="note-textarea" placeholder="Write your notes here..."></textarea>
-        <div id="note-resize-handle"></div>
+        <div id="note-toolbar">
+            <!-- Heading -->
+            <select class="nt-select" id="nt-heading" title="Heading">
+                <option value="div">¶ Normal</option>
+                <option value="h1">H1</option>
+                <option value="h2">H2</option>
+                <option value="h3">H3</option>
+            </select>
+            <div class="nt-sep"></div>
+            <!-- Text style -->
+            <button class="nt-btn" id="nt-bold"   title="Bold (Ctrl+B)"><b>B</b></button>
+            <button class="nt-btn" id="nt-italic" title="Italic (Ctrl+I)"><i>I</i></button>
+            <button class="nt-btn" id="nt-strike" title="Strikethrough"><s>S</s></button>
+            <div class="nt-sep"></div>
+            <!-- Lists -->
+            <button class="nt-btn" id="nt-ul"     title="Bullet list">• ≡</button>
+            <button class="nt-btn" id="nt-ol"     title="Numbered list">1. ≡</button>
+            <div class="nt-sep"></div>
+            <!-- Insert -->
+            <button class="nt-btn" id="nt-table"  title="Insert table">⊞</button>
+            <button class="nt-btn" id="nt-hr"     title="Horizontal rule">—</button>
+            <div class="nt-sep"></div>
+            <!-- Clear -->
+            <button class="nt-btn" id="nt-clear"  title="Clear formatting">✕</button>
+        </div>
+        <div id="note-editor" contenteditable="true" data-placeholder="Write your notes here..."></div>
     </div>
 
 
@@ -1472,7 +1531,7 @@
                     n.content = msg.content;
                     // Update textarea if this note is currently open
                     if (activeNoteId === msg.id) {
-                        const ta = document.getElementById('note-textarea');
+                        const ta = document.getElementById('note-editor');
                         const pos = ta.selectionStart;
                         ta.value = msg.content;
                         ta.selectionStart = ta.selectionEnd = pos;
@@ -4816,11 +4875,11 @@
 
     function toggleNote(id) {
         const panel = document.getElementById('note-panel');
-        const ta    = document.getElementById('note-textarea');
+        const ed = document.getElementById('note-editor');
         if (activeNoteId === id) {
             // Save and close
             const note = notes.find(n => n.id === id);
-            if (note) note.content = ta.value;
+            if (note) note.content = ed.innerHTML;
             activeNoteId = null;
             panel.classList.remove('open');
             renderNoteTabs();
@@ -4829,14 +4888,14 @@
         // Save previous
         if (activeNoteId !== null) {
             const prev = notes.find(n => n.id === activeNoteId);
-            if (prev) prev.content = ta.value;
+            if (prev) prev.content = ed.innerHTML;
         }
         activeNoteId = id;
         const note = notes.find(n => n.id === id);
-        ta.value = note ? (note.content || '') : '';
+        ed.innerHTML = note ? (note.content || '') : '';
         panel.style.borderColor = note?.color || 'rgba(200,168,60,0.4)';
         panel.classList.add('open');
-        ta.focus();
+        ed.focus();
         renderNoteTabs();
     }
 
@@ -4918,45 +4977,81 @@
     }
 
     // Autosave note content when typing
-    document.getElementById('note-textarea')?.addEventListener('input', () => {
+    document.getElementById('note-editor')?.addEventListener('input', () => {
         const note = notes.find(n => n.id === activeNoteId);
         if (note) {
-            note.content = document.getElementById('note-textarea').value;
+            note.content = document.getElementById('note-editor').innerHTML;
             broadcast({ type: 'note_update', id: note.id, content: note.content });
         }
     });
 
-    // Resizable panel
-    (() => {
-        const handle = document.getElementById('note-resize-handle');
-        const panel  = document.getElementById('note-panel');
-        const ta     = document.getElementById('note-textarea');
-        if (!handle || !panel) return;
-        let startY = 0, startH = 0;
-        handle.addEventListener('mousedown', e => {
-            e.preventDefault(); e.stopPropagation();
-            startY = e.clientY; startH = panel.offsetHeight;
-            const onMove = ev => {
-                const newH = Math.max(100, Math.min(600, startH + ev.clientY - startY));
-                panel.style.minHeight = newH + 'px';
-                ta.style.minHeight = (newH - 20) + 'px';
-            };
-            const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-            window.addEventListener('mousemove', onMove);
-            window.addEventListener('mouseup', onUp);
+
+
+    // ── Note toolbar ──────────────────────────────────────────────────────────
+    function initNoteToolbar() {
+        const ed = document.getElementById('note-editor');
+        if (!ed) return;
+        const cmd = (command, val = null) => { ed.focus(); document.execCommand(command, false, val); };
+
+        const headingSelect = document.getElementById('nt-heading');
+        headingSelect?.addEventListener('change', () => { cmd('formatBlock', headingSelect.value); ed.focus(); });
+        headingSelect?.addEventListener('mousedown', e => e.stopPropagation());
+
+        document.getElementById('nt-bold'  )?.addEventListener('click', e => { e.stopPropagation(); cmd('bold'); });
+        document.getElementById('nt-italic')?.addEventListener('click', e => { e.stopPropagation(); cmd('italic'); });
+        document.getElementById('nt-strike')?.addEventListener('click', e => { e.stopPropagation(); cmd('strikeThrough'); });
+        document.getElementById('nt-ul'    )?.addEventListener('click', e => { e.stopPropagation(); cmd('insertUnorderedList'); });
+        document.getElementById('nt-ol'    )?.addEventListener('click', e => { e.stopPropagation(); cmd('insertOrderedList'); });
+
+        document.getElementById('nt-table')?.addEventListener('click', e => {
+            e.stopPropagation();
+            const table = `<table><tbody><tr><th>Header 1</th><th>Header 2</th><th>Header 3</th></tr><tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table><p><br></p>`;
+            ed.focus(); document.execCommand('insertHTML', false, table);
         });
-    })();
+
+        document.getElementById('nt-hr')?.addEventListener('click', e => {
+            e.stopPropagation(); ed.focus();
+            document.execCommand('insertHTML', false, '<hr>');
+        });
+
+        document.getElementById('nt-clear')?.addEventListener('click', e => {
+            e.stopPropagation(); cmd('removeFormat'); cmd('formatBlock', 'div');
+        });
+
+        ['keyup','mouseup','focus'].forEach(ev => ed.addEventListener(ev, updateToolbarState));
+
+        ed.addEventListener('paste', e => {
+            e.preventDefault();
+            const text = e.clipboardData.getData('text/plain');
+            document.execCommand('insertText', false, text);
+        });
+
+        ed.addEventListener('input', () => {
+            const note = notes.find(n => n.id === activeNoteId);
+            if (note) { note.content = ed.innerHTML; broadcast({ type: 'note_update', id: note.id, content: note.content }); }
+        });
+
+        document.getElementById('note-toolbar')?.addEventListener('mousedown', e => e.stopPropagation());
+        document.getElementById('note-panel')?.addEventListener('mousedown', e => e.stopPropagation());
+    }
+
+    function updateToolbarState() {
+        document.getElementById('nt-bold'  )?.classList.toggle('active', document.queryCommandState('bold'));
+        document.getElementById('nt-italic')?.classList.toggle('active', document.queryCommandState('italic'));
+        document.getElementById('nt-strike')?.classList.toggle('active', document.queryCommandState('strikeThrough'));
+        document.getElementById('nt-ul'    )?.classList.toggle('active', document.queryCommandState('insertUnorderedList'));
+        document.getElementById('nt-ol'    )?.classList.toggle('active', document.queryCommandState('insertOrderedList'));
+    }
 
     document.getElementById('note-add-btn')?.addEventListener('click', e => { e.stopPropagation(); addNote(); });
     document.getElementById('note-add-btn')?.addEventListener('mousedown', e => e.stopPropagation());
 
-    // Close note if clicking outside
     document.addEventListener('click', e => {
         if (!e.target.closest('#note-bar') && !e.target.closest('#note-panel') && !e.target.closest('.note-ctx-menu')) {
             if (activeNoteId !== null) {
                 const note = notes.find(n => n.id === activeNoteId);
-                const ta = document.getElementById('note-textarea');
-                if (note && ta) note.content = ta.value;
+                const ed = document.getElementById('note-editor');
+                if (note && ed) note.content = ed.innerHTML;
                 activeNoteId = null;
                 document.getElementById('note-panel').classList.remove('open');
                 renderNoteTabs();
@@ -4972,6 +5067,11 @@
     panY = window.innerHeight/2 - 2500*zoom;
     updateTransform();
     renderNoteTabs();
+    requestAnimationFrame(() => {
+        initNoteToolbar();
+        buildDicePalette();
+        updateModifierDisplay();
+    });
     initApp();
     </script>
 
