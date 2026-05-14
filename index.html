@@ -178,7 +178,7 @@
         .sl-status { font-size: 12px; color: #888; margin-top: 8px; text-align: center; min-height: 16px; }
 
         #btn-center-view {
-            display: none; position: fixed; bottom: 12px; left: 12px; z-index: 1001;
+            display: none; position: fixed; bottom: 12px; left: 64px; z-index: 1001;
             background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
             border-radius: 6px; padding: 6px 10px; color: #ccc; font-family: var(--font-serif);
             font-size: 13px; cursor: pointer; backdrop-filter: blur(4px);
@@ -371,14 +371,13 @@
         .die-btn:hover .die-poly,
         .die-btn:hover .die-poly-rect,
         .die-btn:hover .die-poly-circle { fill: var(--dice-fill-hover, rgba(90,68,24,0.92)); }
-        /* Roll animation — orbit around centre */
-        .die-btn.rolling { animation: die-orbit 0.45s cubic-bezier(.2,.8,.4,1); }
+        /* Roll animation — orbit on the SVG element so it doesn't conflict with hover */
+        .die-btn.rolling svg { animation: die-orbit 0.5s cubic-bezier(.2,.8,.4,1); }
         @keyframes die-orbit {
-            0%   { transform: translate(0,0) rotate(0deg) scale(1); }
-            25%  { transform: translate(14px,-14px) rotate(90deg) scale(1.15); }
-            50%  { transform: translate(0,-22px) rotate(180deg) scale(1.25); }
-            75%  { transform: translate(-14px,-14px) rotate(270deg) scale(1.15); }
-            100% { transform: translate(0,0) rotate(360deg) scale(1); }
+            0%   { transform-origin: 50% 50%; transform: rotate(0deg) translateY(0px) rotate(0deg) scale(1); }
+            30%  { transform-origin: 50% 50%; transform: rotate(120deg) translateY(-12px) rotate(-120deg) scale(1.2); }
+            60%  { transform-origin: 50% 50%; transform: rotate(240deg) translateY(-12px) rotate(-240deg) scale(1.2); }
+            100% { transform-origin: 50% 50%; transform: rotate(360deg) translateY(0px) rotate(-360deg) scale(1); }
         }
         .die-btn.rolling .die-poly,
         .die-btn.rolling .die-poly-rect,
@@ -415,8 +414,9 @@
         /* ── Dice Log ── */
         #dice-log {
             position: fixed; bottom: 80px; right: 16px;
-            width: 220px; max-height: 260px;
-            display: flex; flex-direction: column-reverse;
+            width: 240px; max-height: 280px;
+            display: flex; flex-direction: column;
+            justify-content: flex-end;
             gap: 3px; z-index: 1000; pointer-events: none;
             overflow: hidden;
         }
@@ -1315,7 +1315,7 @@
                 break;
 
             case 'dice_roll':
-                addDiceLogEntry(msg.playerName, msg.color, msg.sides, msg.result, msg.modifier||0, msg.count||1, msg.label||'');
+                addDiceLogEntry(msg.playerName, msg.color, msg.sides, msg.rolls||[msg.result], msg.modifier||0, msg.count||1, msg.label||'');
                 break;
 
             case 'board_clear':
@@ -4258,42 +4258,77 @@
         applyDiceColor(DICE_PALETTES[0]);
     }
 
+    // ── Center-top roll popup ──
+    let rollPopupTimer = null;
+    function showRollPopup(diceStr, rolls, modifier, total, label, color) {
+        let popup = document.getElementById('dice-popup');
+        if (!popup) {
+            popup = document.createElement('div');
+            popup.id = 'dice-popup';
+            popup.style.cssText = `position:fixed;top:18px;left:50%;transform:translateX(-50%);
+                z-index:9500;pointer-events:none;text-align:center;
+                font-family:'Cinzel',serif;
+                transition:opacity 0.4s;opacity:0;`;
+            document.body.appendChild(popup);
+        }
+        const modStr = modifier > 0 ? `+${modifier}` : modifier < 0 ? `${modifier}` : '';
+        const rollBreakdown = rolls.length > 1 ? `<div style="font-size:13px;color:#aaa;margin-bottom:2px;">[${rolls.join(' + ')}]${modStr ? ' '+modStr : ''}</div>` : '';
+        const special = label ? `<div style="font-size:12px;color:#e8d080;margin-top:2px;">${label}</div>` : '';
+        popup.innerHTML = `
+            <div style="font-size:11px;color:${color};letter-spacing:2px;margin-bottom:2px;">${diceStr.toUpperCase()}</div>
+            ${rollBreakdown}
+            <div style="font-size:38px;font-weight:700;color:#fff;
+                text-shadow:0 0 20px ${color},0 2px 8px rgba(0,0,0,0.9);
+                line-height:1;">${total}</div>
+            ${special}`;
+        popup.style.opacity = '1';
+        clearTimeout(rollPopupTimer);
+        rollPopupTimer = setTimeout(() => { popup.style.opacity = '0'; }, 3500);
+    }
+
     // ── Log ──
-    function addDiceLogEntry(playerName, color, sides, result, modifier, count, label) {
+    function addDiceLogEntry(playerName, color, sides, rolls, modifier, count, label) {
         const log = document.getElementById('dice-log');
         if (!log) return;
+        const total = rolls.reduce((a,b)=>a+b,0) + (modifier||0);
         const entry = document.createElement('div');
         entry.className = 'dice-log-entry';
-        const baseResult = result - (modifier || 0);
-        const isNat20 = sides === 20 && count === 1 && baseResult === 20;
-        const isNat1  = sides === 20 && count === 1 && baseResult === 1;
+        const isNat20 = sides === 20 && count === 1 && rolls[0] === 20;
+        const isNat1  = sides === 20 && count === 1 && rolls[0] === 1;
         if (isNat20) entry.classList.add('nat20');
         if (isNat1)  entry.classList.add('nat1');
 
-        const modStr  = modifier ? (modifier > 0 ? ` +${modifier}` : ` ${modifier}`) : '';
-        const diceStr = count > 1 ? `${count}d${sides}` : `d${sides}`;
-        const special = isNat20 ? ' ✦ NAT 20!' : isNat1 ? ' ✦ NAT 1!' : label ? ` ${label}` : '';
+        const modStr    = modifier ? (modifier > 0 ? ` +${modifier}` : ` ${modifier}`) : '';
+        const diceStr   = count > 1 ? `${count}d${sides}` : `d${sides}`;
+        const breakdown = rolls.length > 1 ? `<span style="color:#777;font-size:10px;"> [${rolls.join('+')}]</span>` : '';
+        const special   = isNat20 ? ' <span style="color:#ffe066">✦NAT20</span>' : isNat1 ? ' <span style="color:#ff6060">✦NAT1</span>' : label ? ` <span style="color:#aaa;font-size:10px;">${label}</span>` : '';
 
-        entry.innerHTML = `<span style="color:${color||'#c8a83c'};font-size:10px;">${playerName||'?'}</span> <span style="color:#aaa;font-size:10px;">${diceStr}${modStr}:</span> <span class="log-result">${result}</span>${special}`;
-        log.prepend(entry);
+        entry.innerHTML = `<span style="color:${color||'#c8a83c'};font-size:10px;font-weight:700;">${playerName||'?'}</span> <span style="color:#888;font-size:10px;">${diceStr}${modStr}:</span> <span class="log-result">${total}</span>${breakdown}${special}`;
+
+        log.appendChild(entry);
+        // Scroll to bottom
+        log.scrollTop = log.scrollHeight;
         setTimeout(() => { entry.classList.add('fading'); setTimeout(() => entry.remove(), 2000); }, LOG_FADE_MS);
         const all = log.querySelectorAll('.dice-log-entry');
-        if (all.length > MAX_LOG_ENTRIES) all[all.length-1].remove();
+        if (all.length > MAX_LOG_ENTRIES) all[0].remove();
     }
 
     // ── Core roll ──
     function rollDice(sides, count = 1, modifier = diceModifier, label = '') {
-        let total = 0;
+        const rolls = [];
         for (let i = 0; i < count; i++) {
-            total += sides === 100
+            rolls.push(sides === 100
                 ? Math.floor(Math.random() * 100) + 1
-                : Math.floor(Math.random() * sides) + 1;
+                : Math.floor(Math.random() * sides) + 1);
         }
-        total += modifier;
+        const total = rolls.reduce((a,b)=>a+b,0) + modifier;
         const name  = myName  || 'Unknown';
         const color = diceColor.stroke;
-        addDiceLogEntry(name, color, sides, total, modifier, count, label);
-        broadcast({ type: 'dice_roll', playerName: name, color, sides, result: total, modifier, count, label });
+        const diceStr = count > 1 ? `${count}d${sides}` : `d${sides}`;
+
+        addDiceLogEntry(name, color, sides, rolls, modifier, count, label);
+        showRollPopup(diceStr, rolls, modifier, total, label, color);
+        broadcast({ type: 'dice_roll', playerName: name, color, sides, rolls, modifier, count, label, total });
         return total;
     }
 
@@ -4301,7 +4336,7 @@
         btn.classList.remove('rolling');
         void btn.offsetWidth;
         btn.classList.add('rolling');
-        setTimeout(() => btn.classList.remove('rolling'), 480);
+        setTimeout(() => btn.classList.remove('rolling'), 550);
     }
 
     // ── Right-click context menu ──
@@ -4335,18 +4370,22 @@
             div.style.cssText = `border-top:1px solid rgba(200,168,60,0.2);margin:4px 0;`;
             menu.appendChild(div);
             addBtn('⬆ Advantage',    () => {
-                const a = Math.floor(Math.random()*20)+1, b2 = Math.floor(Math.random()*20)+1;
-                const result = Math.max(a,b2) + diceModifier;
+                const r1 = Math.floor(Math.random()*20)+1, r2 = Math.floor(Math.random()*20)+1;
+                const kept = Math.max(r1,r2), total = kept + diceModifier;
                 const name = myName||'?', color = diceColor.stroke;
-                addDiceLogEntry(name, color, 20, result, diceModifier, 1, `↑ Adv (${a},${b2})`);
-                broadcast({ type:'dice_roll', playerName:name, color, sides:20, result, modifier:diceModifier, count:1, label:`↑ Adv (${a},${b2})` });
+                const lbl = `↑ Adv (${r1},${r2})`;
+                addDiceLogEntry(name, color, 20, [kept], diceModifier, 1, lbl);
+                showRollPopup('d20', [kept], diceModifier, total, lbl, color);
+                broadcast({ type:'dice_roll', playerName:name, color, sides:20, rolls:[kept], modifier:diceModifier, count:1, label:lbl, total });
             });
             addBtn('⬇ Disadvantage', () => {
-                const a = Math.floor(Math.random()*20)+1, b2 = Math.floor(Math.random()*20)+1;
-                const result = Math.min(a,b2) + diceModifier;
+                const r1 = Math.floor(Math.random()*20)+1, r2 = Math.floor(Math.random()*20)+1;
+                const kept = Math.min(r1,r2), total = kept + diceModifier;
                 const name = myName||'?', color = diceColor.stroke;
-                addDiceLogEntry(name, color, 20, result, diceModifier, 1, `↓ Dis (${a},${b2})`);
-                broadcast({ type:'dice_roll', playerName:name, color, sides:20, result, modifier:diceModifier, count:1, label:`↓ Dis (${a},${b2})` });
+                const lbl = `↓ Dis (${r1},${r2})`;
+                addDiceLogEntry(name, color, 20, [kept], diceModifier, 1, lbl);
+                showRollPopup('d20', [kept], diceModifier, total, lbl, color);
+                broadcast({ type:'dice_roll', playerName:name, color, sides:20, rolls:[kept], modifier:diceModifier, count:1, label:lbl, total });
             });
         }
 
