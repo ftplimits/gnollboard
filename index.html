@@ -391,48 +391,28 @@
             user-select: none; pointer-events: none;
         }
 
-        /* Dice colour picker */
-        #dice-color-btn {
+        /* Dice colour swatches */
+        #dice-color-panel {
             position: fixed; left: 14px; bottom: 20px;
-            width: 34px; height: 34px; border-radius: 6px;
-            cursor: pointer; z-index: 1001;
-            background: linear-gradient(135deg, #c8a83c, #cc4444, #4488cc, #44bb66, #9966cc, #e0e0e0);
-            border: 2px solid rgba(255,255,255,0.25);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.6);
-            transition: transform 0.12s, box-shadow 0.12s;
+            display: flex; flex-direction: column; gap: 4px;
+            z-index: 1001;
         }
-        #dice-color-btn:hover { transform: scale(1.1); box-shadow: 0 4px 14px rgba(0,0,0,0.7); }
-        #dice-color-picker-panel {
-            position: fixed; left: 54px; bottom: 14px;
-            background: #1a1510; border: 1px solid rgba(200,168,60,0.4);
-            border-radius: 10px; padding: 14px; z-index: 1002;
-            display: none; flex-direction: column; gap: 10px;
-            box-shadow: 0 6px 24px rgba(0,0,0,0.8);
-            font-family: 'Cinzel', serif;
+        .dice-color-section-label {
+            font-family: 'Cinzel', serif; font-size: 9px; color: #777;
+            letter-spacing: 1px; text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+            user-select: none;
         }
-        #dice-color-picker-panel.open { display: flex; }
-        #dice-hue-gradient {
-            width: 180px; height: 20px; border-radius: 4px; cursor: crosshair;
-            background: linear-gradient(to right,
-                hsl(0,100%,55%), hsl(30,100%,55%), hsl(60,100%,55%),
-                hsl(120,100%,45%), hsl(180,100%,45%), hsl(210,100%,55%),
-                hsl(240,100%,60%), hsl(270,100%,60%), hsl(300,100%,55%),
-                hsl(330,100%,55%), hsl(360,100%,55%));
-            border: 1px solid rgba(255,255,255,0.1);
+        .dice-swatch-row {
+            display: flex; flex-direction: column; gap: 3px;
         }
-        #dice-lightness-gradient {
-            width: 180px; height: 14px; border-radius: 4px; cursor: crosshair;
-            border: 1px solid rgba(255,255,255,0.1);
+        .dice-swatch {
+            width: 16px; height: 16px; border-radius: 4px;
+            cursor: pointer; border: 2px solid transparent;
+            transition: transform 0.1s, border-color 0.1s;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.6);
         }
-        .dice-picker-label { font-size: 9px; color: #888; letter-spacing: 1px; }
-        #dice-color-preview {
-            width: 180px; height: 28px; border-radius: 5px;
-            border: 2px solid rgba(255,255,255,0.2);
-        }
-        #dice-num-gradient, #dice-num-hue {
-            width: 180px; height: 14px; border-radius: 4px; cursor: crosshair;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
+        .dice-swatch:hover { transform: scale(1.2); }
+        .dice-swatch.active { border-color: #fff; }
 
         /* ── Dice Log ── */
         #dice-log {
@@ -470,15 +450,15 @@
 
         /* ── Notes ── */
         #note-bar {
-            position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+            position: fixed; top: 0; left: 130px;
             display: flex; align-items: flex-start; gap: 2px;
             z-index: 2001; pointer-events: auto;
         }
         .note-tab {
             padding: 5px 14px; font-family: var(--font-serif); font-size: 13px;
             background: rgba(30,24,16,0.82); color: #d4c89a;
-            border: 2px solid rgba(200,168,60,0.35); border-bottom: none;
-            border-radius: 6px 6px 0 0; cursor: pointer;
+            border: 2px solid rgba(200,168,60,0.35); border-top: none;
+            border-radius: 0 0 6px 6px; cursor: pointer;
             user-select: none; transition: background 0.15s, color 0.15s;
             max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
             position: relative;
@@ -488,17 +468,17 @@
         #note-add-btn {
             padding: 5px 10px; font-size: 16px; line-height: 1;
             background: rgba(30,24,16,0.7); color: #888;
-            border: 2px solid rgba(255,255,255,0.12); border-bottom: none;
-            border-radius: 6px 6px 0 0; cursor: pointer;
+            border: 2px solid rgba(255,255,255,0.12); border-top: none;
+            border-radius: 0 0 6px 6px; cursor: pointer;
             transition: color 0.15s, background 0.15s;
         }
         #note-add-btn:hover { color: #e8d080; background: rgba(50,40,22,0.9); }
         #note-panel {
-            position: fixed; top: 32px; left: 50%; transform: translateX(-50%);
+            position: fixed; top: 32px; left: 130px;
             width: 300px; min-height: 200px; max-height: 460px;
             background: rgba(0,0,0,0.5);
             border: 2px solid rgba(200,168,60,0.4);
-            border-radius: 0 0 8px 8px;
+            border-radius: 8px 8px 0 0;
             z-index: 1999; display: none; flex-direction: column;
             box-shadow: 0 8px 32px rgba(0,0,0,0.6);
         }
@@ -746,18 +726,12 @@
     <!-- ═══════ DICE LOG ═══════ -->
     <div id="dice-log"></div>
 
-    <!-- ═══════ DICE COLOUR PICKER ═══════ -->
-    <div id="dice-color-btn" title="Dice Colour"></div>
-    <div id="dice-color-picker-panel">
-        <div class="dice-picker-label">OUTLINE HUE</div>
-        <canvas id="dice-hue-gradient" width="180" height="20"></canvas>
-        <div class="dice-picker-label">OUTLINE LIGHTNESS</div>
-        <canvas id="dice-lightness-gradient" width="180" height="14"></canvas>
-        <div class="dice-picker-label">NUMBER HUE</div>
-        <canvas id="dice-num-hue" width="180" height="14"></canvas>
-        <div class="dice-picker-label">NUMBER LIGHTNESS</div>
-        <canvas id="dice-num-gradient" width="180" height="14"></canvas>
-        <div id="dice-color-preview"></div>
+    <!-- ═══════ DICE COLOUR SWATCHES ═══════ -->
+    <div id="dice-color-panel">
+        <div class="dice-color-section-label">OUTLINE</div>
+        <div class="dice-swatch-row" id="dice-outline-swatches"></div>
+        <div class="dice-color-section-label" style="margin-top:4px;">NUMBER</div>
+        <div class="dice-swatch-row" id="dice-num-swatches"></div>
     </div>
 
 
@@ -4807,10 +4781,12 @@
 
     const NOTE_COLORS = [
         { label:'Amber',   val:'#c8a83c' },
+        { label:'Orange',  val:'#e07830' },
         { label:'Red',     val:'#cc4444' },
         { label:'Blue',    val:'#4488cc' },
         { label:'Green',   val:'#44bb66' },
         { label:'Purple',  val:'#9966cc' },
+        { label:'Gray',    val:'#888899' },
         { label:'White',   val:'#dddddd' },
     ];
 
@@ -4827,7 +4803,7 @@
             tab.style.borderColor = note.color || 'rgba(200,168,60,0.35)';
             if (note.id === activeNoteId) tab.style.background = 'rgba(20,16,10,0.95)';
 
-            tab.addEventListener('click', () => toggleNote(note.id));
+            tab.addEventListener('click', e => { e.stopPropagation(); toggleNote(note.id); });
             tab.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); showNoteMenu(e, note); });
             tab.addEventListener('mousedown', e => e.stopPropagation());
             bar.insertBefore(tab, addBtn);
@@ -4936,6 +4912,7 @@
         menu.appendChild(delBtn);
         document.body.appendChild(menu);
         menu.addEventListener('mousedown', e2 => e2.stopPropagation());
+        menu.addEventListener('click', e2 => e2.stopPropagation());
         const close = () => { menu.remove(); document.removeEventListener('click', close); };
         setTimeout(() => document.addEventListener('click', close), 10);
     }
