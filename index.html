@@ -437,7 +437,7 @@
         /* ── Dice Log ── */
         #dice-log {
             position: fixed; bottom: 30px; right: 16px;
-            width: 180px; max-height: 300px;
+            width: 250px; max-height: 300px;
             display: flex; flex-direction: column;
             justify-content: flex-end;
             gap: 4px; z-index: 1000; pointer-events: none;
@@ -4350,7 +4350,7 @@
         // Update CSS vars + SVG elements
         document.querySelectorAll('.die-poly,.die-poly-rect,.die-poly-circle,.die-inner-line,.die-label').forEach(el => {
             el.style.stroke = stroke;
-            if (el.classList.contains('die-label')) el.style.fill = hslToHex(numColorHue, 80, numColorLightness);
+            if (el.classList.contains('die-label')) el.style.fill = `hsl(${numColorHue}, 85%, ${numColorLightness}%)`;
         });
         // Update log text color to match
         document.documentElement.style.setProperty('--log-text-color', stroke);
@@ -4408,12 +4408,14 @@
         if (!canvas) return;
         const ctx2 = canvas.getContext('2d');
         const grad = ctx2.createLinearGradient(0, 0, canvas.width, 0);
-        grad.addColorStop(0,   `hsl(${numColorHue},60%,10%)`);
-        grad.addColorStop(0.5, `hsl(${numColorHue},85%,55%)`);
-        grad.addColorStop(1,   '#ffffff');
+        grad.addColorStop(0,    '#000000');
+        grad.addColorStop(0.45, `hsl(${numColorHue},100%,50%)`);
+        grad.addColorStop(1,    '#ffffff');
         ctx2.fillStyle = grad; ctx2.fillRect(0, 0, canvas.width, canvas.height);
-        const x = ((numColorLightness - 5) / 90) * canvas.width;
-        ctx2.strokeStyle = '#222'; ctx2.lineWidth = 2;
+        // indicator line
+        const x = (numColorLightness / 100) * canvas.width;
+        ctx2.strokeStyle = numColorLightness > 60 ? '#333' : '#fff';
+        ctx2.lineWidth = 2;
         ctx2.beginPath(); ctx2.moveTo(x, 0); ctx2.lineTo(x, canvas.height); ctx2.stroke();
     }
 
@@ -4477,8 +4479,8 @@
         if (numCanvas) {
             const pickNum = e => {
                 const rect = numCanvas.getBoundingClientRect();
-                numColorLightness = Math.round(((e.clientX - rect.left) / rect.width) * 90) + 5;
-                numColorLightness = Math.max(5, Math.min(95, numColorLightness));
+                numColorLightness = Math.round(((e.clientX - rect.left) / rect.width) * 100);
+                numColorLightness = Math.max(0, Math.min(100, numColorLightness));
                 drawNumColorBar(); updatePickerColor();
             };
             let numDragging = false;
