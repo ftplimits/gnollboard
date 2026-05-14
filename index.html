@@ -607,6 +607,75 @@
         </div>
     </div>
 
+
+    <!-- ═══════ DICE PANEL ═══════ -->
+    <div id="dice-column">
+        <div id="dice-modifier-display"></div>
+        <!-- d20 -->
+        <button class="die-btn" data-sides="20" title="Roll d20">
+            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                <polygon points="30,4 54,18 54,42 30,56 6,42 6,18" class="die-poly"/>
+                <line x1="6" y1="18" x2="54" y2="18" class="die-inner-line"/>
+                <line x1="6" y1="42" x2="54" y2="42" class="die-inner-line"/>
+                <text x="30" y="36" class="die-label">d20</text>
+            </svg>
+        </button>
+        <!-- d12 -->
+        <button class="die-btn" data-sides="12" title="Roll d12">
+            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                <polygon points="30,4 50,14 56,36 42,54 18,54 4,36 10,14" class="die-poly"/>
+                <text x="30" y="36" class="die-label">d12</text>
+            </svg>
+        </button>
+        <!-- d10 -->
+        <button class="die-btn" data-sides="10" title="Roll d10">
+            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                <polygon points="30,4 52,20 46,50 14,50 8,20" class="die-poly"/>
+                <text x="30" y="36" class="die-label">d10</text>
+            </svg>
+        </button>
+        <!-- d8 -->
+        <button class="die-btn" data-sides="8" title="Roll d8">
+            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                <polygon points="30,5 55,30 30,55 5,30" class="die-poly"/>
+                <line x1="5" y1="30" x2="55" y2="30" class="die-inner-line"/>
+                <line x1="30" y1="5" x2="30" y2="55" class="die-inner-line"/>
+                <text x="30" y="36" class="die-label">d8</text>
+            </svg>
+        </button>
+        <!-- d6 -->
+        <button class="die-btn" data-sides="6" title="Roll d6">
+            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                <rect x="8" y="8" width="44" height="44" rx="6" class="die-poly-rect"/>
+                <text x="30" y="36" class="die-label">d6</text>
+            </svg>
+        </button>
+        <!-- d4 -->
+        <button class="die-btn" data-sides="4" title="Roll d4">
+            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                <polygon points="30,5 57,52 3,52" class="die-poly"/>
+                <text x="30" y="46" class="die-label">d4</text>
+            </svg>
+        </button>
+        <!-- d100 -->
+        <button class="die-btn" data-sides="100" title="Roll d100">
+            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="30" cy="30" r="24" class="die-poly-circle"/>
+                <text x="30" y="25" class="die-label" style="font-size:10px">d100</text>
+                <text x="30" y="40" class="die-label" style="font-size:9px;opacity:0.6">%</text>
+            </svg>
+        </button>
+    </div>
+
+    <!-- ═══════ DICE LOG ═══════ -->
+    <div id="dice-log"></div>
+
+    <!-- ═══════ DICE PALETTE ═══════ -->
+    <div id="dice-palette">
+        <div id="dice-palette-label">DICE</div>
+    </div>
+
+
     <script>
     /* pako v2.1.0 inlined */
     /*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
@@ -4399,39 +4468,41 @@
         setTimeout(() => document.addEventListener('click', close), 10);
     }
 
-    // ── Wire buttons ──
-    document.querySelectorAll('.die-btn').forEach(btn => {
-        btn.addEventListener('click', e => {
-            e.stopPropagation();
-            rollDice(parseInt(btn.dataset.sides));
-            animateDie(btn);
+    // Wire dice after layout pass to guarantee elements are ready
+    requestAnimationFrame(() => {
+        document.querySelectorAll('.die-btn').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                rollDice(parseInt(btn.dataset.sides));
+                animateDie(btn);
+            });
+            btn.addEventListener('contextmenu', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                showDiceMenu(e, btn);
+            });
+            btn.addEventListener('wheel', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                diceModifier = Math.max(-20, Math.min(20, diceModifier + (e.deltaY < 0 ? 1 : -1)));
+                updateModifierDisplay();
+            }, { passive: false });
+            btn.addEventListener('mousedown', e => e.stopPropagation());
         });
-        btn.addEventListener('contextmenu', e => {
-            e.preventDefault();
-            e.stopPropagation();
-            showDiceMenu(e, btn);
-        });
-        btn.addEventListener('wheel', e => {
+
+        document.getElementById('dice-column')?.addEventListener('wheel', e => {
             e.preventDefault();
             e.stopPropagation();
             diceModifier = Math.max(-20, Math.min(20, diceModifier + (e.deltaY < 0 ? 1 : -1)));
             updateModifierDisplay();
         }, { passive: false });
-        btn.addEventListener('mousedown', e => e.stopPropagation());
-    });
 
-    document.getElementById('dice-column')?.addEventListener('wheel', e => {
-        e.preventDefault();
-        e.stopPropagation();
-        diceModifier = Math.max(-20, Math.min(20, diceModifier + (e.deltaY < 0 ? 1 : -1)));
+        document.getElementById('dice-column')?.addEventListener('mousedown', e => e.stopPropagation());
+        document.getElementById('dice-palette')?.addEventListener('mousedown', e => e.stopPropagation());
+
+        buildDicePalette();
         updateModifierDisplay();
-    }, { passive: false });
-
-    document.getElementById('dice-column')?.addEventListener('mousedown', e => e.stopPropagation());
-    document.getElementById('dice-palette')?.addEventListener('mousedown', e => e.stopPropagation());
-
-    buildDicePalette();
-    updateModifierDisplay();
+    });
 
     // ═══════════════════════════════════════════════════════════════════════════
     // INIT
@@ -4444,72 +4515,4 @@
     initApp();
     </script>
 
-    <!-- ═══════ DICE PANEL ═══════ -->
-    <div id="dice-column">
-        <div id="dice-modifier-display"></div>
-        <!-- d20 -->
-        <button class="die-btn" data-sides="20" title="Roll d20">
-            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                <polygon points="30,4 54,18 54,42 30,56 6,42 6,18" class="die-poly"/>
-                <line x1="6" y1="18" x2="54" y2="18" class="die-inner-line"/>
-                <line x1="6" y1="42" x2="54" y2="42" class="die-inner-line"/>
-                <text x="30" y="36" class="die-label">d20</text>
-            </svg>
-        </button>
-        <!-- d12 -->
-        <button class="die-btn" data-sides="12" title="Roll d12">
-            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                <polygon points="30,4 50,14 56,36 42,54 18,54 4,36 10,14" class="die-poly"/>
-                <text x="30" y="36" class="die-label">d12</text>
-            </svg>
-        </button>
-        <!-- d10 -->
-        <button class="die-btn" data-sides="10" title="Roll d10">
-            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                <polygon points="30,4 52,20 46,50 14,50 8,20" class="die-poly"/>
-                <text x="30" y="36" class="die-label">d10</text>
-            </svg>
-        </button>
-        <!-- d8 -->
-        <button class="die-btn" data-sides="8" title="Roll d8">
-            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                <polygon points="30,5 55,30 30,55 5,30" class="die-poly"/>
-                <line x1="5" y1="30" x2="55" y2="30" class="die-inner-line"/>
-                <line x1="30" y1="5" x2="30" y2="55" class="die-inner-line"/>
-                <text x="30" y="36" class="die-label">d8</text>
-            </svg>
-        </button>
-        <!-- d6 -->
-        <button class="die-btn" data-sides="6" title="Roll d6">
-            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                <rect x="8" y="8" width="44" height="44" rx="6" class="die-poly-rect"/>
-                <text x="30" y="36" class="die-label">d6</text>
-            </svg>
-        </button>
-        <!-- d4 -->
-        <button class="die-btn" data-sides="4" title="Roll d4">
-            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                <polygon points="30,5 57,52 3,52" class="die-poly"/>
-                <text x="30" y="46" class="die-label">d4</text>
-            </svg>
-        </button>
-        <!-- d100 -->
-        <button class="die-btn" data-sides="100" title="Roll d100">
-            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="30" cy="30" r="24" class="die-poly-circle"/>
-                <text x="30" y="25" class="die-label" style="font-size:10px">d100</text>
-                <text x="30" y="40" class="die-label" style="font-size:9px;opacity:0.6">%</text>
-            </svg>
-        </button>
-    </div>
-
-    <!-- ═══════ DICE LOG ═══════ -->
-    <div id="dice-log"></div>
-
-    <!-- ═══════ DICE PALETTE ═══════ -->
-    <div id="dice-palette">
-        <div id="dice-palette-label">DICE</div>
-    </div>
-
 </body>
-</html>
