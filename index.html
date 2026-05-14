@@ -429,15 +429,15 @@
             width: 180px; height: 28px; border-radius: 5px;
             border: 2px solid rgba(255,255,255,0.2);
         }
-        #dice-num-gradient {
+        #dice-num-gradient, #dice-num-hue {
             width: 180px; height: 14px; border-radius: 4px; cursor: crosshair;
             border: 1px solid rgba(255,255,255,0.1);
         }
 
         /* ── Dice Log ── */
         #dice-log {
-            position: fixed; bottom: 80px; right: 16px;
-            width: 240px; max-height: 300px;
+            position: fixed; bottom: 30px; right: 16px;
+            width: 180px; max-height: 300px;
             display: flex; flex-direction: column;
             justify-content: flex-end;
             gap: 4px; z-index: 1000; pointer-events: none;
@@ -702,7 +702,9 @@
         <canvas id="dice-hue-gradient" width="180" height="20"></canvas>
         <div class="dice-picker-label">OUTLINE LIGHTNESS</div>
         <canvas id="dice-lightness-gradient" width="180" height="14"></canvas>
-        <div class="dice-picker-label">NUMBER COLOR</div>
+        <div class="dice-picker-label">NUMBER HUE</div>
+        <canvas id="dice-num-hue" width="180" height="14"></canvas>
+        <div class="dice-picker-label">NUMBER LIGHTNESS</div>
         <canvas id="dice-num-gradient" width="180" height="14"></canvas>
         <div id="dice-color-preview"></div>
     </div>
@@ -4326,7 +4328,7 @@
 
     // ── Gradient colour picker ──
     let pickerHue = 38, pickerLightness = 55;
-    let numColorHue = 0, numColorLightness = 92; // default near-white
+    let numColorHue = 38, numColorLightness = 90; // default warm white
 
     function hslToHex(h, s, l) {
         s /= 100; l /= 100;
@@ -4348,7 +4350,7 @@
         // Update CSS vars + SVG elements
         document.querySelectorAll('.die-poly,.die-poly-rect,.die-poly-circle,.die-inner-line,.die-label').forEach(el => {
             el.style.stroke = stroke;
-            if (el.classList.contains('die-label')) el.style.fill = hslToHex(numColorHue, 60, numColorLightness);
+            if (el.classList.contains('die-label')) el.style.fill = hslToHex(numColorHue, 80, numColorLightness);
         });
         // Update log text color to match
         document.documentElement.style.setProperty('--log-text-color', stroke);
@@ -4389,24 +4391,34 @@
         ctx2.beginPath(); ctx2.moveTo(x, 0); ctx2.lineTo(x, canvas.height); ctx2.stroke();
     }
 
+    function drawNumHueBar() {
+        const canvas = document.getElementById('dice-num-hue');
+        if (!canvas) return;
+        const ctx2 = canvas.getContext('2d');
+        const grad = ctx2.createLinearGradient(0, 0, canvas.width, 0);
+        for (let i = 0; i <= 360; i += 30) grad.addColorStop(i/360, `hsl(${i},90%,65%)`);
+        ctx2.fillStyle = grad; ctx2.fillRect(0, 0, canvas.width, canvas.height);
+        const x = (numColorHue / 360) * canvas.width;
+        ctx2.strokeStyle = '#fff'; ctx2.lineWidth = 2;
+        ctx2.beginPath(); ctx2.moveTo(x, 0); ctx2.lineTo(x, canvas.height); ctx2.stroke();
+    }
+
     function drawNumColorBar() {
         const canvas = document.getElementById('dice-num-gradient');
         if (!canvas) return;
         const ctx2 = canvas.getContext('2d');
         const grad = ctx2.createLinearGradient(0, 0, canvas.width, 0);
-        grad.addColorStop(0,    '#1a1a1a');
-        grad.addColorStop(0.15, `hsl(${pickerHue},70%,40%)`);
-        grad.addColorStop(0.5,  `hsl(${pickerHue},80%,65%)`);
-        grad.addColorStop(0.85, '#f5f5d0');
-        grad.addColorStop(1,    '#ffffff');
+        grad.addColorStop(0,   `hsl(${numColorHue},60%,10%)`);
+        grad.addColorStop(0.5, `hsl(${numColorHue},85%,55%)`);
+        grad.addColorStop(1,   '#ffffff');
         ctx2.fillStyle = grad; ctx2.fillRect(0, 0, canvas.width, canvas.height);
-        const x = ((numColorLightness - 10) / 85) * canvas.width;
-        ctx2.strokeStyle = '#fff'; ctx2.lineWidth = 2;
+        const x = ((numColorLightness - 5) / 90) * canvas.width;
+        ctx2.strokeStyle = '#222'; ctx2.lineWidth = 2;
         ctx2.beginPath(); ctx2.moveTo(x, 0); ctx2.lineTo(x, canvas.height); ctx2.stroke();
     }
 
     function buildDicePalette() {
-        drawHueBar(); drawLightnessBar(); drawNumColorBar();
+        drawHueBar(); drawLightnessBar(); drawNumHueBar(); drawNumColorBar();
         updatePickerColor();
 
         const btn   = document.getElementById('dice-color-btn');
@@ -4447,12 +4459,26 @@
             window.addEventListener('mouseup', () => { lightDragging = false; });
         }
 
+        const numHueCanvas = document.getElementById('dice-num-hue');
+        if (numHueCanvas) {
+            const pickNumHue = e => {
+                const rect = numHueCanvas.getBoundingClientRect();
+                numColorHue = Math.round(((e.clientX - rect.left) / rect.width) * 360);
+                numColorHue = Math.max(0, Math.min(360, numColorHue));
+                drawNumHueBar(); drawNumColorBar(); updatePickerColor();
+            };
+            let numHueDragging = false;
+            numHueCanvas.addEventListener('mousedown', e => { e.stopPropagation(); numHueDragging = true; pickNumHue(e); });
+            window.addEventListener('mousemove', e => { if (numHueDragging) pickNumHue(e); });
+            window.addEventListener('mouseup', () => { numHueDragging = false; });
+        }
+
         const numCanvas = document.getElementById('dice-num-gradient');
         if (numCanvas) {
             const pickNum = e => {
                 const rect = numCanvas.getBoundingClientRect();
-                numColorLightness = Math.round(((e.clientX - rect.left) / rect.width) * 85) + 10;
-                numColorLightness = Math.max(10, Math.min(95, numColorLightness));
+                numColorLightness = Math.round(((e.clientX - rect.left) / rect.width) * 90) + 5;
+                numColorLightness = Math.max(5, Math.min(95, numColorLightness));
                 drawNumColorBar(); updatePickerColor();
             };
             let numDragging = false;
@@ -4491,7 +4517,7 @@
         }
         const modStr = modifier > 0 ? `+${modifier}` : modifier < 0 ? `${modifier}` : '';
         const rollBreakdown = rolls.length > 1 ? `<div style="font-size:13px;color:#aaa;margin-bottom:2px;">[${rolls.join(' + ')}]${modStr ? ' '+modStr : ''}</div>` : '';
-        const special = label ? `<div style="font-size:12px;color:#e8d080;margin-top:2px;">${label}</div>` : '';
+        const special = (label && label.includes('NAT 20')) ? `<div style="font-size:16px;margin-top:4px;">⭐ NAT 20 ⭐</div>` : (label && label.includes('NAT 1')) ? `<div style="font-size:16px;margin-top:4px;">💀 NAT 1 💀</div>` : label ? `<div style="font-size:12px;color:#e8d080;margin-top:2px;">${label}</div>` : '';
         const nameStr = playerName ? `<div style="font-size:10px;color:#aaa;letter-spacing:1px;margin-bottom:3px;">${playerName}</div>` : '';
         popup.innerHTML = `
             ${nameStr}
@@ -4521,7 +4547,7 @@
         const modStr    = modifier ? (modifier > 0 ? ` +${modifier}` : ` ${modifier}`) : '';
         const diceStr   = count > 1 ? `${count}d${sides}` : `d${sides}`;
         const breakdown = rolls.length > 1 ? `<span style="color:#777;font-size:10px;"> [${rolls.join('+')}]</span>` : '';
-        const special   = isNat20 ? ' <span style="color:#ffe066">✦NAT20</span>' : isNat1 ? ' <span style="color:#ff6060">✦NAT1</span>' : label ? ` <span style="color:#aaa;font-size:10px;">${label}</span>` : '';
+        const special   = isNat20 ? ' <span style="color:#ffe066">⭐ NAT 20 ⭐</span>' : isNat1 ? ' <span style="color:#ff6060">💀 NAT 1 💀</span>' : label ? ` <span style="color:#aaa;font-size:10px;">${label}</span>` : '';
 
         entry.innerHTML = `<span style="color:${color||'#c8a83c'};font-size:10px;font-weight:700;">${playerName||'?'}</span> <span style="color:#888;font-size:10px;">${diceStr}${modStr}:</span> <span class="log-result">${total}</span>${breakdown}${special}`;
 
@@ -4543,6 +4569,8 @@
         const name  = myName  || 'Unknown';
         const color = diceColor.stroke;
         const diceStr = count > 1 ? `${count}d${sides}` : `d${sides}`;
+        if (!label && sides === 20 && count === 1 && rolls[0] === 20) label = 'NAT 20';
+        if (!label && sides === 20 && count === 1 && rolls[0] === 1)  label = 'NAT 1';
 
         addDiceLogEntry(name, color, sides, rolls, modifier, count, label);
         showRollPopup(diceStr, rolls, modifier, total, label, color, name);
