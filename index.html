@@ -257,7 +257,7 @@
         #fog-toolbar.hidden { transform: translateY(-50%) translateX(100%); }
         #fog-toggle {
             display: none;
-            position: fixed; right: 0; top: calc(50% + 180px);
+            position: fixed; right: 0; top: calc(50% + 160px);
             background: rgba(30,30,30,0.55); border: 2px solid rgba(255,255,255,0.15);
             border-radius: 8px 0 0 8px; padding: 6px 4px;
             color: #aaa; font-size: 11px; cursor: pointer; z-index: 1001;
@@ -436,7 +436,7 @@
 
         /* ── Dice Log ── */
         #dice-log {
-            position: fixed; bottom: 30px; right: 16px;
+            position: fixed; bottom: 15px; right: 16px;
             width: 250px; max-height: 300px;
             display: flex; flex-direction: column;
             justify-content: flex-end;
@@ -4342,16 +4342,26 @@
         return `rgba(${r},${g},${b},${a})`;
     }
 
+    function applyNumColor() {
+        const numFill = `hsl(${numColorHue}, 85%, ${numColorLightness}%)`;
+        document.querySelectorAll('.die-label').forEach(el => {
+            el.style.fill   = numFill;
+            el.style.stroke = 'none'; // prevent outline color bleeding onto text
+        });
+    }
+
     function updatePickerColor() {
         const stroke = hslToHex(pickerHue, 85, pickerLightness);
         const fill   = hexToRgba(hslToHex(pickerHue, 60, Math.max(10, pickerLightness - 30)), 0.85);
         const fillH  = hexToRgba(hslToHex(pickerHue, 70, Math.max(14, pickerLightness - 22)), 0.93);
         diceColor = { stroke, fill, fillHover: fillH };
         // Update CSS vars + SVG elements
-        document.querySelectorAll('.die-poly,.die-poly-rect,.die-poly-circle,.die-inner-line,.die-label').forEach(el => {
+        // Outline shapes only — never touch labels here
+        document.querySelectorAll('.die-poly,.die-poly-rect,.die-poly-circle,.die-inner-line').forEach(el => {
             el.style.stroke = stroke;
-            if (el.classList.contains('die-label')) el.style.fill = `hsl(${numColorHue}, 85%, ${numColorLightness}%)`;
         });
+        // Apply number color independently — called separately too
+        applyNumColor();
         // Update log text color to match
         document.documentElement.style.setProperty('--log-text-color', stroke);
         // Preview swatch
@@ -4421,7 +4431,7 @@
 
     function buildDicePalette() {
         drawHueBar(); drawLightnessBar(); drawNumHueBar(); drawNumColorBar();
-        updatePickerColor();
+        updatePickerColor(); applyNumColor();
 
         const btn   = document.getElementById('dice-color-btn');
         const panel = document.getElementById('dice-color-picker-panel');
@@ -4467,7 +4477,7 @@
                 const rect = numHueCanvas.getBoundingClientRect();
                 numColorHue = Math.round(((e.clientX - rect.left) / rect.width) * 360);
                 numColorHue = Math.max(0, Math.min(360, numColorHue));
-                drawNumHueBar(); drawNumColorBar(); updatePickerColor();
+                drawNumHueBar(); drawNumColorBar(); applyNumColor();
             };
             let numHueDragging = false;
             numHueCanvas.addEventListener('mousedown', e => { e.stopPropagation(); numHueDragging = true; pickNumHue(e); });
@@ -4481,7 +4491,7 @@
                 const rect = numCanvas.getBoundingClientRect();
                 numColorLightness = Math.round(((e.clientX - rect.left) / rect.width) * 100);
                 numColorLightness = Math.max(0, Math.min(100, numColorLightness));
-                drawNumColorBar(); updatePickerColor();
+                drawNumColorBar(); applyNumColor();
             };
             let numDragging = false;
             numCanvas.addEventListener('mousedown', e => { e.stopPropagation(); numDragging = true; pickNum(e); });
