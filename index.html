@@ -322,7 +322,7 @@
             gap: 6px; z-index: 1000; pointer-events: auto;
         }
         .die-btn {
-            width: 48px; height: 48px;
+            width: 60px; height: 60px;
             background: transparent; border: none; cursor: pointer;
             padding: 2px; border-radius: 4px;
             transition: transform 0.12s, filter 0.12s;
@@ -429,6 +429,10 @@
             width: 180px; height: 28px; border-radius: 5px;
             border: 2px solid rgba(255,255,255,0.2);
         }
+        #dice-num-gradient {
+            width: 180px; height: 14px; border-radius: 4px; cursor: crosshair;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
 
         /* ── Dice Log ── */
         #dice-log {
@@ -438,6 +442,10 @@
             justify-content: flex-end;
             gap: 4px; z-index: 1000; pointer-events: none;
             overflow: hidden;
+            background: rgba(0,0,0,0.5);
+            border-radius: 8px;
+            padding: 8px 10px;
+            box-sizing: border-box;
         }
         .dice-log-entry {
             font-family: 'Cinzel', 'IM Fell English', serif;
@@ -690,10 +698,12 @@
     <!-- ═══════ DICE COLOUR PICKER ═══════ -->
     <div id="dice-color-btn" title="Dice Colour"></div>
     <div id="dice-color-picker-panel">
-        <div class="dice-picker-label">HUE</div>
+        <div class="dice-picker-label">OUTLINE HUE</div>
         <canvas id="dice-hue-gradient" width="180" height="20"></canvas>
-        <div class="dice-picker-label">LIGHTNESS</div>
+        <div class="dice-picker-label">OUTLINE LIGHTNESS</div>
         <canvas id="dice-lightness-gradient" width="180" height="14"></canvas>
+        <div class="dice-picker-label">NUMBER COLOR</div>
+        <canvas id="dice-num-gradient" width="180" height="14"></canvas>
         <div id="dice-color-preview"></div>
     </div>
 
@@ -4315,7 +4325,8 @@
     }
 
     // ── Gradient colour picker ──
-    let pickerHue = 38, pickerLightness = 55; // default gold
+    let pickerHue = 38, pickerLightness = 55;
+    let numColorHue = 0, numColorLightness = 92; // default near-white
 
     function hslToHex(h, s, l) {
         s /= 100; l /= 100;
@@ -4337,7 +4348,7 @@
         // Update CSS vars + SVG elements
         document.querySelectorAll('.die-poly,.die-poly-rect,.die-poly-circle,.die-inner-line,.die-label').forEach(el => {
             el.style.stroke = stroke;
-            if (el.classList.contains('die-label')) el.style.fill = stroke;
+            if (el.classList.contains('die-label')) el.style.fill = hslToHex(numColorHue, 60, numColorLightness);
         });
         // Update log text color to match
         document.documentElement.style.setProperty('--log-text-color', stroke);
@@ -4378,9 +4389,24 @@
         ctx2.beginPath(); ctx2.moveTo(x, 0); ctx2.lineTo(x, canvas.height); ctx2.stroke();
     }
 
+    function drawNumColorBar() {
+        const canvas = document.getElementById('dice-num-gradient');
+        if (!canvas) return;
+        const ctx2 = canvas.getContext('2d');
+        const grad = ctx2.createLinearGradient(0, 0, canvas.width, 0);
+        grad.addColorStop(0,    '#1a1a1a');
+        grad.addColorStop(0.15, `hsl(${pickerHue},70%,40%)`);
+        grad.addColorStop(0.5,  `hsl(${pickerHue},80%,65%)`);
+        grad.addColorStop(0.85, '#f5f5d0');
+        grad.addColorStop(1,    '#ffffff');
+        ctx2.fillStyle = grad; ctx2.fillRect(0, 0, canvas.width, canvas.height);
+        const x = ((numColorLightness - 10) / 85) * canvas.width;
+        ctx2.strokeStyle = '#fff'; ctx2.lineWidth = 2;
+        ctx2.beginPath(); ctx2.moveTo(x, 0); ctx2.lineTo(x, canvas.height); ctx2.stroke();
+    }
+
     function buildDicePalette() {
-        drawHueBar();
-        drawLightnessBar();
+        drawHueBar(); drawLightnessBar(); drawNumColorBar();
         updatePickerColor();
 
         const btn   = document.getElementById('dice-color-btn');
@@ -4399,7 +4425,7 @@
                 const rect = hueCanvas.getBoundingClientRect();
                 pickerHue = Math.round(((e.clientX - rect.left) / rect.width) * 360);
                 pickerHue = Math.max(0, Math.min(360, pickerHue));
-                drawHueBar(); updatePickerColor();
+                drawHueBar(); updatePickerColor(); drawNumColorBar();
             };
             let hueDragging = false;
             hueCanvas.addEventListener('mousedown', e => { e.stopPropagation(); hueDragging = true; pickHue(e); });
@@ -4419,6 +4445,20 @@
             lightCanvas.addEventListener('mousedown', e => { e.stopPropagation(); lightDragging = true; pickLight(e); });
             window.addEventListener('mousemove', e => { if (lightDragging) pickLight(e); });
             window.addEventListener('mouseup', () => { lightDragging = false; });
+        }
+
+        const numCanvas = document.getElementById('dice-num-gradient');
+        if (numCanvas) {
+            const pickNum = e => {
+                const rect = numCanvas.getBoundingClientRect();
+                numColorLightness = Math.round(((e.clientX - rect.left) / rect.width) * 85) + 10;
+                numColorLightness = Math.max(10, Math.min(95, numColorLightness));
+                drawNumColorBar(); updatePickerColor();
+            };
+            let numDragging = false;
+            numCanvas.addEventListener('mousedown', e => { e.stopPropagation(); numDragging = true; pickNum(e); });
+            window.addEventListener('mousemove', e => { if (numDragging) pickNum(e); });
+            window.addEventListener('mouseup', () => { numDragging = false; });
         }
 
         if (panel) {
@@ -4540,7 +4580,7 @@
         };
 
         // Multiple dice
-        [2,3,4,5].forEach(n => addBtn(`Roll ${n}d${sides}`, () => rollDice(sides, n)));
+        [2,3,4,5,6,7,8,9,10].forEach(n => addBtn(`Roll ${n}d${sides}`, () => rollDice(sides, n)));
 
         // d20 advantage / disadvantage
         if (sides === 20) {
