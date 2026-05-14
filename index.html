@@ -467,6 +467,57 @@
             to   { opacity: 1; transform: translateX(0); }
         }
 
+
+        /* ── Notes ── */
+        #note-bar {
+            position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+            display: flex; align-items: flex-start; gap: 2px;
+            z-index: 2001; pointer-events: auto;
+        }
+        .note-tab {
+            padding: 5px 14px; font-family: var(--font-serif); font-size: 13px;
+            background: rgba(30,24,16,0.82); color: #d4c89a;
+            border: 2px solid rgba(200,168,60,0.35); border-bottom: none;
+            border-radius: 6px 6px 0 0; cursor: pointer;
+            user-select: none; transition: background 0.15s, color 0.15s;
+            max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            position: relative;
+        }
+        .note-tab:hover { background: rgba(50,40,22,0.92); }
+        .note-tab.active { background: rgba(20,16,10,0.95); color: #fff; }
+        #note-add-btn {
+            padding: 5px 10px; font-size: 16px; line-height: 1;
+            background: rgba(30,24,16,0.7); color: #888;
+            border: 2px solid rgba(255,255,255,0.12); border-bottom: none;
+            border-radius: 6px 6px 0 0; cursor: pointer;
+            transition: color 0.15s, background 0.15s;
+        }
+        #note-add-btn:hover { color: #e8d080; background: rgba(50,40,22,0.9); }
+        #note-panel {
+            position: fixed; top: 32px; left: 50%; transform: translateX(-50%);
+            width: 300px; min-height: 200px; max-height: 460px;
+            background: rgba(0,0,0,0.5);
+            border: 2px solid rgba(200,168,60,0.4);
+            border-radius: 0 0 8px 8px;
+            z-index: 1999; display: none; flex-direction: column;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        }
+        #note-panel.open { display: flex; }
+        #note-textarea {
+            flex: 1; background: transparent; border: none; outline: none; resize: none;
+            color: #e8d8b0; font-family: var(--font-serif); font-size: 14px;
+            line-height: 1.6; padding: 14px 16px;
+            min-height: 180px; max-height: 420px;
+            caret-color: #e8d080;
+        }
+        #note-textarea::placeholder { color: rgba(200,180,120,0.35); }
+        #note-resize-handle {
+            height: 8px; cursor: ns-resize;
+            background: rgba(255,255,255,0.04);
+            border-top: 1px solid rgba(255,255,255,0.08);
+        }
+        #note-resize-handle:hover { background: rgba(255,255,255,0.1); }
+
     </style>
 </head>
 <body>
@@ -707,6 +758,16 @@
         <div class="dice-picker-label">NUMBER LIGHTNESS</div>
         <canvas id="dice-num-gradient" width="180" height="14"></canvas>
         <div id="dice-color-preview"></div>
+    </div>
+
+
+    <!-- ═══════ NOTES ═══════ -->
+    <div id="note-bar">
+        <button id="note-add-btn" title="Add note">+</button>
+    </div>
+    <div id="note-panel">
+        <textarea id="note-textarea" placeholder="Write your notes here..."></textarea>
+        <div id="note-resize-handle"></div>
     </div>
 
 
@@ -1137,6 +1198,7 @@
             // Only send locked maps — unlocked ones have no image yet and are host-only
             mapImages:   mapImages.filter(m => m.locked && m.image).map(m => ({ ...m })),
             fogPresets:  fogPresets.map(p => ({ ...p })),
+            notes:       notes.map(n => ({ ...n })),
             canvasData:  canvas.toDataURL('image/webp', 0.85),
             fogCellData: [...fogCells].map(key => { const [cx,cy] = key.split(',').map(Number); return {cx,cy}; })
         };
@@ -1158,6 +1220,7 @@
         fogPresets = snap.fogPresets || [];
         if (fogPresets.length) nextPresetId = Math.max(...fogPresets.map(p => p.id)) + 1;
         drawPresetOutlines();
+        if (snap.notes) { notes = snap.notes; nextNoteId = notes.length ? Math.max(...notes.map(n=>n.id))+1 : 1; renderNoteTabs(); }
         if (snap.canvasData) { const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = snap.canvasData; }
         if (snap.fogCellData) applyFogSnapshot(snap.fogCellData);
         if (tokens.length)     nextTokenId   = Math.max(...tokens.map(t=>t.id))   + 1;
@@ -1420,6 +1483,46 @@
 
             case 'dice_roll':
                 addDiceLogEntry(msg.playerName, msg.color, msg.sides, msg.rolls||[msg.result], msg.modifier||0, msg.count||1, msg.label||'');
+                break;
+
+            case 'note_add':
+                if (!notes.find(n => n.id === msg.note.id)) {
+                    notes.push(msg.note);
+                    if (msg.note.id >= nextNoteId) nextNoteId = msg.note.id + 1;
+                    renderNoteTabs();
+                }
+                break;
+            case 'note_update': {
+                const n = notes.find(n => n.id === msg.id);
+                if (n) {
+                    n.content = msg.content;
+                    // Update textarea if this note is currently open
+                    if (activeNoteId === msg.id) {
+                        const ta = document.getElementById('note-textarea');
+                        const pos = ta.selectionStart;
+                        ta.value = msg.content;
+                        ta.selectionStart = ta.selectionEnd = pos;
+                    }
+                }
+                break;
+            }
+            case 'note_delete':
+                notes = notes.filter(n => n.id !== msg.id);
+                if (activeNoteId === msg.id) {
+                    activeNoteId = null;
+                    document.getElementById('note-panel').classList.remove('open');
+                }
+                renderNoteTabs();
+                break;
+            case 'note_meta': {
+                const n = notes.find(n => n.id === msg.id);
+                if (n) { Object.assign(n, msg.data); renderNoteTabs(); }
+                break;
+            }
+            case 'notes_sync':
+                notes = msg.notes;
+                nextNoteId = notes.length ? Math.max(...notes.map(n=>n.id)) + 1 : 1;
+                renderNoteTabs();
                 break;
 
             case 'board_clear':
@@ -2330,7 +2433,8 @@
             textLabels: textLabels.map(t => ({ ...t })),
             mapImages:  mapImages.filter(m => m.locked && m.image).map(m => ({ ...m })),
             fogPresets: fogPresets.map(p => ({ ...p })),
-            fogBitmask: fogB64
+            fogBitmask: fogB64,
+            notes:      notes.map(n => ({ ...n }))
         };
     }
 
@@ -2374,6 +2478,11 @@
         if (shapes.length)     nextShapeId   = Math.max(...shapes.map(s=>s.id))   + 1;
         if (textLabels.length) nextTextId    = Math.max(...textLabels.map(t=>t.id)) + 1;
         if (mapImages.length)  nextMapId     = Math.max(...mapImages.map(m=>m.id))  + 1;
+        // Restore notes
+        notes = data.notes || [];
+        activeNoteId = null;
+        renderNoteTabs();
+        document.getElementById("note-panel").classList.remove("open");
     }
 
     // ── Save dialog ──────────────────────────────────────────────────────────
@@ -4690,13 +4799,202 @@
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // NOTES SYSTEM
+    // ═══════════════════════════════════════════════════════════════════════════
+    let notes        = [];   // [{id, title, content, color}]
+    let activeNoteId = null;
+    let nextNoteId   = 1;
+
+    const NOTE_COLORS = [
+        { label:'Amber',   val:'#c8a83c' },
+        { label:'Red',     val:'#cc4444' },
+        { label:'Blue',    val:'#4488cc' },
+        { label:'Green',   val:'#44bb66' },
+        { label:'Purple',  val:'#9966cc' },
+        { label:'White',   val:'#dddddd' },
+    ];
+
+    function renderNoteTabs() {
+        const bar   = document.getElementById('note-bar');
+        const addBtn = document.getElementById('note-add-btn');
+        // Remove all tabs (keep add button)
+        bar.querySelectorAll('.note-tab').forEach(t => t.remove());
+        // Re-insert tabs before add button
+        notes.forEach(note => {
+            const tab = document.createElement('div');
+            tab.className = 'note-tab' + (note.id === activeNoteId ? ' active' : '');
+            tab.textContent = note.title || 'Note';
+            tab.style.borderColor = note.color || 'rgba(200,168,60,0.35)';
+            if (note.id === activeNoteId) tab.style.background = 'rgba(20,16,10,0.95)';
+
+            tab.addEventListener('click', () => toggleNote(note.id));
+            tab.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); showNoteMenu(e, note); });
+            tab.addEventListener('mousedown', e => e.stopPropagation());
+            bar.insertBefore(tab, addBtn);
+        });
+        // Update panel border to match active note
+        const panel = document.getElementById('note-panel');
+        const active = notes.find(n => n.id === activeNoteId);
+        if (active) panel.style.borderColor = active.color || 'rgba(200,168,60,0.4)';
+    }
+
+    function toggleNote(id) {
+        const panel = document.getElementById('note-panel');
+        const ta    = document.getElementById('note-textarea');
+        if (activeNoteId === id) {
+            // Save and close
+            const note = notes.find(n => n.id === id);
+            if (note) note.content = ta.value;
+            activeNoteId = null;
+            panel.classList.remove('open');
+            renderNoteTabs();
+            return;
+        }
+        // Save previous
+        if (activeNoteId !== null) {
+            const prev = notes.find(n => n.id === activeNoteId);
+            if (prev) prev.content = ta.value;
+        }
+        activeNoteId = id;
+        const note = notes.find(n => n.id === id);
+        ta.value = note ? (note.content || '') : '';
+        panel.style.borderColor = note?.color || 'rgba(200,168,60,0.4)';
+        panel.classList.add('open');
+        ta.focus();
+        renderNoteTabs();
+    }
+
+    function addNote() {
+        if (notes.length >= 8) return;
+        const note = { id: nextNoteId++, title: `Note ${notes.length + 1}`, content: '', color: NOTE_COLORS[notes.length % NOTE_COLORS.length].val };
+        notes.push(note);
+        broadcast({ type: 'note_add', note: { ...note } });
+        renderNoteTabs();
+        toggleNote(note.id);
+    }
+
+    function showNoteMenu(e, note) {
+        document.querySelectorAll('.note-ctx-menu').forEach(m => m.remove());
+        const menu = document.createElement('div');
+        menu.className = 'note-ctx-menu';
+        menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;background:#1a1510;border:1px solid ${note.color||'#c8a83c'};border-radius:8px;padding:10px;z-index:9001;min-width:160px;box-shadow:0 4px 20px rgba(0,0,0,0.8);font-family:var(--font-serif);`;
+        const btnStyle = `display:block;width:100%;padding:5px 10px;background:transparent;color:#e8d080;border:none;border-radius:3px;font-family:var(--font-serif);font-size:12px;cursor:pointer;text-align:left;box-sizing:border-box;`;
+
+        // Rename
+        const renameRow = document.createElement('div');
+        renameRow.style.cssText = 'display:flex;gap:4px;margin-bottom:8px;';
+        const inp = document.createElement('input');
+        inp.value = note.title;
+        inp.style.cssText = `flex:1;background:#111;border:1px solid #444;border-radius:4px;color:#eee;font-family:var(--font-serif);font-size:12px;padding:4px 6px;outline:none;`;
+        inp.addEventListener('mousedown', e2 => e2.stopPropagation());
+        inp.addEventListener('keydown', e2 => {
+            if (e2.key === 'Enter') { note.title = inp.value.trim() || 'Note'; broadcast({ type:'note_meta', id:note.id, data:{ title:note.title } }); renderNoteTabs(); menu.remove(); }
+        });
+        const renameBtn = document.createElement('button');
+        renameBtn.textContent = '✓';
+        renameBtn.style.cssText = `padding:4px 8px;background:#2a4a2a;color:#8f8;border:none;border-radius:4px;cursor:pointer;`;
+        renameBtn.onclick = () => { note.title = inp.value.trim() || 'Note'; broadcast({ type:'note_meta', id:note.id, data:{ title:note.title } }); renderNoteTabs(); menu.remove(); };
+        renameRow.appendChild(inp); renameRow.appendChild(renameBtn);
+        menu.appendChild(renameRow);
+
+        // Color swatches
+        const colorRow = document.createElement('div');
+        colorRow.style.cssText = 'display:flex;gap:5px;margin-bottom:8px;justify-content:center;';
+        NOTE_COLORS.forEach(c => {
+            const sw = document.createElement('div');
+            sw.style.cssText = `width:18px;height:18px;border-radius:4px;background:${c.val};cursor:pointer;border:2px solid ${note.color===c.val?'#fff':'transparent'};transition:transform 0.1s;`;
+            sw.addEventListener('mouseenter', () => sw.style.transform = 'scale(1.2)');
+            sw.addEventListener('mouseleave', () => sw.style.transform = 'scale(1)');
+            sw.addEventListener('click', () => {
+                note.color = c.val;
+                broadcast({ type: 'note_meta', id: note.id, data: { color: c.val } });
+                renderNoteTabs();
+                const panel = document.getElementById('note-panel');
+                if (activeNoteId === note.id) panel.style.borderColor = c.val;
+                menu.remove();
+            });
+            colorRow.appendChild(sw);
+        });
+        menu.appendChild(colorRow);
+
+        // Delete
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '✕ Delete Note';
+        delBtn.style.cssText = btnStyle + 'color:#f88;margin-top:2px;';
+        delBtn.onmouseenter = () => delBtn.style.background = 'rgba(200,60,60,0.15)';
+        delBtn.onmouseleave = () => delBtn.style.background = 'transparent';
+        delBtn.onclick = () => {
+            if (activeNoteId === note.id) {
+                activeNoteId = null;
+                document.getElementById('note-panel').classList.remove('open');
+            }
+            notes = notes.filter(n => n.id !== note.id);
+            broadcast({ type: 'note_delete', id: note.id });
+            renderNoteTabs();
+            menu.remove();
+        };
+        menu.appendChild(delBtn);
+        document.body.appendChild(menu);
+        menu.addEventListener('mousedown', e2 => e2.stopPropagation());
+        const close = () => { menu.remove(); document.removeEventListener('click', close); };
+        setTimeout(() => document.addEventListener('click', close), 10);
+    }
+
+    // Autosave note content when typing
+    document.getElementById('note-textarea')?.addEventListener('input', () => {
+        const note = notes.find(n => n.id === activeNoteId);
+        if (note) {
+            note.content = document.getElementById('note-textarea').value;
+            broadcast({ type: 'note_update', id: note.id, content: note.content });
+        }
+    });
+
+    // Resizable panel
+    (() => {
+        const handle = document.getElementById('note-resize-handle');
+        const panel  = document.getElementById('note-panel');
+        const ta     = document.getElementById('note-textarea');
+        if (!handle || !panel) return;
+        let startY = 0, startH = 0;
+        handle.addEventListener('mousedown', e => {
+            e.preventDefault(); e.stopPropagation();
+            startY = e.clientY; startH = panel.offsetHeight;
+            const onMove = ev => {
+                const newH = Math.max(100, Math.min(600, startH + ev.clientY - startY));
+                panel.style.minHeight = newH + 'px';
+                ta.style.minHeight = (newH - 20) + 'px';
+            };
+            const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+        });
+    })();
+
+    document.getElementById('note-add-btn')?.addEventListener('click', e => { e.stopPropagation(); addNote(); });
+    document.getElementById('note-add-btn')?.addEventListener('mousedown', e => e.stopPropagation());
+
+    // Close note if clicking outside
+    document.addEventListener('click', e => {
+        if (!e.target.closest('#note-bar') && !e.target.closest('#note-panel') && !e.target.closest('.note-ctx-menu')) {
+            if (activeNoteId !== null) {
+                const note = notes.find(n => n.id === activeNoteId);
+                const ta = document.getElementById('note-textarea');
+                if (note && ta) note.content = ta.value;
+                activeNoteId = null;
+                document.getElementById('note-panel').classList.remove('open');
+                renderNoteTabs();
+            }
+        }
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // INIT
     // ═══════════════════════════════════════════════════════════════════════════
     zoom = 1.3;
     panX = window.innerWidth/2 - 2500*zoom;
     panY = window.innerHeight/2 - 2500*zoom;
     updateTransform();
-
+    renderNoteTabs();
     initApp();
     </script>
 
