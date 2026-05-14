@@ -436,7 +436,7 @@
 
         /* ── Dice Log ── */
         #dice-log {
-            position: fixed; bottom: 15px; right: 16px;
+            position: fixed; bottom: 15px; right: 26px;
             width: 250px; max-height: 300px;
             display: flex; flex-direction: column;
             justify-content: flex-end;
@@ -4587,6 +4587,7 @@
         addDiceLogEntry(name, color, sides, rolls, modifier, count, label);
         showRollPopup(diceStr, rolls, modifier, total, label, color, name);
         broadcast({ type: 'dice_roll', playerName: name, color, sides, rolls, modifier, count, label, total });
+        diceModifier = 0; updateModifierDisplay();
         return total;
     }
 
