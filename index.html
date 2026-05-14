@@ -417,17 +417,18 @@
             width: 240px; max-height: 280px;
             display: flex; flex-direction: column;
             justify-content: flex-end;
-            gap: 3px; z-index: 1000; pointer-events: none;
+            gap: 4px; z-index: 1000; pointer-events: none;
             overflow: hidden;
         }
         .dice-log-entry {
             font-family: 'Cinzel', 'IM Fell English', serif;
-            font-size: 12px; line-height: 1.4;
+            font-size: 12px; line-height: 1.5;
             color: #e8d080;
-            text-shadow: 0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.7);
+            text-shadow: 0 1px 5px rgba(0,0,0,1), 0 0 10px rgba(0,0,0,0.9);
             text-align: right;
-            animation: log-fade-in 0.2s ease-out;
+            animation: log-fade-in 0.25s ease-out;
             transition: opacity 2s;
+            background: none;
         }
         .dice-log-entry .log-result {
             font-size: 15px; font-weight: 700;
@@ -1638,7 +1639,11 @@
         if (currentTool) { clearTool(); }
     });
 
-    document.addEventListener('contextmenu', e => { if (e.target.closest('#vtt-logo')) return; e.preventDefault(); });
+    document.addEventListener('contextmenu', e => {
+        if (e.target.closest('#vtt-logo')) return;
+        if (e.target.closest('#dice-column')) return; // let dice handle their own menus
+        e.preventDefault();
+    });
 
     // ═══════════════════════════════════════════════════════════════════════════
     // PING SYSTEM
@@ -4397,26 +4402,33 @@
     // ── Wire buttons ──
     document.querySelectorAll('.die-btn').forEach(btn => {
         btn.addEventListener('click', e => {
-            if (e.button !== 0) return;
+            e.stopPropagation();
             rollDice(parseInt(btn.dataset.sides));
             animateDie(btn);
         });
-        btn.addEventListener('contextmenu', e => showDiceMenu(e, btn));
-        // Scroll wheel: adjust modifier
+        btn.addEventListener('contextmenu', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            showDiceMenu(e, btn);
+        });
         btn.addEventListener('wheel', e => {
             e.preventDefault();
             e.stopPropagation();
             diceModifier = Math.max(-20, Math.min(20, diceModifier + (e.deltaY < 0 ? 1 : -1)));
             updateModifierDisplay();
         }, { passive: false });
+        btn.addEventListener('mousedown', e => e.stopPropagation());
     });
 
-    // Also allow scrolling on the modifier display and dice column
     document.getElementById('dice-column')?.addEventListener('wheel', e => {
         e.preventDefault();
+        e.stopPropagation();
         diceModifier = Math.max(-20, Math.min(20, diceModifier + (e.deltaY < 0 ? 1 : -1)));
         updateModifierDisplay();
     }, { passive: false });
+
+    document.getElementById('dice-column')?.addEventListener('mousedown', e => e.stopPropagation());
+    document.getElementById('dice-palette')?.addEventListener('mousedown', e => e.stopPropagation());
 
     buildDicePalette();
     updateModifierDisplay();
