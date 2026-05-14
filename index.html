@@ -313,6 +313,134 @@
             display: none;
         }
         #p2p-status-text { font-size: 11px; color: #888; margin-bottom: 6px; }
+
+        /* ── Dice Column ── */
+        #dice-column {
+            position: fixed; left: 14px; top: 50%;
+            transform: translateY(-50%);
+            display: flex; flex-direction: column; align-items: center;
+            gap: 6px; z-index: 1000; pointer-events: auto;
+        }
+        .die-btn {
+            width: 48px; height: 48px;
+            background: transparent; border: none; cursor: pointer;
+            padding: 2px; border-radius: 4px;
+            transition: transform 0.12s, filter 0.12s;
+            filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5));
+        }
+        .die-btn:hover { transform: scale(1.18); filter: drop-shadow(0 2px 8px rgba(200,160,60,0.7)); }
+        .die-btn:active { transform: scale(0.93); }
+        .die-btn svg { width: 100%; height: 100%; overflow: visible; }
+        .die-poly {
+            fill: none;
+            stroke: #c8a83c;
+            stroke-width: 2.5;
+            stroke-linejoin: round;
+        }
+        .die-poly-rect {
+            fill: none;
+            stroke: #c8a83c;
+            stroke-width: 2.5;
+            stroke-linejoin: round;
+        }
+        .die-poly-circle {
+            fill: none;
+            stroke: #c8a83c;
+            stroke-width: 2.5;
+        }
+        .die-inner-line {
+            stroke: #c8a83c;
+            stroke-width: 1;
+            opacity: 0.3;
+        }
+        .die-label {
+            fill: #e8d080;
+            font-size: 12px;
+            font-weight: 700;
+            font-family: 'Cinzel', 'IM Fell English', serif;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            pointer-events: none;
+            letter-spacing: 0.5px;
+        }
+        /* Die fill */
+        .die-poly, .die-poly-rect, .die-poly-circle {
+            fill: var(--dice-fill, rgba(60,44,20,0.82));
+            transition: fill 0.2s, stroke 0.2s;
+        }
+        .die-btn:hover .die-poly,
+        .die-btn:hover .die-poly-rect,
+        .die-btn:hover .die-poly-circle { fill: var(--dice-fill-hover, rgba(90,68,24,0.92)); }
+        /* Roll animation — orbit around centre */
+        .die-btn.rolling { animation: die-orbit 0.45s cubic-bezier(.2,.8,.4,1); }
+        @keyframes die-orbit {
+            0%   { transform: translate(0,0) rotate(0deg) scale(1); }
+            25%  { transform: translate(14px,-14px) rotate(90deg) scale(1.15); }
+            50%  { transform: translate(0,-22px) rotate(180deg) scale(1.25); }
+            75%  { transform: translate(-14px,-14px) rotate(270deg) scale(1.15); }
+            100% { transform: translate(0,0) rotate(360deg) scale(1); }
+        }
+        .die-btn.rolling .die-poly,
+        .die-btn.rolling .die-poly-rect,
+        .die-btn.rolling .die-poly-circle { stroke: #ffdd55; fill: rgba(100,80,20,0.95); }
+
+        /* Modifier badge */
+        #dice-modifier-display {
+            font-family: 'Cinzel', serif; font-size: 11px; font-weight: 700;
+            color: #e8d080; text-align: center;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+            min-height: 16px; letter-spacing: 0.5px;
+            user-select: none; pointer-events: none;
+        }
+
+        /* Dice colour palette */
+        #dice-palette {
+            position: fixed; left: 14px; bottom: 20px;
+            display: flex; flex-direction: column; align-items: center; gap: 5px;
+            z-index: 1001;
+        }
+        #dice-palette-label {
+            font-family: 'Cinzel', serif; font-size: 9px; color: #888;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+            letter-spacing: 1px; user-select: none;
+        }
+        .dice-swatch {
+            width: 14px; height: 14px; border-radius: 50%;
+            cursor: pointer; border: 2px solid transparent;
+            transition: transform 0.12s, border-color 0.12s;
+        }
+        .dice-swatch:hover { transform: scale(1.3); }
+        .dice-swatch.active { border-color: #fff; }
+
+        /* ── Dice Log ── */
+        #dice-log {
+            position: fixed; bottom: 80px; right: 16px;
+            width: 220px; max-height: 260px;
+            display: flex; flex-direction: column-reverse;
+            gap: 3px; z-index: 1000; pointer-events: none;
+            overflow: hidden;
+        }
+        .dice-log-entry {
+            font-family: 'Cinzel', 'IM Fell English', serif;
+            font-size: 12px; line-height: 1.4;
+            color: #e8d080;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.7);
+            text-align: right;
+            animation: log-fade-in 0.2s ease-out;
+            transition: opacity 2s;
+        }
+        .dice-log-entry .log-result {
+            font-size: 15px; font-weight: 700;
+            color: #fff;
+        }
+        .dice-log-entry.nat20 .log-result { color: #ffe066; text-shadow: 0 0 10px #ffe066; }
+        .dice-log-entry.nat1  .log-result { color: #ff6060; text-shadow: 0 0 10px #ff4040; }
+        .dice-log-entry.fading { opacity: 0; }
+        @keyframes log-fade-in {
+            from { opacity: 0; transform: translateX(10px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+
     </style>
 </head>
 <body>
@@ -1184,6 +1312,10 @@
             }
             case 'grid_color':
                 setGridColor(msg.key, true);
+                break;
+
+            case 'dice_roll':
+                addDiceLogEntry(msg.playerName, msg.color, msg.sides, msg.result, msg.modifier||0, msg.count||1, msg.label||'');
                 break;
 
             case 'board_clear':
@@ -4070,6 +4202,187 @@
 
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // DICE SYSTEM
+    // ═══════════════════════════════════════════════════════════════════════════
+    const MAX_LOG_ENTRIES = 20;
+    const LOG_FADE_MS     = 12000;
+    let diceModifier      = 0;
+    let diceColor         = { stroke: '#c8a83c', fill: 'rgba(60,44,20,0.82)', fillHover: 'rgba(90,68,24,0.92)' };
+
+    // ── Modifier display ──
+    function updateModifierDisplay() {
+        const el = document.getElementById('dice-modifier-display');
+        if (!el) return;
+        if (diceModifier === 0) { el.textContent = ''; return; }
+        el.textContent = diceModifier > 0 ? `+${diceModifier}` : `${diceModifier}`;
+        el.style.color = diceModifier > 0 ? '#80ff80' : '#ff8080';
+    }
+
+    // ── Dice colour ──
+    const DICE_PALETTES = [
+        { stroke:'#c8a83c', fill:'rgba(60,44,20,0.82)',  fillHover:'rgba(90,68,24,0.92)',  label:'Gold'    },
+        { stroke:'#cc4444', fill:'rgba(60,12,12,0.85)',  fillHover:'rgba(90,20,20,0.95)',  label:'Blood'   },
+        { stroke:'#4488cc', fill:'rgba(10,28,55,0.85)',  fillHover:'rgba(16,44,80,0.95)',  label:'Sapphire'},
+        { stroke:'#44bb66', fill:'rgba(10,40,22,0.85)',  fillHover:'rgba(16,60,32,0.95)',  label:'Emerald' },
+        { stroke:'#9966cc', fill:'rgba(30,14,52,0.85)',  fillHover:'rgba(48,24,76,0.95)',  label:'Amethyst'},
+        { stroke:'#e0e0e0', fill:'rgba(40,40,44,0.88)',  fillHover:'rgba(58,58,64,0.95)',  label:'Silver'  },
+    ];
+
+    function applyDiceColor(palette) {
+        diceColor = palette;
+        document.documentElement.style.setProperty('--dice-stroke',       palette.stroke);
+        document.documentElement.style.setProperty('--dice-fill',         palette.fill);
+        document.documentElement.style.setProperty('--dice-fill-hover',   palette.fillHover);
+        // Update stroke on all die shapes
+        document.querySelectorAll('.die-poly,.die-poly-rect,.die-poly-circle,.die-inner-line').forEach(el => {
+            if (el.classList.contains('die-inner-line')) el.style.stroke = palette.stroke;
+            else el.style.stroke = palette.stroke;
+        });
+        document.querySelectorAll('.die-label').forEach(el => el.style.fill = palette.stroke);
+        document.querySelectorAll('.dice-swatch').forEach(s => s.classList.toggle('active', s.dataset.palette === palette.label));
+    }
+
+    // Build palette swatches
+    function buildDicePalette() {
+        const wrap = document.getElementById('dice-palette');
+        if (!wrap) return;
+        DICE_PALETTES.forEach(p => {
+            const sw = document.createElement('div');
+            sw.className = 'dice-swatch';
+            sw.title = p.label;
+            sw.dataset.palette = p.label;
+            sw.style.background = p.stroke;
+            sw.addEventListener('click', () => applyDiceColor(p));
+            wrap.appendChild(sw);
+        });
+        applyDiceColor(DICE_PALETTES[0]);
+    }
+
+    // ── Log ──
+    function addDiceLogEntry(playerName, color, sides, result, modifier, count, label) {
+        const log = document.getElementById('dice-log');
+        if (!log) return;
+        const entry = document.createElement('div');
+        entry.className = 'dice-log-entry';
+        const baseResult = result - (modifier || 0);
+        const isNat20 = sides === 20 && count === 1 && baseResult === 20;
+        const isNat1  = sides === 20 && count === 1 && baseResult === 1;
+        if (isNat20) entry.classList.add('nat20');
+        if (isNat1)  entry.classList.add('nat1');
+
+        const modStr  = modifier ? (modifier > 0 ? ` +${modifier}` : ` ${modifier}`) : '';
+        const diceStr = count > 1 ? `${count}d${sides}` : `d${sides}`;
+        const special = isNat20 ? ' ✦ NAT 20!' : isNat1 ? ' ✦ NAT 1!' : label ? ` ${label}` : '';
+
+        entry.innerHTML = `<span style="color:${color||'#c8a83c'};font-size:10px;">${playerName||'?'}</span> <span style="color:#aaa;font-size:10px;">${diceStr}${modStr}:</span> <span class="log-result">${result}</span>${special}`;
+        log.prepend(entry);
+        setTimeout(() => { entry.classList.add('fading'); setTimeout(() => entry.remove(), 2000); }, LOG_FADE_MS);
+        const all = log.querySelectorAll('.dice-log-entry');
+        if (all.length > MAX_LOG_ENTRIES) all[all.length-1].remove();
+    }
+
+    // ── Core roll ──
+    function rollDice(sides, count = 1, modifier = diceModifier, label = '') {
+        let total = 0;
+        for (let i = 0; i < count; i++) {
+            total += sides === 100
+                ? Math.floor(Math.random() * 100) + 1
+                : Math.floor(Math.random() * sides) + 1;
+        }
+        total += modifier;
+        const name  = myName  || 'Unknown';
+        const color = diceColor.stroke;
+        addDiceLogEntry(name, color, sides, total, modifier, count, label);
+        broadcast({ type: 'dice_roll', playerName: name, color, sides, result: total, modifier, count, label });
+        return total;
+    }
+
+    function animateDie(btn) {
+        btn.classList.remove('rolling');
+        void btn.offsetWidth;
+        btn.classList.add('rolling');
+        setTimeout(() => btn.classList.remove('rolling'), 480);
+    }
+
+    // ── Right-click context menu ──
+    function showDiceMenu(e, btn) {
+        e.preventDefault();
+        e.stopPropagation();
+        document.querySelectorAll('.dice-ctx-menu').forEach(m => m.remove());
+        const sides = parseInt(btn.dataset.sides);
+        const menu  = document.createElement('div');
+        menu.className = 'dice-ctx-menu';
+        menu.style.cssText = `position:fixed;left:${e.clientX+4}px;top:${e.clientY}px;background:#1a1510;border:1px solid ${diceColor.stroke};border-radius:6px;padding:6px;z-index:9000;font-family:Cinzel,serif;font-size:12px;color:#e8d080;min-width:130px;box-shadow:0 4px 16px rgba(0,0,0,0.7);`;
+
+        const btnStyle = `display:block;width:100%;padding:5px 10px;background:transparent;color:#e8d080;border:none;border-radius:3px;font-family:Cinzel,serif;font-size:12px;cursor:pointer;text-align:left;`;
+
+        const addBtn = (label, fn) => {
+            const b = document.createElement('button');
+            b.style.cssText = btnStyle;
+            b.textContent = label;
+            b.onmouseenter = () => b.style.background = 'rgba(200,168,60,0.15)';
+            b.onmouseleave = () => b.style.background = 'transparent';
+            b.onclick = () => { menu.remove(); fn(); animateDie(btn); };
+            menu.appendChild(b);
+        };
+
+        // Multiple dice
+        [2,3,4,5].forEach(n => addBtn(`Roll ${n}d${sides}`, () => rollDice(sides, n)));
+
+        // d20 advantage / disadvantage
+        if (sides === 20) {
+            const div = document.createElement('div');
+            div.style.cssText = `border-top:1px solid rgba(200,168,60,0.2);margin:4px 0;`;
+            menu.appendChild(div);
+            addBtn('⬆ Advantage',    () => {
+                const a = Math.floor(Math.random()*20)+1, b2 = Math.floor(Math.random()*20)+1;
+                const result = Math.max(a,b2) + diceModifier;
+                const name = myName||'?', color = diceColor.stroke;
+                addDiceLogEntry(name, color, 20, result, diceModifier, 1, `↑ Adv (${a},${b2})`);
+                broadcast({ type:'dice_roll', playerName:name, color, sides:20, result, modifier:diceModifier, count:1, label:`↑ Adv (${a},${b2})` });
+            });
+            addBtn('⬇ Disadvantage', () => {
+                const a = Math.floor(Math.random()*20)+1, b2 = Math.floor(Math.random()*20)+1;
+                const result = Math.min(a,b2) + diceModifier;
+                const name = myName||'?', color = diceColor.stroke;
+                addDiceLogEntry(name, color, 20, result, diceModifier, 1, `↓ Dis (${a},${b2})`);
+                broadcast({ type:'dice_roll', playerName:name, color, sides:20, result, modifier:diceModifier, count:1, label:`↓ Dis (${a},${b2})` });
+            });
+        }
+
+        document.body.appendChild(menu);
+        const close = () => { menu.remove(); document.removeEventListener('click', close); };
+        setTimeout(() => document.addEventListener('click', close), 10);
+    }
+
+    // ── Wire buttons ──
+    document.querySelectorAll('.die-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+            if (e.button !== 0) return;
+            rollDice(parseInt(btn.dataset.sides));
+            animateDie(btn);
+        });
+        btn.addEventListener('contextmenu', e => showDiceMenu(e, btn));
+        // Scroll wheel: adjust modifier
+        btn.addEventListener('wheel', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            diceModifier = Math.max(-20, Math.min(20, diceModifier + (e.deltaY < 0 ? 1 : -1)));
+            updateModifierDisplay();
+        }, { passive: false });
+    });
+
+    // Also allow scrolling on the modifier display and dice column
+    document.getElementById('dice-column')?.addEventListener('wheel', e => {
+        e.preventDefault();
+        diceModifier = Math.max(-20, Math.min(20, diceModifier + (e.deltaY < 0 ? 1 : -1)));
+        updateModifierDisplay();
+    }, { passive: false });
+
+    buildDicePalette();
+    updateModifierDisplay();
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // INIT
     // ═══════════════════════════════════════════════════════════════════════════
     zoom = 1.3;
@@ -4079,5 +4392,73 @@
 
     initApp();
     </script>
+
+    <!-- ═══════ DICE PANEL ═══════ -->
+    <div id="dice-column">
+        <div id="dice-modifier-display"></div>
+        <!-- d20 -->
+        <button class="die-btn" data-sides="20" title="Roll d20">
+            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                <polygon points="30,4 54,18 54,42 30,56 6,42 6,18" class="die-poly"/>
+                <line x1="6" y1="18" x2="54" y2="18" class="die-inner-line"/>
+                <line x1="6" y1="42" x2="54" y2="42" class="die-inner-line"/>
+                <text x="30" y="36" class="die-label">d20</text>
+            </svg>
+        </button>
+        <!-- d12 -->
+        <button class="die-btn" data-sides="12" title="Roll d12">
+            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                <polygon points="30,4 50,14 56,36 42,54 18,54 4,36 10,14" class="die-poly"/>
+                <text x="30" y="36" class="die-label">d12</text>
+            </svg>
+        </button>
+        <!-- d10 -->
+        <button class="die-btn" data-sides="10" title="Roll d10">
+            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                <polygon points="30,4 52,20 46,50 14,50 8,20" class="die-poly"/>
+                <text x="30" y="36" class="die-label">d10</text>
+            </svg>
+        </button>
+        <!-- d8 -->
+        <button class="die-btn" data-sides="8" title="Roll d8">
+            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                <polygon points="30,5 55,30 30,55 5,30" class="die-poly"/>
+                <line x1="5" y1="30" x2="55" y2="30" class="die-inner-line"/>
+                <line x1="30" y1="5" x2="30" y2="55" class="die-inner-line"/>
+                <text x="30" y="36" class="die-label">d8</text>
+            </svg>
+        </button>
+        <!-- d6 -->
+        <button class="die-btn" data-sides="6" title="Roll d6">
+            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                <rect x="8" y="8" width="44" height="44" rx="6" class="die-poly-rect"/>
+                <text x="30" y="36" class="die-label">d6</text>
+            </svg>
+        </button>
+        <!-- d4 -->
+        <button class="die-btn" data-sides="4" title="Roll d4">
+            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                <polygon points="30,5 57,52 3,52" class="die-poly"/>
+                <text x="30" y="46" class="die-label">d4</text>
+            </svg>
+        </button>
+        <!-- d100 -->
+        <button class="die-btn" data-sides="100" title="Roll d100">
+            <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="30" cy="30" r="24" class="die-poly-circle"/>
+                <text x="30" y="25" class="die-label" style="font-size:10px">d100</text>
+                <text x="30" y="40" class="die-label" style="font-size:9px;opacity:0.6">%</text>
+            </svg>
+        </button>
+    </div>
+
+    <!-- ═══════ DICE LOG ═══════ -->
+    <div id="dice-log"></div>
+
+    <!-- ═══════ DICE PALETTE ═══════ -->
+    <div id="dice-palette">
+        <div id="dice-palette-label">DICE</div>
+    </div>
+
 </body>
 </html>
