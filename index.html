@@ -2017,19 +2017,27 @@
         isPanning = false; viewport.style.cursor = 'default';
         if (rightMoved) return;
 
-        // Door delete on right-click when in door mode
+        // Door right-click: exit tool or show delete popup
         if (doorMode) {
             const pos = viewportToGrid(e.clientX, e.clientY);
-            const hit = doors.findIndex(d => ptSegDist(pos.x, pos.y, d.p1.x, d.p1.y, d.p2.x, d.p2.y) < 15);
-            if (hit >= 0) {
-                broadcast({ type: 'door_delete', id: doors[hit].id });
-                doors.splice(hit, 1);
-                doorP1 = null;
-                redrawFog(); drawPresetOutlines();
-                return;
+            const hit = doors.find(d => ptSegDist(pos.x, pos.y, d.p1.x, d.p1.y, d.p2.x, d.p2.y) < 15);
+            if (hit) {
+                showDoorDeleteMenu(e.clientX, e.clientY, hit);
+            } else {
+                // Right-click with no door nearby — cancel placement and exit door mode
+                doorMode = false; doorP1 = null;
+                document.getElementById('btn-fog-door')?.classList.remove('active');
+                viewport.style.cursor = 'default';
+                drawPresetOutlines();
             }
-            // Cancel current placement
-            if (doorP1) { doorP1 = null; drawPresetOutlines(); return; }
+            return;
+        }
+
+        // Right-click near a door in normal mode — show delete popup
+        if (isHost && !rightMoved) {
+            const pos = viewportToGrid(e.clientX, e.clientY);
+            const hit = doors.find(d => ptSegDist(pos.x, pos.y, d.p1.x, d.p1.y, d.p2.x, d.p2.y) < 15);
+            if (hit) { showDoorDeleteMenu(e.clientX, e.clientY, hit); return; }
         }
 
         // Clear multi-select group first if any
@@ -2712,7 +2720,7 @@
         drawPresetOutlines();
     });
 
-    // Door mouse/click handling on viewport
+    // Door mousemove — snap preview
     viewport.addEventListener('mousemove', e2 => {
         if (!doorMode) return;
         const pos = viewportToGrid(e2.clientX, e2.clientY);
@@ -2720,9 +2728,54 @@
         drawPresetOutlines();
     });
 
-    viewport.addEventListener('click', e2 => {
-        if (!doorMode || e2.button !== 0) return;
-        const pos     = viewportToGrid(e2.clientX, e2.clientY);
+    function showDoorDeleteMenu(x, y, door) {
+        document.querySelectorAll('.door-ctx-menu').forEach(m => m.remove());
+        const menu = document.createElement('div');
+        menu.className = 'door-ctx-menu';
+        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:#1a1510;border:1px solid #993333;border-radius:7px;padding:8px;z-index:9001;font-family:var(--font-serif);box-shadow:0 4px 16px rgba(0,0,0,0.8);`;
+        const btn = document.createElement('button');
+        btn.textContent = '🗑️ Delete Door';
+        btn.style.cssText = `display:block;width:100%;padding:6px 12px;background:transparent;color:#f88;border:none;border-radius:4px;font-family:var(--font-serif);font-size:13px;cursor:pointer;text-align:left;`;
+        btn.onmouseenter = () => btn.style.background = 'rgba(200,60,60,0.15)';
+        btn.onmouseleave = () => btn.style.background = 'transparent';
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            doors = doors.filter(d => d.id !== door.id);
+            broadcast({ type: 'door_delete', id: door.id });
+            redrawFog(); drawPresetOutlines();
+            menu.remove();
+        });
+        menu.appendChild(btn);
+        document.body.appendChild(menu);
+        menu.addEventListener('mousedown', e => e.stopPropagation());
+        const close = () => { menu.remove(); document.removeEventListener('click', close); };
+        setTimeout(() => document.addEventListener('click', close), 10);
+    }
+
+    // Door left-click via mouseup (fires before click, avoids double-trigger)
+    let leftDownPos = null;
+    viewport.addEventListener('mousedown', e => {
+        if (e.button === 0) leftDownPos = { x: e.clientX, y: e.clientY };
+    });
+
+    viewport.addEventListener('mouseup', e => {
+        if (e.button !== 0) return;
+        // Ignore if mouse moved too much (was a pan/drag)
+        if (leftDownPos && Math.hypot(e.clientX - leftDownPos.x, e.clientY - leftDownPos.y) > 10) return;
+        const pos = viewportToGrid(e.clientX, e.clientY);
+
+        // Toggle door in any mode (no door mode required)
+        if (isHost && !doorMode && !doorP1) {
+            const hit = doors.find(d => ptSegDist(pos.x, pos.y, d.p1.x, d.p1.y, d.p2.x, d.p2.y) < 15);
+            if (hit) {
+                hit.open = !hit.open;
+                broadcast({ type: 'door_update', id: hit.id, open: hit.open });
+                redrawFog(); drawPresetOutlines();
+                return;
+            }
+        }
+
+        if (!doorMode) return;
         const snapped = snapToIntersection(pos.x, pos.y, shiftHeld);
 
         if (!doorP1) {
@@ -2734,55 +2787,13 @@
                 redrawFog(); drawPresetOutlines();
                 return;
             }
-            // Start placing a new door
-            doorP1 = snapped;
+            doorP1 = snapped; // set first point
         } else {
-            // Place the door
-            const door = { id: nextDoorId++, p1: doorP1, p2: snapped, open: false };
-            doors.push(door);
-            broadcast({ type: 'door_add', door: { ...door } });
-            doorP1 = null;
-            drawPresetOutlines();
-        }
-    });
-
-    // Door left-click: toggle existing door or place new point
-    let leftDownPos = null;
-    viewport.addEventListener('mousedown', e => {
-        if (e.button === 0) leftDownPos = { x: e.clientX, y: e.clientY };
-    });
-    viewport.addEventListener('mouseup', e => {
-        if (e.button !== 0) return;
-        // Only act if mouse didn't move much (not a drag)
-        if (leftDownPos && Math.hypot(e.clientX - leftDownPos.x, e.clientY - leftDownPos.y) > 6) return;
-        const pos = viewportToGrid(e.clientX, e.clientY);
-
-        // Always allow door toggle — no doorMode required
-        if (isHost && !doorP1) {
-            const hit = doors.find(d => ptSegDist(pos.x, pos.y, d.p1.x, d.p1.y, d.p2.x, d.p2.y) < 15);
-            if (hit && !doorMode) {
-                // Toggle without entering door mode
-                hit.open = !hit.open;
-                broadcast({ type: 'door_update', id: hit.id, open: hit.open });
-                redrawFog(); drawPresetOutlines();
-                return;
+            // Prevent zero-length doors
+            if (Math.hypot(snapped.x - doorP1.x, snapped.y - doorP1.y) < 5) {
+                doorP1 = null; drawPresetOutlines(); return;
             }
-        }
-
-        if (!doorMode) return;
-        const snapped = snapToIntersection(pos.x, pos.y, shiftHeld);
-
-        if (!doorP1) {
-            const hit = doors.find(d => ptSegDist(pos.x, pos.y, d.p1.x, d.p1.y, d.p2.x, d.p2.y) < 15);
-            if (hit) {
-                hit.open = !hit.open;
-                broadcast({ type: 'door_update', id: hit.id, open: hit.open });
-                redrawFog(); drawPresetOutlines();
-                return;
-            }
-            doorP1 = snapped;
-        } else {
-            const door = { id: nextDoorId++, p1: doorP1, p2: snapped, open: false };
+            const door = { id: nextDoorId++, p1: { ...doorP1 }, p2: { ...snapped }, open: false };
             doors.push(door);
             broadcast({ type: 'door_add', door: { ...door } });
             doorP1 = null;
