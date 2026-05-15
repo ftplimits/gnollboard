@@ -1437,6 +1437,7 @@
             case 'token_move': {
                 const t = tokens.find(t => t.id === msg.id);
                 if (t) { t.x = msg.x; t.y = msg.y; updateObjDiv(t, tokensContainer.querySelector(`[data-id="${t.id}"]`)); }
+                if (msg.final) redrawFog(); // only recalculate light on drop
                 break;
             }
             case 'token_update': {
@@ -1445,13 +1446,13 @@
                     Object.assign(t, msg.data);
                     const div = tokensContainer.querySelector(`[data-id="${t.id}"]`);
                     if (div) { div.remove(); renderToken(t); }
-                    redrawLights();
+                    redrawFog(); // light radius or other change — always recalculate
                 }
                 break;
             }
             case 'token_delete': {
                 const i = tokens.findIndex(t => t.id === msg.id);
-                if (i > -1) { tokensContainer.querySelector(`[data-id="${msg.id}"]`)?.remove(); tokens.splice(i, 1); redrawLights(); }
+                if (i > -1) { tokensContainer.querySelector(`[data-id="${msg.id}"]`)?.remove(); tokens.splice(i, 1); redrawFog(); }
                 break;
             }
 
@@ -4790,7 +4791,7 @@
                 draggedToken.x=pos.x-dragOffsetX; draggedToken.y=pos.y-dragOffsetY;
                 updateObjDiv(draggedToken, tokensContainer.querySelector(`[data-id="${draggedToken.id}"]`));
                 updateSelectionOverlay();
-                broadcastMove('token_'+draggedToken.id, { type:'token_move', id:draggedToken.id, x:draggedToken.x, y:draggedToken.y });
+                broadcast({ type:'token_move', id:draggedToken.id, x:draggedToken.x, y:draggedToken.y, final: true });
                 moveAttached('token', draggedToken.id, draggedToken.x-prevX, draggedToken.y-prevY);
             }
         }
