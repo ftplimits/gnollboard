@@ -1377,13 +1377,27 @@
         (snap.shapes     ||[]).forEach(s => { shapes.push(s);     renderShape(s); });
         (snap.textLabels ||[]).forEach(t => { textLabels.push(t); renderTextLabel(t); });
         (snap.mapImages  ||[]).forEach(m => { mapImages.push(m);  renderMapImage(m); });
-        fogPresets = snap.fogPresets || [];
-        if (fogPresets.length) nextPresetId = Math.max(...fogPresets.map(p => p.id)) + 1;
-        drawPresetOutlines();
+
+        // Guard: only overwrite fog state if incoming data is non-empty OR we have nothing locally
+        const incomingPresets   = snap.fogPresets  || [];
+        const incomingDoors     = snap.doors       || [];
+        const incomingFogCells  = snap.fogCellData || [];
+        const hasFogContent     = incomingPresets.length || incomingFogCells.length || incomingDoors.length;
+        const hasLocalFog       = fogPresets.length || fogCells.size || doors.length;
+
+        if (hasFogContent || !hasLocalFog) {
+            fogPresets = incomingPresets;
+            if (fogPresets.length) nextPresetId = Math.max(...fogPresets.map(p => p.id)) + 1;
+            if (incomingDoors.length) { doors = incomingDoors; nextDoorId = Math.max(...incomingDoors.map(d=>d.id))+1; }
+            if (incomingFogCells.length) applyFogSnapshot(incomingFogCells);
+            else if (!hasLocalFog) { fogCells.clear(); fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height); }
+        } else {
+            console.warn('[Gnollboard] Snapshot had empty fog data — preserving existing fog state');
+        }
+
+        drawPresetOutlines(); redrawDoors();
         if (snap.notes) { notes = snap.notes; nextNoteId = notes.length ? Math.max(...notes.map(n=>n.id))+1 : 1; renderNoteTabs(); }
-        if (snap.doors) { doors = snap.doors; nextDoorId = doors.length ? Math.max(...doors.map(d=>d.id))+1 : 1; redrawDoors(); drawPresetOutlines(); }
         if (snap.canvasData) { const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = snap.canvasData; }
-        if (snap.fogCellData) applyFogSnapshot(snap.fogCellData);
         if (tokens.length)     nextTokenId   = Math.max(...tokens.map(t=>t.id))   + 1;
         if (stickers.length)   nextStickerId = Math.max(...stickers.map(s=>s.id)) + 1;
         if (shapes.length)     nextShapeId   = Math.max(...shapes.map(s=>s.id))   + 1;
@@ -1722,7 +1736,9 @@
                 mapContainer.innerHTML=''; mapContainerBelow.innerHTML='';
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 tokens=[]; stickers=[]; shapes=[]; textLabels=[]; mapImages=[];
-                fogPresets=[]; drawPresetOutlines();
+                fogPresets=[]; doors=[];
+                doorCtx.clearRect(0, 0, doorCanvas.width, doorCanvas.height);
+                drawPresetOutlines();
                 deselectObject();
                 break;
 
@@ -2514,6 +2530,7 @@
 
     function drawPresetOutlines() {
         fogPresetCtx.clearRect(0, 0, fogPresetCanvas.width, fogPresetCanvas.height);
+        redrawDoors(); // always redraw doors for all players
         if (!isHost) return;
         fogPresets.forEach(p => {
             if (p.verts.length < 2) return;
@@ -3092,6 +3109,7 @@
             fogPresets=[]; fogPolyVerts=[]; presetDefVerts=[];
             fogPolyCtx.clearRect(0, 0, fogPolyCanvas.width, fogPolyCanvas.height);
             fogPresetCtx.clearRect(0, 0, fogPresetCanvas.width, fogPresetCanvas.height);
+            doors=[]; doorCtx.clearRect(0, 0, doorCanvas.width, doorCanvas.height);
             deselectObject();
             // Broadcast full clear to peers
             broadcast({ type: 'fog_clear' });
