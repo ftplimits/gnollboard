@@ -923,7 +923,7 @@
     <!-- Volume (all players) -->
     <div id="volume-bar">
         <span id="volume-icon">🔊</span>
-        <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.7">
+        <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.3">
     </div>
 
 
@@ -4682,8 +4682,10 @@
     };
 
     function buildDicePalette() {
-        // Wire outline swatches
-        const outlineRow = document.querySelector('#dice-color-panel .dice-swatch-row:first-of-type');
+        const swatchRows = document.querySelectorAll('#dice-color-panel .dice-swatch-row');
+        const outlineRow = swatchRows[0];
+        const numRow     = swatchRows[1];
+
         outlineRow?.querySelectorAll('.dice-swatch').forEach(sw => {
             sw.addEventListener('mousedown', e => e.stopPropagation());
             sw.addEventListener('click', e => {
@@ -4692,8 +4694,6 @@
             });
         });
 
-        // Wire number swatches
-        const numRow = document.querySelector('#dice-color-panel .dice-swatch-row:last-of-type');
         numRow?.querySelectorAll('.dice-swatch').forEach(sw => {
             sw.addEventListener('mousedown', e => e.stopPropagation());
             sw.addEventListener('click', e => {
@@ -5142,10 +5142,11 @@
     let currentTrack  = null; // filename string
     let musicAudio    = new Audio();
     musicAudio.loop   = true;
-    musicAudio.volume = 0.7;
+    musicAudio.volume = parseFloat(localStorage.getItem('gnoll_volume') ?? '0.3');
 
     function setMusicVolume(v) {
         musicAudio.volume = parseFloat(v);
+        localStorage.setItem('gnoll_volume', v);
         const icon = document.getElementById('volume-icon');
         if (icon) icon.textContent = v == 0 ? '🔇' : v < 0.4 ? '🔉' : '🔊';
     }
@@ -5189,9 +5190,13 @@
     // (handled in receive block below)
 
     // Volume slider
-    document.getElementById('volume-slider')?.addEventListener('input', e => {
-        setMusicVolume(e.target.value);
-    });
+    const volSlider = document.getElementById('volume-slider');
+    if (volSlider) {
+        const savedVol = localStorage.getItem('gnoll_volume') ?? '0.3';
+        volSlider.value = savedVol;
+        setMusicVolume(savedVol);
+        volSlider.addEventListener('input', e => setMusicVolume(e.target.value));
+    }
 
     // Music button toggle
     document.getElementById('music-btn')?.addEventListener('click', e => {
