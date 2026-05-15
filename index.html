@@ -2011,7 +2011,22 @@
     viewport.addEventListener('mouseup', e => {
         if (e.button !== 2) return;
         isPanning = false; viewport.style.cursor = 'default';
-        if (rightMoved) return; // was a pan — don't clear tools or deselect
+        if (rightMoved) return;
+
+        // Door delete on right-click when in door mode
+        if (doorMode) {
+            const pos = viewportToGrid(e.clientX, e.clientY);
+            const hit = doors.findIndex(d => ptSegDist(pos.x, pos.y, d.p1.x, d.p1.y, d.p2.x, d.p2.y) < 15);
+            if (hit >= 0) {
+                broadcast({ type: 'door_delete', id: doors[hit].id });
+                doors.splice(hit, 1);
+                doorP1 = null;
+                redrawFog(); drawPresetOutlines();
+                return;
+            }
+            // Cancel current placement
+            if (doorP1) { doorP1 = null; drawPresetOutlines(); return; }
+        }
 
         // Clear multi-select group first if any
         if (multiSelected.length) {
@@ -2255,38 +2270,52 @@
             const cy = t.y + FOG_OFFSET;
             const r  = t.lightRadius * CELL;
 
-            // Flood-fill through open doors to get all connected lit polygons
-            const connected = getConnectedPolygons(cx, cy);
+            const regions = getLitRegions(cx, cy);
 
-            const off    = document.createElement('canvas');
-            off.width    = fogCanvas.width;
-            off.height   = fogCanvas.height;
-            const octx   = off.getContext('2d');
-
-            if (connected && connected.length > 0) {
-                // Fill all connected polygons as the base mask
+            if (!regions) {
+                // No containing polygon — punch a free circle
+                const off  = document.createElement('canvas');
+                off.width  = fogCanvas.width; off.height = fogCanvas.height;
+                const octx = off.getContext('2d');
                 octx.fillStyle = '#fff';
-                connected.forEach(p => {
-                    octx.beginPath();
-                    octx.moveTo(p.verts[0].x, p.verts[0].y);
-                    p.verts.slice(1).forEach(v => octx.lineTo(v.x, v.y));
-                    octx.closePath();
-                    octx.fill();
-                });
-                // Intersect with the light circle
-                octx.globalCompositeOperation = 'destination-in';
+                octx.beginPath(); octx.arc(cx, cy, r, 0, Math.PI * 2); octx.fill();
+                fogCtx.globalCompositeOperation = 'destination-out';
+                fogCtx.drawImage(off, 0, 0);
+                fogCtx.globalCompositeOperation = 'source-over';
+                return;
             }
 
-            // Draw light circle (full if no polygon constraint, intersected if constrained)
-            octx.fillStyle = '#fff';
-            octx.beginPath();
-            octx.arc(cx, cy, r, 0, Math.PI * 2);
-            octx.fill();
+            // Each region gets its own mask: polygon ∩ circle [∩ cone if through a door]
+            regions.forEach(({ polygon, cone }) => {
+                const off  = document.createElement('canvas');
+                off.width  = fogCanvas.width; off.height = fogCanvas.height;
+                const octx = off.getContext('2d');
 
-            // Punch the resulting mask out of the fog canvas
-            fogCtx.globalCompositeOperation = 'destination-out';
-            fogCtx.drawImage(off, 0, 0);
-            fogCtx.globalCompositeOperation = 'source-over';
+                // 1. Draw the polygon
+                octx.fillStyle = '#fff';
+                octx.beginPath();
+                octx.moveTo(polygon.verts[0].x, polygon.verts[0].y);
+                polygon.verts.slice(1).forEach(v => octx.lineTo(v.x, v.y));
+                octx.closePath(); octx.fill();
+
+                // 2. Intersect with light circle
+                octx.globalCompositeOperation = 'destination-in';
+                octx.beginPath(); octx.arc(cx, cy, r, 0, Math.PI * 2); octx.fill();
+
+                // 3. If reached through a door, intersect with the cone
+                if (cone) {
+                    octx.globalCompositeOperation = 'destination-in';
+                    octx.beginPath();
+                    octx.moveTo(cone[0].x, cone[0].y);
+                    cone.slice(1).forEach(pt => octx.lineTo(pt.x, pt.y));
+                    octx.closePath(); octx.fill();
+                }
+
+                // 4. Punch this region out of fog
+                fogCtx.globalCompositeOperation = 'destination-out';
+                fogCtx.drawImage(off, 0, 0);
+                fogCtx.globalCompositeOperation = 'source-over';
+            });
         });
     }
 
@@ -2616,31 +2645,45 @@
         return doorSidePoints(d).some(pt => pointInPolygon(pt.x, pt.y, poly.verts));
     }
 
-    // Flood-fill through open doors to collect all connected fogged polygons
-    function getConnectedPolygons(cx, cy) {
+    // Returns lit regions: [{polygon, cone}] where cone=null means unconstrained (starting room)
+    // cone is a quadrilateral [p1, extended_p1, extended_p2, p2] for polygons reached through a door
+    function getLitRegions(cx, cy) {
         const start = fogPresets.find(p =>
             p.fogged && p.verts.length >= 3 && pointInPolygon(cx, cy, p.verts)
         );
         if (!start) return null; // no containing polygon — light cuts freely
 
-        const visited = new Set([start.id]);
-        const queue   = [start];
+        const regions   = [{ polygon: start, cone: null }];
+        const visited   = new Set([start.id]);
+        const queue     = [{ polygon: start }];
+        const EXTEND    = 8000;
 
         while (queue.length) {
-            const current = queue.shift();
-            doors.filter(d => d.open && doorTouchesPolygon(d, current)).forEach(d => {
-                const sides = doorSidePoints(d);
+            const { polygon: current } = queue.shift();
+            doors.filter(d => d.open && doorTouchesPolygon(d, current)).forEach(door => {
+                const sides = doorSidePoints(door);
                 fogPresets.forEach(neighbor => {
                     if (!neighbor.fogged || visited.has(neighbor.id)) return;
-                    if (sides.some(pt => pointInPolygon(pt.x, pt.y, neighbor.verts))) {
-                        visited.add(neighbor.id);
-                        queue.push(neighbor);
-                    }
+                    if (!sides.some(pt => pointInPolygon(pt.x, pt.y, neighbor.verts))) return;
+                    visited.add(neighbor.id);
+                    // Build the cone of light through this door opening
+                    const d1x = door.p1.x - cx, d1y = door.p1.y - cy;
+                    const d2x = door.p2.x - cx, d2y = door.p2.y - cy;
+                    const l1  = Math.hypot(d1x, d1y) || 1;
+                    const l2  = Math.hypot(d2x, d2y) || 1;
+                    const cone = [
+                        { x: door.p1.x,                    y: door.p1.y                    },
+                        { x: cx + d1x / l1 * EXTEND,       y: cy + d1y / l1 * EXTEND       },
+                        { x: cx + d2x / l2 * EXTEND,       y: cy + d2y / l2 * EXTEND       },
+                        { x: door.p2.x,                    y: door.p2.y                    },
+                    ];
+                    const region = { polygon: neighbor, cone };
+                    regions.push(region);
+                    queue.push(region);
                 });
             });
         }
-
-        return fogPresets.filter(p => visited.has(p.id));
+        return regions;
     }
 
     // Point-to-segment distance helper for door click detection
@@ -2699,16 +2742,47 @@
         }
     });
 
-    viewport.addEventListener('contextmenu', e2 => {
+    // Door left-click: toggle existing door or place new point
+    let leftDownPos = null;
+    viewport.addEventListener('mousedown', e => {
+        if (e.button === 0) leftDownPos = { x: e.clientX, y: e.clientY };
+    });
+    viewport.addEventListener('mouseup', e => {
+        if (e.button !== 0) return;
+        // Only act if mouse didn't move much (not a drag)
+        if (leftDownPos && Math.hypot(e.clientX - leftDownPos.x, e.clientY - leftDownPos.y) > 6) return;
+        const pos = viewportToGrid(e.clientX, e.clientY);
+
+        // Always allow door toggle — no doorMode required
+        if (isHost && !doorP1) {
+            const hit = doors.find(d => ptSegDist(pos.x, pos.y, d.p1.x, d.p1.y, d.p2.x, d.p2.y) < 15);
+            if (hit && !doorMode) {
+                // Toggle without entering door mode
+                hit.open = !hit.open;
+                broadcast({ type: 'door_update', id: hit.id, open: hit.open });
+                redrawFog(); drawPresetOutlines();
+                return;
+            }
+        }
+
         if (!doorMode) return;
-        e2.preventDefault(); e2.stopPropagation();
-        const pos = viewportToGrid(e2.clientX, e2.clientY);
-        const hit = doors.findIndex(d => ptSegDist(pos.x, pos.y, d.p1.x, d.p1.y, d.p2.x, d.p2.y) < 15);
-        if (hit >= 0) {
-            broadcast({ type: 'door_delete', id: doors[hit].id });
-            doors.splice(hit, 1);
+        const snapped = snapToIntersection(pos.x, pos.y, shiftHeld);
+
+        if (!doorP1) {
+            const hit = doors.find(d => ptSegDist(pos.x, pos.y, d.p1.x, d.p1.y, d.p2.x, d.p2.y) < 15);
+            if (hit) {
+                hit.open = !hit.open;
+                broadcast({ type: 'door_update', id: hit.id, open: hit.open });
+                redrawFog(); drawPresetOutlines();
+                return;
+            }
+            doorP1 = snapped;
+        } else {
+            const door = { id: nextDoorId++, p1: doorP1, p2: snapped, open: false };
+            doors.push(door);
+            broadcast({ type: 'door_add', door: { ...door } });
             doorP1 = null;
-            redrawFog(); drawPresetOutlines();
+            drawPresetOutlines();
         }
     });
 
