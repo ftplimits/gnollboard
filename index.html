@@ -596,6 +596,9 @@
         #volume-bar {
             position: fixed; top: 48px; right: 12px; z-index: 1001;
             display: flex; align-items: center; gap: 6px;
+            background: rgba(0,0,0,0.5); border-radius: 6px;
+            padding: 4px 8px;
+            backdrop-filter: blur(4px);
         }
         #volume-icon { font-size: 13px; color: #aaa; user-select: none; }
         #volume-slider {
@@ -5128,7 +5131,7 @@
     // ═══════════════════════════════════════════════════════════════════════════
     // Add tracks here — place files in /music/ folder in your repo
     const MUSIC_TRACKS = [
-        '5. Moon Dream.mp3',
+        'placeholder.mp3',
         // 'dungeon-ambience.mp3',
         // 'tavern-night.mp3',
         // 'combat-drums.mp3',
