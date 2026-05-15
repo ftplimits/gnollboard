@@ -1452,6 +1452,7 @@
             }
             case 'light_sync':
                 redrawFog(); // host dropped a token — recalculate all light cutouts
+                redrawDoors(); // update door visibility for players
                 break;
 
             case 'token_delete': {
@@ -2479,9 +2480,24 @@
     const doorCanvas      = document.getElementById('door-canvas');
     const doorCtx         = doorCanvas.getContext('2d');
 
+    function isDoorLit(d) {
+        // Host always sees all doors
+        if (isHost) return true;
+        // Players only see doors within a token's light radius
+        return tokens.some(t => {
+            if (!t.lightRadius || t.lightRadius <= 0) return false;
+            const cx = t.x + FOG_OFFSET;
+            const cy = t.y + FOG_OFFSET;
+            const r  = t.lightRadius * CELL;
+            // Door is lit if either endpoint or midpoint is within radius
+            const mx = (d.p1.x + d.p2.x) / 2, my = (d.p1.y + d.p2.y) / 2;
+            return ptSegDist(cx, cy, d.p1.x, d.p1.y, d.p2.x, d.p2.y) <= r;
+        });
+    }
+
     function redrawDoors() {
         doorCtx.clearRect(0, 0, doorCanvas.width, doorCanvas.height);
-        doors.forEach(d => drawDoor(d, doorCtx));
+        doors.forEach(d => { if (isDoorLit(d)) drawDoor(d, doorCtx); });
     }
     let fogPresets        = [];   // [{id, verts, fogged}]
     let nextPresetId      = 1;
@@ -4934,6 +4950,7 @@
                 // Broadcast light sync only if any token has a light radius
                 if (tokens.some(t => t.lightRadius)) broadcast({ type: 'light_sync' });
                 redrawFog(); // update light cutout position on drop (host)
+                redrawDoors();
             }
             updateSelectionOverlay(); draggedToken=null;
         }
