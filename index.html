@@ -558,6 +558,61 @@
         #note-editor th { background: rgba(200,168,60,0.12); color: #ffe080; }
         #note-editor td:focus, #note-editor th:focus { outline: 1px solid rgba(200,168,60,0.5); background: rgba(200,168,60,0.06); }
 
+
+        /* ── Music Player ── */
+        #music-btn {
+            display: none; position: fixed; top: 12px; right: 300px; z-index: 1001;
+            background: rgba(42,42,42,0.6); border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px; padding: 6px 10px; color: #ccc;
+            font-family: var(--font-serif); font-size: 13px; cursor: pointer;
+            backdrop-filter: blur(4px); user-select: none; transition: all 0.15s;
+        }
+        #music-btn:hover { background: rgba(60,60,60,0.8); color: #fff; }
+        #music-panel {
+            position: fixed; top: 44px; right: 250px;
+            width: 260px; background: rgba(20,16,10,0.92);
+            border: 1px solid rgba(200,168,60,0.35); border-radius: 8px;
+            z-index: 2000; display: none; flex-direction: column;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.7);
+            font-family: var(--font-serif);
+        }
+        #music-panel.open { display: flex; }
+        #music-panel-header {
+            padding: 10px 14px 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            font-size: 12px; color: #c8a83c; letter-spacing: 1px;
+        }
+        #music-track-list { max-height: 240px; overflow-y: auto; }
+        .music-track {
+            padding: 8px 14px; font-size: 13px; color: #d4c89a;
+            cursor: pointer; transition: background 0.12s;
+            display: flex; align-items: center; gap: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .music-track:hover { background: rgba(200,168,60,0.1); color: #fff; }
+        .music-track.playing { color: #ffe080; background: rgba(200,168,60,0.08); }
+        .music-track-icon { font-size: 11px; width: 14px; flex-shrink: 0; }
+        /* Volume slider — all players */
+        #volume-bar {
+            position: fixed; top: 12px; right: 54px; z-index: 1001;
+            display: flex; align-items: center; gap: 6px;
+        }
+        #volume-icon { font-size: 13px; color: #aaa; user-select: none; }
+        #volume-slider {
+            -webkit-appearance: none; appearance: none;
+            width: 70px; height: 4px;
+            background: rgba(255,255,255,0.15); border-radius: 2px; outline: none;
+            cursor: pointer;
+        }
+        #volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 12px; height: 12px;
+            border-radius: 50%; background: #c8a83c; cursor: pointer;
+        }
+        #volume-slider::-moz-range-thumb {
+            width: 12px; height: 12px; border-radius: 50%;
+            background: #c8a83c; cursor: pointer; border: none;
+        }
+
     </style>
 </head>
 <body>
@@ -852,6 +907,20 @@
             <button class="nt-btn" id="nt-clear"  title="Clear formatting">✕</button>
         </div>
         <div id="note-editor" contenteditable="true" data-placeholder="Write your notes here..."></div>
+    </div>
+
+
+    <!-- ═══════ MUSIC PLAYER ═══════ -->
+    <button id="music-btn" title="Music">🎵 Music</button>
+    <div id="music-panel">
+        <div id="music-panel-header">♪ TRACKS</div>
+        <div id="music-track-list"></div>
+    </div>
+
+    <!-- Volume (all players) -->
+    <div id="volume-bar">
+        <span id="volume-icon">🔊</span>
+        <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.7">
     </div>
 
 
@@ -1609,6 +1678,13 @@
                 renderNoteTabs();
                 break;
 
+            case 'music_play':
+                playTrack(msg.filename, true);
+                break;
+            case 'music_pause':
+                if (currentTrack === msg.filename) { musicAudio.pause(); updateTrackList(); }
+                break;
+
             case 'board_clear':
                 tokensContainer.innerHTML=''; stickersContainer.innerHTML='';
                 shapesContainer.innerHTML=''; document.getElementById('text-container').innerHTML='';
@@ -1660,6 +1736,7 @@
         const btnSave = document.getElementById('btn-save');
         const btnLoad = document.getElementById('btn-load');
         const btnClear  = document.getElementById('btn-clear-board');
+        const btnMusic  = document.getElementById('music-btn');
         const btnMap  = document.getElementById('btn-map-upload-tb');
         const btnCenter = document.getElementById('btn-center-view');
         if (fogTb)     fogTb.style.display     = isHost ? 'flex'  : 'none';
@@ -1669,6 +1746,7 @@
         if (btnSave)   btnSave.style.display   = isHost ? 'block' : 'none';
         if (btnLoad)   btnLoad.style.display   = isHost ? 'block' : 'none';
         if (btnClear)  btnClear.style.display  = isHost ? 'block' : 'none';
+        if (btnMusic)  btnMusic.style.display  = isHost ? 'block' : 'none';
         if (btnMap)    btnMap.style.display    = isHost ? 'block' : 'none';
         if (btnCenter) btnCenter.style.display = isHost ? 'block' : 'none';
         // Reposition toolbar toggle after toolbar becomes visible
@@ -5044,6 +5122,91 @@
             }
         }
     });
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MUSIC PLAYER
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Add tracks here — place files in /music/ folder in your repo
+    const MUSIC_TRACKS = [
+        'placeholder.mp3',
+        // 'dungeon-ambience.mp3',
+        // 'tavern-night.mp3',
+        // 'combat-drums.mp3',
+    ];
+
+    let currentTrack  = null; // filename string
+    let musicAudio    = new Audio();
+    musicAudio.loop   = true;
+    musicAudio.volume = 0.7;
+
+    function setMusicVolume(v) {
+        musicAudio.volume = parseFloat(v);
+        const icon = document.getElementById('volume-icon');
+        if (icon) icon.textContent = v == 0 ? '🔇' : v < 0.4 ? '🔉' : '🔊';
+    }
+
+    function playTrack(filename, fromPeer = false) {
+        const wasSame = currentTrack === filename;
+
+        if (wasSame && !musicAudio.paused) {
+            // Pause current
+            musicAudio.pause();
+            if (!fromPeer) broadcast({ type: 'music_pause', filename });
+            updateTrackList();
+            return;
+        }
+
+        // Stop whatever is playing
+        musicAudio.pause();
+        musicAudio.src = `./music/${filename}`;
+        currentTrack = filename;
+        musicAudio.load();
+        musicAudio.play().catch(e => console.error('Music play failed:', e));
+        if (!fromPeer) broadcast({ type: 'music_play', filename });
+        updateTrackList();
+    }
+
+    function updateTrackList() {
+        const list = document.getElementById('music-track-list');
+        if (!list) return;
+        list.innerHTML = '';
+        MUSIC_TRACKS.forEach(filename => {
+            const row = document.createElement('div');
+            const isPlaying = currentTrack === filename && !musicAudio.paused;
+            row.className = 'music-track' + (currentTrack === filename ? ' playing' : '');
+            row.innerHTML = `<span class="music-track-icon">${isPlaying ? '▶' : '○'}</span><span>${filename.replace(/\.[^.]+$/, '')}</span>`;
+            if (isHost) row.addEventListener('click', () => playTrack(filename));
+            list.appendChild(row);
+        });
+    }
+
+    // P2P music sync — add to message handler
+    // (handled in receive block below)
+
+    // Volume slider
+    document.getElementById('volume-slider')?.addEventListener('input', e => {
+        setMusicVolume(e.target.value);
+    });
+
+    // Music button toggle
+    document.getElementById('music-btn')?.addEventListener('click', e => {
+        e.stopPropagation();
+        const panel = document.getElementById('music-panel');
+        const open = panel.classList.toggle('open');
+        if (open) updateTrackList();
+    });
+    document.getElementById('music-btn')?.addEventListener('mousedown', e => e.stopPropagation());
+    document.getElementById('music-panel')?.addEventListener('mousedown', e => e.stopPropagation());
+
+    // Close panel on outside click
+    document.addEventListener('click', e => {
+        if (!e.target.closest('#music-btn') && !e.target.closest('#music-panel')) {
+            document.getElementById('music-panel')?.classList.remove('open');
+        }
+    });
+
+    // Show music button for host (also handled in updatePeerUI)
+    // Volume bar always visible — already in HTML
 
     // ═══════════════════════════════════════════════════════════════════════════
     // INIT
