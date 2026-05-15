@@ -2149,6 +2149,11 @@
         fogCtx.fillStyle = grad;
         fogCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
         fogCtx.globalCompositeOperation = 'source-over';
+
+        // Cut light radius areas out of fog
+        redrawLightFogCuts();
+        // Redraw glow on light canvas
+        redrawLights();
     }
 
     function applyFogBrush(gridX, gridY, painting) {
@@ -2224,18 +2229,40 @@
         lightCtx.clearRect(0, 0, lightCanvas.width, lightCanvas.height);
         tokens.forEach(t => {
             if (!t.lightRadius || t.lightRadius <= 0) return;
-            const cx = t.x + t.w / 2 + FOG_OFFSET;
-            const cy = t.y + t.h / 2 + FOG_OFFSET;
+            // t.x/y is the center of the token in grid coords
+            const cx = t.x + FOG_OFFSET;
+            const cy = t.y + FOG_OFFSET;
             const r  = t.lightRadius * CELL;
-            const grad = lightCtx.createRadialGradient(cx, cy, r * 0.1, cx, cy, r);
-            grad.addColorStop(0,   'rgba(255,220,120,0.22)');
-            grad.addColorStop(0.5, 'rgba(255,180,60,0.10)');
+            // Warm glow on light canvas
+            const grad = lightCtx.createRadialGradient(cx, cy, 0, cx, cy, r);
+            grad.addColorStop(0,   'rgba(255,220,120,0.28)');
+            grad.addColorStop(0.5, 'rgba(255,180,60,0.12)');
             grad.addColorStop(1,   'rgba(255,140,0,0)');
             lightCtx.fillStyle = grad;
             lightCtx.beginPath();
             lightCtx.arc(cx, cy, r, 0, Math.PI * 2);
             lightCtx.fill();
         });
+    }
+
+    function redrawLightFogCuts() {
+        // Cut light radius out of fog — called from redrawFog
+        fogCtx.globalCompositeOperation = 'destination-out';
+        tokens.forEach(t => {
+            if (!t.lightRadius || t.lightRadius <= 0) return;
+            const cx = t.x + FOG_OFFSET;
+            const cy = t.y + FOG_OFFSET;
+            const r  = t.lightRadius * CELL;
+            const grad = fogCtx.createRadialGradient(cx, cy, r * 0.5, cx, cy, r);
+            grad.addColorStop(0,    'rgba(0,0,0,1)');
+            grad.addColorStop(0.85, 'rgba(0,0,0,1)');
+            grad.addColorStop(1,    'rgba(0,0,0,0)');
+            fogCtx.fillStyle = grad;
+            fogCtx.beginPath();
+            fogCtx.arc(cx, cy, r, 0, Math.PI * 2);
+            fogCtx.fill();
+        });
+        fogCtx.globalCompositeOperation = 'source-over';
     }
 
     const fogPolyCanvas = document.getElementById('fog-poly-canvas');
