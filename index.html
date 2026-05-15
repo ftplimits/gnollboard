@@ -2368,25 +2368,52 @@
             fogPresetCtx.setLineDash([]);
         });
         // Draw in-progress define preview
-        if (fogPresetMode === 'define' && presetDefVerts.length > 0) {
-            fogPresetCtx.strokeStyle = 'rgba(60,200,80,0.8)';
-            fogPresetCtx.lineWidth = 1.5;
-            fogPresetCtx.setLineDash([4, 4]);
-            fogPresetCtx.beginPath();
-            fogPresetCtx.moveTo(presetDefVerts[0].x, presetDefVerts[0].y);
-            presetDefVerts.forEach(v => fogPresetCtx.lineTo(v.x, v.y));
-            if (presetDefMouse) fogPresetCtx.lineTo(presetDefMouse.x, presetDefMouse.y);
-            fogPresetCtx.stroke();
-            fogPresetCtx.setLineDash([]);
-            // Vertex dots
-            presetDefVerts.forEach((v, i) => {
+        if (fogPresetMode === 'define') {
+            if (presetDefVerts.length > 0) {
+                fogPresetCtx.strokeStyle = 'rgba(60,200,80,0.8)';
+                fogPresetCtx.lineWidth = 1.5;
+                fogPresetCtx.setLineDash([4, 4]);
                 fogPresetCtx.beginPath();
-                fogPresetCtx.arc(v.x, v.y, i === 0 ? 7 : 4, 0, Math.PI*2);
-                fogPresetCtx.fillStyle = i === 0 ? 'rgba(60,200,80,0.9)' : 'white';
+                fogPresetCtx.moveTo(presetDefVerts[0].x, presetDefVerts[0].y);
+                presetDefVerts.forEach(v => fogPresetCtx.lineTo(v.x, v.y));
+                if (presetDefMouse) fogPresetCtx.lineTo(presetDefMouse.x, presetDefMouse.y);
+                fogPresetCtx.stroke();
+                fogPresetCtx.setLineDash([]);
+                // Placed vertex dots
+                presetDefVerts.forEach((v, i) => {
+                    fogPresetCtx.beginPath();
+                    fogPresetCtx.arc(v.x, v.y, i === 0 ? 7 : 4, 0, Math.PI*2);
+                    fogPresetCtx.fillStyle = i === 0 ? 'rgba(60,200,80,0.9)' : 'white';
+                    fogPresetCtx.fill();
+                    fogPresetCtx.strokeStyle = 'rgba(60,200,80,0.9)';
+                    fogPresetCtx.lineWidth = 2; fogPresetCtx.stroke();
+                });
+            }
+            // Snap indicator — always show while in define mode
+            if (presetDefMouse) {
+                const nearFirst = presetDefVerts.length >= 3 &&
+                    Math.hypot(presetDefMouse.x - presetDefVerts[0].x, presetDefMouse.y - presetDefVerts[0].y) < 30;
+                const snapColor = nearFirst ? 'rgba(255,220,60,0.95)' : 'rgba(60,200,80,0.9)';
+                const snapSize  = shiftHeld ? 6 : 4; // larger dot for center snap
+                // Crosshair lines
+                fogPresetCtx.strokeStyle = snapColor;
+                fogPresetCtx.lineWidth = 1;
+                fogPresetCtx.setLineDash([]);
+                const cx = presetDefMouse.x, cy = presetDefMouse.y, arm = 10;
+                fogPresetCtx.beginPath();
+                fogPresetCtx.moveTo(cx - arm, cy); fogPresetCtx.lineTo(cx + arm, cy);
+                fogPresetCtx.moveTo(cx, cy - arm); fogPresetCtx.lineTo(cx, cy + arm);
+                fogPresetCtx.stroke();
+                // Center dot
+                fogPresetCtx.beginPath();
+                fogPresetCtx.arc(cx, cy, snapSize, 0, Math.PI*2);
+                fogPresetCtx.fillStyle = snapColor;
                 fogPresetCtx.fill();
-                fogPresetCtx.strokeStyle = 'rgba(60,200,80,0.9)';
-                fogPresetCtx.lineWidth = 2; fogPresetCtx.stroke();
-            });
+                // Label: show "center" or "intersection"
+                fogPresetCtx.font = '10px sans-serif';
+                fogPresetCtx.fillStyle = snapColor;
+                fogPresetCtx.fillText(nearFirst ? 'close' : shiftHeld ? '·center' : '+ intersect', cx + 12, cy - 6);
+            }
         }
     }
 
@@ -4297,7 +4324,7 @@
             drawFogPolyPreview();
         }
         // Preset define preview
-        if (fogPresetMode === 'define' && presetDefVerts.length > 0) {
+        if (fogPresetMode === 'define') {
             const pos = viewportToGrid(e.clientX, e.clientY);
             presetDefMouse = snapToIntersection(pos.x, pos.y, shiftHeld);
             drawPresetOutlines();
