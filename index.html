@@ -456,7 +456,7 @@
             font-family: 'Cinzel', 'IM Fell English', serif;
             font-size: 12px; line-height: 1.5;
             color: var(--log-text-color, #e8d080);
-            text-shadow: 0 1px 6px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,1);
+            text-shadow: var(--log-text-shadow, 0 1px 6px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,1));
             text-align: right;
             animation: log-fade-in 0.25s ease-out;
             background: none;
@@ -4679,6 +4679,12 @@
         document.querySelectorAll('.die-inner-line').forEach(el => { el.style.stroke = stroke; });
         document.querySelectorAll('.die-label').forEach(el => { el.style.fill = diceNumColorStr; el.style.stroke = 'none'; });
         document.documentElement.style.setProperty('--log-text-color', stroke);
+        // Add white shadow for dark colors so log text stays readable
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        const shadow = brightness < 80
+            ? '0 1px 6px rgba(0,0,0,1), 0 0 8px #fff, 0 0 2px #fff'
+            : '0 1px 6px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,1)';
+        document.documentElement.style.setProperty('--log-text-shadow', shadow);
     };
 
     function buildDicePalette() {
