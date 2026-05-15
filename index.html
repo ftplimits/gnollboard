@@ -758,7 +758,8 @@
         <button class="fog-btn" id="btn-fog-poly-cut"        title="Polygon Fog — reveal (Shift = snap to cell centers)">🔶</button>
         <button class="fog-btn" id="btn-fog-preset-define"   title="Define Fog Preset">📌</button>
         <button class="fog-btn" id="btn-fog-preset-toggle"   title="Toggle Fog Preset">🔘</button>
-        <button class="fog-btn" id="btn-fog-preset-delete"   title="Delete Fog Preset (click inside preset to remove it)">🗑️</button>
+        <button class="fog-btn" id="btn-fog-preset-delete"   title="Delete Fog Preset">🗑️</button>
+        <button class="fog-btn" id="btn-fog-door"            title="Place Door (click two points on a wall)">🚪</button>
     </div>
     <div id="fog-toggle">FOG</div>
 
@@ -1356,6 +1357,7 @@
             mapImages:   mapImages.filter(m => m.locked && m.image).map(m => ({ ...m })),
             fogPresets:  fogPresets.map(p => ({ ...p })),
             notes:       notes.map(n => ({ ...n })),
+            doors:       doors.map(d => ({ ...d })),
             canvasData:  canvas.toDataURL('image/webp', 0.85),
             fogCellData: [...fogCells].map(key => { const [cx,cy] = key.split(',').map(Number); return {cx,cy}; })
         };
@@ -1378,6 +1380,7 @@
         if (fogPresets.length) nextPresetId = Math.max(...fogPresets.map(p => p.id)) + 1;
         drawPresetOutlines();
         if (snap.notes) { notes = snap.notes; nextNoteId = notes.length ? Math.max(...notes.map(n=>n.id))+1 : 1; renderNoteTabs(); }
+        if (snap.doors) { doors = snap.doors; nextDoorId = doors.length ? Math.max(...doors.map(d=>d.id))+1 : 1; drawPresetOutlines(); }
         if (snap.canvasData) { const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = snap.canvasData; }
         if (snap.fogCellData) applyFogSnapshot(snap.fogCellData);
         if (tokens.length)     nextTokenId   = Math.max(...tokens.map(t=>t.id))   + 1;
@@ -1688,6 +1691,23 @@
                 break;
             case 'music_pause':
                 if (currentTrack === msg.filename) { musicAudio.pause(); updateTrackList(); }
+                break;
+
+            case 'door_add':
+                if (!doors.find(d => d.id === msg.door.id)) {
+                    doors.push(msg.door);
+                    if (msg.door.id >= nextDoorId) nextDoorId = msg.door.id + 1;
+                    drawPresetOutlines();
+                }
+                break;
+            case 'door_update': {
+                const d = doors.find(d => d.id === msg.id);
+                if (d) { d.open = msg.open; redrawFog(); drawPresetOutlines(); }
+                break;
+            }
+            case 'door_delete':
+                doors = doors.filter(d => d.id !== msg.id);
+                redrawFog(); drawPresetOutlines();
                 break;
 
             case 'board_clear':
@@ -2235,34 +2255,29 @@
             const cy = t.y + FOG_OFFSET;
             const r  = t.lightRadius * CELL;
 
-            // Build mask on offscreen canvas:
-            // mask = intersection of (light circle) AND (containing preset polygon, if any)
-            const off = document.createElement('canvas');
-            off.width  = fogCanvas.width;
-            off.height = fogCanvas.height;
-            const octx = off.getContext('2d');
+            // Flood-fill through open doors to get all connected lit polygons
+            const connected = getConnectedPolygons(cx, cy);
 
-            // Find fogged preset polygons that contain this token
-            const containers = fogPresets.filter(p =>
-                p.fogged && p.verts.length >= 3 &&
-                pointInPolygon(cx, cy, p.verts)
-            );
+            const off    = document.createElement('canvas');
+            off.width    = fogCanvas.width;
+            off.height   = fogCanvas.height;
+            const octx   = off.getContext('2d');
 
-            if (containers.length > 0) {
-                // Draw the containing polygon(s) as the base shape
+            if (connected && connected.length > 0) {
+                // Fill all connected polygons as the base mask
                 octx.fillStyle = '#fff';
-                containers.forEach(p => {
+                connected.forEach(p => {
                     octx.beginPath();
                     octx.moveTo(p.verts[0].x, p.verts[0].y);
                     p.verts.slice(1).forEach(v => octx.lineTo(v.x, v.y));
                     octx.closePath();
                     octx.fill();
                 });
-                // Intersect with the light circle — keep only polygon AND circle
+                // Intersect with the light circle
                 octx.globalCompositeOperation = 'destination-in';
             }
 
-            // Draw light circle (full or intersected with polygon above)
+            // Draw light circle (full if no polygon constraint, intersected if constrained)
             octx.fillStyle = '#fff';
             octx.beginPath();
             octx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -2425,6 +2440,13 @@
     let presetDefVerts    = [];   // vertices being defined
     let presetDefMouse    = null;
 
+    // ── Doors ────────────────────────────────────────────────────────────────
+    let doors        = [];   // [{id, p1:{x,y}, p2:{x,y}, open}]
+    let nextDoorId   = 1;
+    let doorMode     = false; // true = placing a door
+    let doorP1       = null;  // first point placed
+    let doorMouse    = null;  // current mouse pos for preview
+
     function drawPresetOutlines() {
         fogPresetCtx.clearRect(0, 0, fogPresetCanvas.width, fogPresetCanvas.height);
         if (!isHost) return;
@@ -2441,6 +2463,38 @@
             fogPresetCtx.stroke();
             fogPresetCtx.setLineDash([]);
         });
+
+        // Draw placed doors
+        doors.forEach(d => drawDoor(d));
+
+        // Door placement preview
+        if (doorMode && doorMouse) {
+            fogPresetCtx.setLineDash([4, 3]);
+            fogPresetCtx.strokeStyle = '#e8c840';
+            fogPresetCtx.lineWidth   = 2;
+            if (doorP1) {
+                fogPresetCtx.beginPath();
+                fogPresetCtx.moveTo(doorP1.x, doorP1.y);
+                fogPresetCtx.lineTo(doorMouse.x, doorMouse.y);
+                fogPresetCtx.stroke();
+                fogPresetCtx.setLineDash([]);
+                fogPresetCtx.fillStyle = '#e8c840';
+                fogPresetCtx.beginPath();
+                fogPresetCtx.arc(doorP1.x, doorP1.y, 5, 0, Math.PI * 2);
+                fogPresetCtx.fill();
+            }
+            fogPresetCtx.setLineDash([]);
+            fogPresetCtx.fillStyle = '#e8c840';
+            fogPresetCtx.beginPath();
+            fogPresetCtx.arc(doorMouse.x, doorMouse.y, 4, 0, Math.PI * 2);
+            fogPresetCtx.fill();
+            fogPresetCtx.strokeStyle = '#e8c840'; fogPresetCtx.lineWidth = 1;
+            fogPresetCtx.beginPath();
+            const arm = 8;
+            fogPresetCtx.moveTo(doorMouse.x - arm, doorMouse.y); fogPresetCtx.lineTo(doorMouse.x + arm, doorMouse.y);
+            fogPresetCtx.moveTo(doorMouse.x, doorMouse.y - arm); fogPresetCtx.lineTo(doorMouse.x, doorMouse.y + arm);
+            fogPresetCtx.stroke();
+        }
         // Draw in-progress define preview
         if (fogPresetMode === 'define') {
             if (presetDefVerts.length > 0) {
@@ -2506,6 +2560,157 @@
         }
         drawPresetOutlines();
     }
+
+    function drawDoor(d) {
+        const col = d.open ? '#e8c840' : '#993333';
+        fogPresetCtx.strokeStyle = col;
+        fogPresetCtx.setLineDash([]);
+        const len = Math.hypot(d.p2.x - d.p1.x, d.p2.y - d.p1.y) || 1;
+        const ux  = (d.p2.x - d.p1.x) / len, uy = (d.p2.y - d.p1.y) / len;
+        const nx  = -uy, ny = ux;
+        if (d.open) {
+            // Open: two short stubs leaving a gap
+            fogPresetCtx.lineWidth = 2;
+            const gap = Math.min(14, len * 0.32);
+            const mx  = (d.p1.x + d.p2.x) / 2, my = (d.p1.y + d.p2.y) / 2;
+            fogPresetCtx.beginPath();
+            fogPresetCtx.moveTo(d.p1.x, d.p1.y);
+            fogPresetCtx.lineTo(mx - ux * gap, my - uy * gap);
+            fogPresetCtx.stroke();
+            fogPresetCtx.beginPath();
+            fogPresetCtx.moveTo(mx + ux * gap, my + uy * gap);
+            fogPresetCtx.lineTo(d.p2.x, d.p2.y);
+            fogPresetCtx.stroke();
+        } else {
+            // Closed: solid line + perpendicular ticks at each end
+            fogPresetCtx.lineWidth = 3;
+            fogPresetCtx.beginPath();
+            fogPresetCtx.moveTo(d.p1.x, d.p1.y);
+            fogPresetCtx.lineTo(d.p2.x, d.p2.y);
+            fogPresetCtx.stroke();
+            fogPresetCtx.lineWidth = 2;
+            const tk = 7;
+            [[d.p1.x, d.p1.y], [d.p2.x, d.p2.y]].forEach(([px, py]) => {
+                fogPresetCtx.beginPath();
+                fogPresetCtx.moveTo(px + nx * tk, py + ny * tk);
+                fogPresetCtx.lineTo(px - nx * tk, py - ny * tk);
+                fogPresetCtx.stroke();
+            });
+        }
+    }
+
+    // Returns the two "room side" test points for a door (15px either side of midpoint)
+    function doorSidePoints(d) {
+        const mx  = (d.p1.x + d.p2.x) / 2, my = (d.p1.y + d.p2.y) / 2;
+        const len = Math.hypot(d.p2.x - d.p1.x, d.p2.y - d.p1.y) || 1;
+        const nx  = -(d.p2.y - d.p1.y) / len, ny = (d.p2.x - d.p1.x) / len;
+        const off = 15;
+        return [
+            { x: mx + nx * off, y: my + ny * off },
+            { x: mx - nx * off, y: my - ny * off }
+        ];
+    }
+
+    // Returns true if this door touches (has a side inside) the given polygon
+    function doorTouchesPolygon(d, poly) {
+        return doorSidePoints(d).some(pt => pointInPolygon(pt.x, pt.y, poly.verts));
+    }
+
+    // Flood-fill through open doors to collect all connected fogged polygons
+    function getConnectedPolygons(cx, cy) {
+        const start = fogPresets.find(p =>
+            p.fogged && p.verts.length >= 3 && pointInPolygon(cx, cy, p.verts)
+        );
+        if (!start) return null; // no containing polygon — light cuts freely
+
+        const visited = new Set([start.id]);
+        const queue   = [start];
+
+        while (queue.length) {
+            const current = queue.shift();
+            doors.filter(d => d.open && doorTouchesPolygon(d, current)).forEach(d => {
+                const sides = doorSidePoints(d);
+                fogPresets.forEach(neighbor => {
+                    if (!neighbor.fogged || visited.has(neighbor.id)) return;
+                    if (sides.some(pt => pointInPolygon(pt.x, pt.y, neighbor.verts))) {
+                        visited.add(neighbor.id);
+                        queue.push(neighbor);
+                    }
+                });
+            });
+        }
+
+        return fogPresets.filter(p => visited.has(p.id));
+    }
+
+    // Point-to-segment distance helper for door click detection
+    function ptSegDist(px, py, ax, ay, bx, by) {
+        const dx = bx - ax, dy = by - ay;
+        const lenSq = dx * dx + dy * dy;
+        if (lenSq === 0) return Math.hypot(px - ax, py - ay);
+        const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+        return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+    }
+
+    // Door tool button
+    document.getElementById('btn-fog-door')?.addEventListener('click', () => {
+        doorMode = !doorMode;
+        doorP1   = null;
+        fogPresetMode = null;
+        document.getElementById('btn-fog-door').classList.toggle('active', doorMode);
+        document.getElementById('btn-fog-preset-define')?.classList.remove('active');
+        document.getElementById('btn-fog-preset-toggle')?.classList.remove('active');
+        document.getElementById('btn-fog-preset-delete')?.classList.remove('active');
+        viewport.style.cursor = doorMode ? 'crosshair' : 'default';
+        drawPresetOutlines();
+    });
+
+    // Door mouse/click handling on viewport
+    viewport.addEventListener('mousemove', e2 => {
+        if (!doorMode) return;
+        const pos = viewportToGrid(e2.clientX, e2.clientY);
+        doorMouse = snapToIntersection(pos.x, pos.y, shiftHeld);
+        drawPresetOutlines();
+    });
+
+    viewport.addEventListener('click', e2 => {
+        if (!doorMode || e2.button !== 0) return;
+        const pos     = viewportToGrid(e2.clientX, e2.clientY);
+        const snapped = snapToIntersection(pos.x, pos.y, shiftHeld);
+
+        if (!doorP1) {
+            // Check if clicking near an existing door — toggle it
+            const hit = doors.find(d => ptSegDist(pos.x, pos.y, d.p1.x, d.p1.y, d.p2.x, d.p2.y) < 15);
+            if (hit) {
+                hit.open = !hit.open;
+                broadcast({ type: 'door_update', id: hit.id, open: hit.open });
+                redrawFog(); drawPresetOutlines();
+                return;
+            }
+            // Start placing a new door
+            doorP1 = snapped;
+        } else {
+            // Place the door
+            const door = { id: nextDoorId++, p1: doorP1, p2: snapped, open: false };
+            doors.push(door);
+            broadcast({ type: 'door_add', door: { ...door } });
+            doorP1 = null;
+            drawPresetOutlines();
+        }
+    });
+
+    viewport.addEventListener('contextmenu', e2 => {
+        if (!doorMode) return;
+        e2.preventDefault(); e2.stopPropagation();
+        const pos = viewportToGrid(e2.clientX, e2.clientY);
+        const hit = doors.findIndex(d => ptSegDist(pos.x, pos.y, d.p1.x, d.p1.y, d.p2.x, d.p2.y) < 15);
+        if (hit >= 0) {
+            broadcast({ type: 'door_delete', id: doors[hit].id });
+            doors.splice(hit, 1);
+            doorP1 = null;
+            redrawFog(); drawPresetOutlines();
+        }
+    });
 
     function applyPresetFog(preset, fogged) {
         preset.fogged = fogged;
@@ -2689,6 +2894,7 @@
             mapImages:  mapImages.filter(m => m.locked && m.image).map(m => ({ ...m })),
             fogPresets: fogPresets.map(p => ({ ...p })),
             fogBitmask: fogB64,
+            doors:      doors.map(d => ({ ...d })),
             notes:      notes.map(n => ({ ...n }))
         };
     }
@@ -2738,6 +2944,10 @@
         activeNoteId = null;
         renderNoteTabs();
         document.getElementById("note-panel").classList.remove("open");
+        // Restore doors
+        doors = data.doors || [];
+        nextDoorId = doors.length ? Math.max(...doors.map(d => d.id)) + 1 : 1;
+        drawPresetOutlines();
     }
 
     // ── Save dialog ──────────────────────────────────────────────────────────
