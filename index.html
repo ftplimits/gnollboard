@@ -4693,16 +4693,24 @@
     }
 
     // Wire dice swatches directly — same pattern as grid swatches (works in Discord iframe)
-    document.querySelectorAll('#dice-color-panel .dice-swatch-row').forEach((row, rowIdx) => {
-        row.querySelectorAll('.dice-swatch').forEach(sw => {
-            sw.addEventListener('mousedown', e => e.stopPropagation());
-            sw.addEventListener('click', e => {
-                e.stopPropagation();
-                if (rowIdx === 0) setDiceOutline(sw.dataset.color, sw);
-                else              setDiceNum(sw.dataset.color, sw);
+    (() => {
+        const rows = document.querySelectorAll('#dice-color-panel .dice-swatch-row');
+        console.log('[Dice] swatch rows found:', rows.length);
+        rows.forEach((row, rowIdx) => {
+            const swatches = row.querySelectorAll('.dice-swatch');
+            console.log(`[Dice] row ${rowIdx} swatches found:`, swatches.length);
+            swatches.forEach(sw => {
+                console.log(`[Dice] wiring swatch color:`, sw.dataset.color);
+                sw.addEventListener('mousedown', e => e.stopPropagation());
+                sw.addEventListener('click', e => {
+                    e.stopPropagation();
+                    console.log('[Dice] swatch clicked:', rowIdx, sw.dataset.color);
+                    if (rowIdx === 0) setDiceOutline(sw.dataset.color, sw);
+                    else              setDiceNum(sw.dataset.color, sw);
+                });
             });
         });
-    });
+    })();
 
     // ── Center-top roll popup ──
     let rollPopupTimer = null;
