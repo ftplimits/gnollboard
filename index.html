@@ -759,6 +759,7 @@
         <button class="fog-btn" id="btn-fog-preset-define"   title="Define Fog Preset (Shift = snap to cell centers)">📌</button>
         <button class="fog-btn" id="btn-fog-preset-toggle"   title="Toggle Fog Preset">🔘</button>
         <button class="fog-btn" id="btn-fog-preset-delete"   title="Delete Fog Preset (click inside preset to remove it)">🗑️</button>
+        <button class="fog-btn" id="btn-fog-snap-mode"       title="Snap: intersections / cell centers">✛</button>
     </div>
     <div id="fog-toggle">FOG</div>
 
@@ -1630,7 +1631,7 @@
             }
             case 'preset_update': {
                 const p = fogPresets.find(x => x.id === msg.id);
-                if (p) { p.fogged = msg.fogged; drawPresetOutlines(); }
+                if (p) { p.fogged = msg.fogged; redrawFog(); drawPresetOutlines(); }
                 break;
             }
             case 'grid_color':
@@ -2107,18 +2108,29 @@
     function redrawFog() {
         fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
 
-        // Host sees 50% opacity so they can see through fog; players see solid black
         const baseAlpha = isHost ? 0.5 : 1.0;
 
+        // Draw cell-based fog (brush tools)
         fogCtx.fillStyle = `rgba(0,0,0,${baseAlpha})`;
         fogCells.forEach(key => {
             const [cx, cy] = key.split(',').map(Number);
             fogCtx.fillRect(cx * CELL + FOG_OFFSET, cy * CELL + FOG_OFFSET, CELL, CELL);
         });
 
-        if (!fogCells.size) return;
+        // Draw preset polygon fog with exact edges
+        fogPresets.forEach(p => {
+            if (!p.fogged || p.verts.length < 3) return;
+            fogCtx.fillStyle = `rgba(0,0,0,${baseAlpha})`;
+            fogCtx.beginPath();
+            fogCtx.moveTo(p.verts[0].x, p.verts[0].y);
+            p.verts.forEach(v => fogCtx.lineTo(v.x, v.y));
+            fogCtx.closePath();
+            fogCtx.fill();
+        });
 
-        // Radial gradient: dark gray center → black edges, composited over fog cells
+        if (!fogCells.size && !fogPresets.some(p => p.fogged)) return;
+
+        // Radial gradient overlay
         const cx = fogCanvas.width  / 2;
         const cy = fogCanvas.height / 2;
         const r  = Math.max(fogCanvas.width, fogCanvas.height) * 0.65;
@@ -2132,7 +2144,6 @@
             grad.addColorStop(0.5, '#0d0d0d');
             grad.addColorStop(1,   '#000000');
         }
-
         fogCtx.globalCompositeOperation = 'source-atop';
         fogCtx.fillStyle = grad;
         fogCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
@@ -2311,7 +2322,7 @@
     viewport.addEventListener('click', e => {
         if (!fogPolyMode || e.button !== 0) return;
         const pos = viewportToGrid(e.clientX, e.clientY);
-        const snapped = snapToIntersection(pos.x, pos.y, shiftHeld);
+        const snapped = snapToIntersection(pos.x, pos.y, shiftHeld || fogSnapCenter);
         // Close polygon if clicking near first vertex
         if (fogPolyVerts.length >= 3) {
             const first = fogPolyVerts[0];
@@ -2435,19 +2446,8 @@
 
     function applyPresetFog(preset, fogged) {
         preset.fogged = fogged;
-        const changed = [];
-        for (let cx = 0; cx < 100; cx++) {
-            for (let cy = 0; cy < 100; cy++) {
-                const cellCX = cx * 50 + FOG_OFFSET + 25;
-                const cellCY = cy * 50 + FOG_OFFSET + 25;
-                if (pointInPolygon(cellCX, cellCY, preset.verts)) {
-                    const key = `${cx},${cy}`;
-                    if (fogged && !fogCells.has(key)) { fogCells.add(key); drawFogCell(cx, cy); changed.push({cx,cy,fog:true}); }
-                    else if (!fogged && fogCells.has(key)) { fogCells.delete(key); eraseFogCell(cx, cy); changed.push({cx,cy,fog:false}); }
-                }
-            }
-        }
-        if (changed.length) broadcast({ type: 'fog_cells', cells: changed });
+        // Preset fog is now rendered as polygon fills in redrawFog — no cell modification needed
+        redrawFog();
         broadcast({ type: 'preset_update', id: preset.id, fogged: preset.fogged });
         drawPresetOutlines();
     }
@@ -2458,7 +2458,7 @@
         const pos = viewportToGrid(e.clientX, e.clientY);
 
         if (fogPresetMode === 'define') {
-            const snapped = snapToIntersection(pos.x, pos.y, shiftHeld);
+            const snapped = snapToIntersection(pos.x, pos.y, shiftHeld || fogSnapCenter);
             // Close if near first vertex
             if (presetDefVerts.length >= 3) {
                 const first = presetDefVerts[0];
@@ -2520,6 +2520,16 @@
         broadcast({ type: 'preset_add', preset: { id: preset.id, verts: preset.verts, fogged: preset.fogged } });
         presetDefVerts = []; presetDefMouse = null;
         drawPresetOutlines();
+    });
+
+    let fogSnapCenter = false; // toggled by toolbar button
+
+    document.getElementById('btn-fog-snap-mode')?.addEventListener('click', () => {
+        fogSnapCenter = !fogSnapCenter;
+        const btn = document.getElementById('btn-fog-snap-mode');
+        btn.classList.toggle('active', fogSnapCenter);
+        btn.title = fogSnapCenter ? 'Snap: cell centers (click to switch)' : 'Snap: intersections (click to switch)';
+        btn.textContent = fogSnapCenter ? '·' : '✛';
     });
 
     document.getElementById('btn-fog-preset-define')?.addEventListener('click', () => startFogPresetMode('define'));
@@ -4320,13 +4330,13 @@
         // Polygon fog preview line
         if (fogPolyMode && fogPolyVerts.length > 0) {
             const pos = viewportToGrid(e.clientX, e.clientY);
-            fogPolyMousePos = snapToIntersection(pos.x, pos.y, shiftHeld);
+            fogPolyMousePos = snapToIntersection(pos.x, pos.y, shiftHeld || fogSnapCenter);
             drawFogPolyPreview();
         }
         // Preset define preview
         if (fogPresetMode === 'define') {
             const pos = viewportToGrid(e.clientX, e.clientY);
-            presetDefMouse = snapToIntersection(pos.x, pos.y, shiftHeld);
+            presetDefMouse = snapToIntersection(pos.x, pos.y, shiftHeld || fogSnapCenter);
             drawPresetOutlines();
         }
         if (isRotating && selectedObject) {
