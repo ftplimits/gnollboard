@@ -844,7 +844,7 @@
     <div id="dice-log"></div>
 
     <!-- ═══════ DICE COLOUR SWATCHES ═══════ -->
-    <div id="dice-color-toggle" title="Dice colours" onclick="document.getElementById('dice-color-panel').classList.toggle('open')"></div>
+    <div id="dice-color-toggle" title="Dice colours"></div>
     <div id="dice-color-panel">
         <div class="dice-color-section-label">OUTLINE</div>
         <div class="dice-swatch-row">
@@ -4682,6 +4682,10 @@
     };
 
     function buildDicePalette() {
+        document.getElementById('dice-color-toggle')?.addEventListener('click', e => {
+            e.stopPropagation();
+            document.getElementById('dice-color-panel').classList.toggle('open');
+        });
         document.getElementById('dice-color-panel')?.addEventListener('mousedown', e => e.stopPropagation());
         document.getElementById('dice-color-toggle')?.addEventListener('mousedown', e => e.stopPropagation());
         document.addEventListener('click', e => {
