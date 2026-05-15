@@ -2618,16 +2618,11 @@
         fogPresetCtx.rotate(ang);
 
         if (d.open) {
-            // Open door: lighter brown with gold outline, semi-transparent
-            fogPresetCtx.fillStyle   = 'rgba(107,58,31,0.45)';
-            fogPresetCtx.strokeStyle = '#e8c840';
-            fogPresetCtx.lineWidth   = 1.5;
-            fogPresetCtx.fillRect(-half, -doorH / 2, len, doorH);
-            fogPresetCtx.strokeRect(-half, -doorH / 2, len, doorH);
-            // End caps — gold
-            fogPresetCtx.fillStyle   = 'rgba(30,20,10,0.6)';
-            fogPresetCtx.strokeStyle = '#e8c840';
-            fogPresetCtx.lineWidth   = 1.5;
+            // Open door: transparent gap where panel was, solid black end caps
+            // End caps — same as closed
+            fogPresetCtx.fillStyle   = '#111';
+            fogPresetCtx.strokeStyle = '#333';
+            fogPresetCtx.lineWidth   = 1;
             fogPresetCtx.fillRect(-half - capW / 2, -capH / 2, capW, capH);
             fogPresetCtx.strokeRect(-half - capW / 2, -capH / 2, capW, capH);
             fogPresetCtx.fillRect( half - capW / 2, -capH / 2, capW, capH);
