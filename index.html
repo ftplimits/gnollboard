@@ -2603,41 +2603,53 @@
     }
 
     function drawDoor(d) {
-        const col = d.open ? '#e8c840' : '#993333';
-        fogPresetCtx.strokeStyle = col;
-        fogPresetCtx.setLineDash([]);
-        const len = Math.hypot(d.p2.x - d.p1.x, d.p2.y - d.p1.y) || 1;
-        const ux  = (d.p2.x - d.p1.x) / len, uy = (d.p2.y - d.p1.y) / len;
-        const nx  = -uy, ny = ux;
+        const mx   = (d.p1.x + d.p2.x) / 2;
+        const my   = (d.p1.y + d.p2.y) / 2;
+        const len  = Math.hypot(d.p2.x - d.p1.x, d.p2.y - d.p1.y) || 1;
+        const ang  = Math.atan2(d.p2.y - d.p1.y, d.p2.x - d.p1.x);
+
+        const doorH = 10;  // door panel height
+        const capW  = 10;  // end cap width
+        const capH  = 16;  // end cap height (taller than door)
+        const half  = len / 2;
+
+        fogPresetCtx.save();
+        fogPresetCtx.translate(mx, my);
+        fogPresetCtx.rotate(ang);
+
         if (d.open) {
-            // Open: two short stubs leaving a gap
-            fogPresetCtx.lineWidth = 2;
-            const gap = Math.min(14, len * 0.32);
-            const mx  = (d.p1.x + d.p2.x) / 2, my = (d.p1.y + d.p2.y) / 2;
-            fogPresetCtx.beginPath();
-            fogPresetCtx.moveTo(d.p1.x, d.p1.y);
-            fogPresetCtx.lineTo(mx - ux * gap, my - uy * gap);
-            fogPresetCtx.stroke();
-            fogPresetCtx.beginPath();
-            fogPresetCtx.moveTo(mx + ux * gap, my + uy * gap);
-            fogPresetCtx.lineTo(d.p2.x, d.p2.y);
-            fogPresetCtx.stroke();
+            // Open door: lighter brown with gold outline, semi-transparent
+            fogPresetCtx.fillStyle   = 'rgba(107,58,31,0.45)';
+            fogPresetCtx.strokeStyle = '#e8c840';
+            fogPresetCtx.lineWidth   = 1.5;
+            fogPresetCtx.fillRect(-half, -doorH / 2, len, doorH);
+            fogPresetCtx.strokeRect(-half, -doorH / 2, len, doorH);
+            // End caps — gold
+            fogPresetCtx.fillStyle   = 'rgba(30,20,10,0.6)';
+            fogPresetCtx.strokeStyle = '#e8c840';
+            fogPresetCtx.lineWidth   = 1.5;
+            fogPresetCtx.fillRect(-half - capW / 2, -capH / 2, capW, capH);
+            fogPresetCtx.strokeRect(-half - capW / 2, -capH / 2, capW, capH);
+            fogPresetCtx.fillRect( half - capW / 2, -capH / 2, capW, capH);
+            fogPresetCtx.strokeRect( half - capW / 2, -capH / 2, capW, capH);
         } else {
-            // Closed: solid line + perpendicular ticks at each end
-            fogPresetCtx.lineWidth = 3;
-            fogPresetCtx.beginPath();
-            fogPresetCtx.moveTo(d.p1.x, d.p1.y);
-            fogPresetCtx.lineTo(d.p2.x, d.p2.y);
-            fogPresetCtx.stroke();
-            fogPresetCtx.lineWidth = 2;
-            const tk = 7;
-            [[d.p1.x, d.p1.y], [d.p2.x, d.p2.y]].forEach(([px, py]) => {
-                fogPresetCtx.beginPath();
-                fogPresetCtx.moveTo(px + nx * tk, py + ny * tk);
-                fogPresetCtx.lineTo(px - nx * tk, py - ny * tk);
-                fogPresetCtx.stroke();
-            });
+            // Closed door: solid brown fill, black outline
+            fogPresetCtx.fillStyle   = '#7a4020';
+            fogPresetCtx.strokeStyle = '#111';
+            fogPresetCtx.lineWidth   = 1.5;
+            fogPresetCtx.fillRect(-half, -doorH / 2, len, doorH);
+            fogPresetCtx.strokeRect(-half, -doorH / 2, len, doorH);
+            // End caps — solid black
+            fogPresetCtx.fillStyle   = '#111';
+            fogPresetCtx.strokeStyle = '#333';
+            fogPresetCtx.lineWidth   = 1;
+            fogPresetCtx.fillRect(-half - capW / 2, -capH / 2, capW, capH);
+            fogPresetCtx.strokeRect(-half - capW / 2, -capH / 2, capW, capH);
+            fogPresetCtx.fillRect( half - capW / 2, -capH / 2, capW, capH);
+            fogPresetCtx.strokeRect( half - capW / 2, -capH / 2, capW, capH);
         }
+
+        fogPresetCtx.restore();
     }
 
     // Returns the two "room side" test points for a door (15px either side of midpoint)
