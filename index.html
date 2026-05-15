@@ -1436,7 +1436,7 @@
             }
             case 'token_move': {
                 const t = tokens.find(t => t.id === msg.id);
-                if (t) { t.x = msg.x; t.y = msg.y; updateObjDiv(t, tokensContainer.querySelector(`[data-id="${t.id}"]`)); redrawLights(); }
+                if (t) { t.x = msg.x; t.y = msg.y; updateObjDiv(t, tokensContainer.querySelector(`[data-id="${t.id}"]`)); }
                 break;
             }
             case 'token_update': {
@@ -4220,7 +4220,7 @@
                     ev.stopPropagation();
                     token.lightRadius = r || null;
                     broadcast({ type: 'token_update', id: token.id, data: { lightRadius: token.lightRadius } });
-                    redrawLights();
+                    redrawFog();
                     menu.remove();
                 };
                 grid.appendChild(rb);
@@ -4791,7 +4791,6 @@
                 updateObjDiv(draggedToken, tokensContainer.querySelector(`[data-id="${draggedToken.id}"]`));
                 updateSelectionOverlay();
                 broadcastMove('token_'+draggedToken.id, { type:'token_move', id:draggedToken.id, x:draggedToken.x, y:draggedToken.y });
-                redrawLights();
                 moveAttached('token', draggedToken.id, draggedToken.x-prevX, draggedToken.y-prevY);
             }
         }
