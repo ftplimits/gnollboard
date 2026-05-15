@@ -780,6 +780,7 @@
             <canvas id="light-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:499;"></canvas>
             <canvas id="fog-poly-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:510;"></canvas>
             <canvas id="fog-preset-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:515;"></canvas>
+            <canvas id="door-canvas"       width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:516;"></canvas>
         </div>
     </div>
 
@@ -1380,7 +1381,7 @@
         if (fogPresets.length) nextPresetId = Math.max(...fogPresets.map(p => p.id)) + 1;
         drawPresetOutlines();
         if (snap.notes) { notes = snap.notes; nextNoteId = notes.length ? Math.max(...notes.map(n=>n.id))+1 : 1; renderNoteTabs(); }
-        if (snap.doors) { doors = snap.doors; nextDoorId = doors.length ? Math.max(...doors.map(d=>d.id))+1 : 1; drawPresetOutlines(); }
+        if (snap.doors) { doors = snap.doors; nextDoorId = doors.length ? Math.max(...doors.map(d=>d.id))+1 : 1; redrawDoors(); drawPresetOutlines(); }
         if (snap.canvasData) { const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = snap.canvasData; }
         if (snap.fogCellData) applyFogSnapshot(snap.fogCellData);
         if (tokens.length)     nextTokenId   = Math.max(...tokens.map(t=>t.id))   + 1;
@@ -2475,6 +2476,13 @@
     // ── Fog Presets ──────────────────────────────────────────────────────────
     const fogPresetCanvas = document.getElementById('fog-preset-canvas');
     const fogPresetCtx    = fogPresetCanvas.getContext('2d');
+    const doorCanvas      = document.getElementById('door-canvas');
+    const doorCtx         = doorCanvas.getContext('2d');
+
+    function redrawDoors() {
+        doorCtx.clearRect(0, 0, doorCanvas.width, doorCanvas.height);
+        doors.forEach(d => drawDoor(d, doorCtx));
+    }
     let fogPresets        = [];   // [{id, verts, fogged}]
     let nextPresetId      = 1;
     let fogPresetMode     = null; // 'define' | 'toggle' | null
@@ -2505,8 +2513,8 @@
             fogPresetCtx.setLineDash([]);
         });
 
-        // Draw placed doors
-        doors.forEach(d => drawDoor(d));
+        // Doors rendered on their own canvas via redrawDoors()
+        redrawDoors();
 
         // Door placement preview
         if (doorMode && doorMouse) {
@@ -2602,49 +2610,45 @@
         drawPresetOutlines();
     }
 
-    function drawDoor(d) {
+    function drawDoor(d, ctx) {
         const mx   = (d.p1.x + d.p2.x) / 2;
         const my   = (d.p1.y + d.p2.y) / 2;
         const len  = Math.hypot(d.p2.x - d.p1.x, d.p2.y - d.p1.y) || 1;
         const ang  = Math.atan2(d.p2.y - d.p1.y, d.p2.x - d.p1.x);
 
-        const doorH = 10;  // door panel height
-        const capW  = 10;  // end cap width
-        const capH  = 16;  // end cap height (taller than door)
+        const doorH = 10;
+        const capW  = 10;
+        const capH  = 16;
         const half  = len / 2;
 
-        fogPresetCtx.save();
-        fogPresetCtx.translate(mx, my);
-        fogPresetCtx.rotate(ang);
+        ctx.save();
+        ctx.translate(mx, my);
+        ctx.rotate(ang);
 
         if (d.open) {
-            // Open door: transparent gap where panel was, solid black end caps
-            // End caps — same as closed
-            fogPresetCtx.fillStyle   = '#111';
-            fogPresetCtx.strokeStyle = '#333';
-            fogPresetCtx.lineWidth   = 1;
-            fogPresetCtx.fillRect(-half - capW / 2, -capH / 2, capW, capH);
-            fogPresetCtx.strokeRect(-half - capW / 2, -capH / 2, capW, capH);
-            fogPresetCtx.fillRect( half - capW / 2, -capH / 2, capW, capH);
-            fogPresetCtx.strokeRect( half - capW / 2, -capH / 2, capW, capH);
+            ctx.fillStyle   = '#111';
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth   = 1;
+            ctx.fillRect(-half - capW / 2, -capH / 2, capW, capH);
+            ctx.strokeRect(-half - capW / 2, -capH / 2, capW, capH);
+            ctx.fillRect( half - capW / 2, -capH / 2, capW, capH);
+            ctx.strokeRect( half - capW / 2, -capH / 2, capW, capH);
         } else {
-            // Closed door: solid brown fill, black outline
-            fogPresetCtx.fillStyle   = '#7a4020';
-            fogPresetCtx.strokeStyle = '#111';
-            fogPresetCtx.lineWidth   = 1.5;
-            fogPresetCtx.fillRect(-half, -doorH / 2, len, doorH);
-            fogPresetCtx.strokeRect(-half, -doorH / 2, len, doorH);
-            // End caps — solid black
-            fogPresetCtx.fillStyle   = '#111';
-            fogPresetCtx.strokeStyle = '#333';
-            fogPresetCtx.lineWidth   = 1;
-            fogPresetCtx.fillRect(-half - capW / 2, -capH / 2, capW, capH);
-            fogPresetCtx.strokeRect(-half - capW / 2, -capH / 2, capW, capH);
-            fogPresetCtx.fillRect( half - capW / 2, -capH / 2, capW, capH);
-            fogPresetCtx.strokeRect( half - capW / 2, -capH / 2, capW, capH);
+            ctx.fillStyle   = '#7a4020';
+            ctx.strokeStyle = '#111';
+            ctx.lineWidth   = 1.5;
+            ctx.fillRect(-half, -doorH / 2, len, doorH);
+            ctx.strokeRect(-half, -doorH / 2, len, doorH);
+            ctx.fillStyle   = '#111';
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth   = 1;
+            ctx.fillRect(-half - capW / 2, -capH / 2, capW, capH);
+            ctx.strokeRect(-half - capW / 2, -capH / 2, capW, capH);
+            ctx.fillRect( half - capW / 2, -capH / 2, capW, capH);
+            ctx.strokeRect( half - capW / 2, -capH / 2, capW, capH);
         }
 
-        fogPresetCtx.restore();
+        ctx.restore();
     }
 
     // Returns the two "room side" test points for a door (15px either side of midpoint)
