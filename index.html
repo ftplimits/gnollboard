@@ -2481,17 +2481,25 @@
     const doorCtx         = doorCanvas.getContext('2d');
 
     function isDoorLit(d) {
-        // Host always sees all doors
         if (isHost) return true;
-        // Players only see doors within a token's light radius
         return tokens.some(t => {
             if (!t.lightRadius || t.lightRadius <= 0) return false;
             const cx = t.x + FOG_OFFSET;
             const cy = t.y + FOG_OFFSET;
             const r  = t.lightRadius * CELL;
-            // Door is lit if either endpoint or midpoint is within radius
-            const mx = (d.p1.x + d.p2.x) / 2, my = (d.p1.y + d.p2.y) / 2;
-            return ptSegDist(cx, cy, d.p1.x, d.p1.y, d.p2.x, d.p2.y) <= r;
+            // Door must be within light radius distance
+            if (ptSegDist(cx, cy, d.p1.x, d.p1.y, d.p2.x, d.p2.y) > r) return false;
+            // Door must be at the boundary of or inside a lit polygon
+            const regions = getLitRegions(cx, cy);
+            if (!regions || regions.length === 0) return false;
+            const litPolygonIds = new Set(regions.map(reg => reg.polygon.id));
+            // Door is visible if either side of it touches a lit polygon
+            return doorSidePoints(d).some(pt =>
+                regions.some(reg => pointInPolygon(pt.x, pt.y, reg.polygon.verts))
+            ) || regions.some(reg => litPolygonIds.has(reg.polygon.id) &&
+                (pointInPolygon(d.p1.x, d.p1.y, reg.polygon.verts) ||
+                 pointInPolygon(d.p2.x, d.p2.y, reg.polygon.verts))
+            );
         });
     }
 
