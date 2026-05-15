@@ -4688,7 +4688,7 @@
             sw.addEventListener('mousedown', e => e.stopPropagation());
             sw.addEventListener('click', e => {
                 e.stopPropagation();
-                window.setDiceOutline(sw.dataset.color, sw);
+                setDiceOutline(sw.dataset.color, sw);
             });
         });
 
@@ -4698,7 +4698,7 @@
             sw.addEventListener('mousedown', e => e.stopPropagation());
             sw.addEventListener('click', e => {
                 e.stopPropagation();
-                window.setDiceNum(sw.dataset.color, sw);
+                setDiceNum(sw.dataset.color, sw);
             });
         });
 
