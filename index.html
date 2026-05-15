@@ -4682,26 +4682,6 @@
     };
 
     function buildDicePalette() {
-        const swatchRows = document.querySelectorAll('#dice-color-panel .dice-swatch-row');
-        const outlineRow = swatchRows[0];
-        const numRow     = swatchRows[1];
-
-        outlineRow?.querySelectorAll('.dice-swatch').forEach(sw => {
-            sw.addEventListener('mousedown', e => e.stopPropagation());
-            sw.addEventListener('click', e => {
-                e.stopPropagation();
-                setDiceOutline(sw.dataset.color, sw);
-            });
-        });
-
-        numRow?.querySelectorAll('.dice-swatch').forEach(sw => {
-            sw.addEventListener('mousedown', e => e.stopPropagation());
-            sw.addEventListener('click', e => {
-                e.stopPropagation();
-                setDiceNum(sw.dataset.color, sw);
-            });
-        });
-
         document.getElementById('dice-color-panel')?.addEventListener('mousedown', e => e.stopPropagation());
         document.getElementById('dice-color-toggle')?.addEventListener('mousedown', e => e.stopPropagation());
         document.addEventListener('click', e => {
@@ -4711,6 +4691,18 @@
         });
         applyDiceColors();
     }
+
+    // Wire dice swatches directly — same pattern as grid swatches (works in Discord iframe)
+    document.querySelectorAll('#dice-color-panel .dice-swatch-row').forEach((row, rowIdx) => {
+        row.querySelectorAll('.dice-swatch').forEach(sw => {
+            sw.addEventListener('mousedown', e => e.stopPropagation());
+            sw.addEventListener('click', e => {
+                e.stopPropagation();
+                if (rowIdx === 0) setDiceOutline(sw.dataset.color, sw);
+                else              setDiceNum(sw.dataset.color, sw);
+            });
+        });
+    });
 
     // ── Center-top roll popup ──
     let rollPopupTimer = null;
