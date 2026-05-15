@@ -2152,8 +2152,6 @@
 
         // Cut light radius areas out of fog
         redrawLightFogCuts();
-        // Redraw glow on light canvas
-        redrawLights();
     }
 
     function applyFogBrush(gridX, gridY, painting) {
@@ -2226,66 +2224,55 @@
     const lightCtx    = lightCanvas.getContext('2d');
 
     function redrawLights() {
+        // Light canvas no longer used for glow — just clear it
         lightCtx.clearRect(0, 0, lightCanvas.width, lightCanvas.height);
-        tokens.forEach(t => {
-            if (!t.lightRadius || t.lightRadius <= 0) return;
-            // t.x/y is the center of the token in grid coords
-            const cx = t.x + FOG_OFFSET;
-            const cy = t.y + FOG_OFFSET;
-            const r  = t.lightRadius * CELL;
-            // Warm glow on light canvas
-            const grad = lightCtx.createRadialGradient(cx, cy, 0, cx, cy, r);
-            grad.addColorStop(0,   'rgba(255,220,120,0.28)');
-            grad.addColorStop(0.5, 'rgba(255,180,60,0.12)');
-            grad.addColorStop(1,   'rgba(255,140,0,0)');
-            lightCtx.fillStyle = grad;
-            lightCtx.beginPath();
-            lightCtx.arc(cx, cy, r, 0, Math.PI * 2);
-            lightCtx.fill();
-        });
     }
 
     function redrawLightFogCuts() {
-        const baseAlpha = isHost ? 0.5 : 1.0;
         tokens.forEach(t => {
             if (!t.lightRadius || t.lightRadius <= 0) return;
             const cx = t.x + FOG_OFFSET;
             const cy = t.y + FOG_OFFSET;
             const r  = t.lightRadius * CELL;
 
-            // Find fogged preset polygons containing this token — they act as walls
-            const containingPresets = fogPresets.filter(p =>
+            // Build mask on offscreen canvas:
+            // mask = intersection of (light circle) AND (containing preset polygon, if any)
+            const off = document.createElement('canvas');
+            off.width  = fogCanvas.width;
+            off.height = fogCanvas.height;
+            const octx = off.getContext('2d');
+
+            // Find fogged preset polygons that contain this token
+            const containers = fogPresets.filter(p =>
                 p.fogged && p.verts.length >= 3 &&
                 pointInPolygon(cx, cy, p.verts)
             );
 
-            fogCtx.save();
-
-            if (containingPresets.length > 0) {
-                // Clip the light cut to the interior of the containing polygon(s)
-                fogCtx.beginPath();
-                containingPresets.forEach(p => {
-                    fogCtx.moveTo(p.verts[0].x, p.verts[0].y);
-                    p.verts.slice(1).forEach(v => fogCtx.lineTo(v.x, v.y));
-                    fogCtx.closePath();
+            if (containers.length > 0) {
+                // Draw the containing polygon(s) as the base shape
+                octx.fillStyle = '#fff';
+                containers.forEach(p => {
+                    octx.beginPath();
+                    octx.moveTo(p.verts[0].x, p.verts[0].y);
+                    p.verts.slice(1).forEach(v => octx.lineTo(v.x, v.y));
+                    octx.closePath();
+                    octx.fill();
                 });
-                fogCtx.clip();
+                // Intersect with the light circle — keep only polygon AND circle
+                octx.globalCompositeOperation = 'destination-in';
             }
 
-            // Cut the light circle out of fog within the clip region
-            fogCtx.globalCompositeOperation = 'destination-out';
-            const grad = fogCtx.createRadialGradient(cx, cy, r * 0.5, cx, cy, r);
-            grad.addColorStop(0,    'rgba(0,0,0,1)');
-            grad.addColorStop(0.85, 'rgba(0,0,0,1)');
-            grad.addColorStop(1,    'rgba(0,0,0,0)');
-            fogCtx.fillStyle = grad;
-            fogCtx.beginPath();
-            fogCtx.arc(cx, cy, r, 0, Math.PI * 2);
-            fogCtx.fill();
+            // Draw light circle (full or intersected with polygon above)
+            octx.fillStyle = '#fff';
+            octx.beginPath();
+            octx.arc(cx, cy, r, 0, Math.PI * 2);
+            octx.fill();
 
-            fogCtx.restore();
+            // Punch the resulting mask out of the fog canvas
+            fogCtx.globalCompositeOperation = 'destination-out';
+            fogCtx.drawImage(off, 0, 0);
+            fogCtx.globalCompositeOperation = 'source-over';
         });
-        fogCtx.globalCompositeOperation = 'source-over';
     }
 
     const fogPolyCanvas = document.getElementById('fog-poly-canvas');
@@ -4635,6 +4622,7 @@
                 const div = tokensContainer.querySelector(`[data-id="${draggedToken.id}"]`);
                 updateObjDiv(draggedToken, div); div?.classList.remove('dragging');
                 broadcast({ type:'token_move', id:draggedToken.id, x:draggedToken.x, y:draggedToken.y });
+                redrawFog(); // update light cutout position on drop
             }
             updateSelectionOverlay(); draggedToken=null;
         }
