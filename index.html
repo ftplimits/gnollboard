@@ -315,14 +315,23 @@
         #p2p-status-text { font-size: 11px; color: #888; margin-bottom: 6px; }
 
         /* ── Dice Column ── */
+        #dice-toggle-btn {
+            position: fixed; left: 12px; bottom: 60px;
+            font-size: 20px; cursor: pointer; z-index: 1002;
+            user-select: none; line-height: 1;
+            filter: drop-shadow(0 1px 4px rgba(0,0,0,0.7));
+            transition: transform 0.15s;
+        }
+        #dice-toggle-btn:hover { transform: scale(1.2); }
         #dice-column {
             position: fixed; left: 14px; top: 50%;
             transform: translateY(-50%);
-            display: flex; flex-direction: column; align-items: center;
+            display: none; flex-direction: column; align-items: center;
             gap: 6px; z-index: 1000; pointer-events: auto;
         }
+        #dice-column.visible { display: flex; }
         .die-btn {
-            width: 60px; height: 60px;
+            width: 72px; height: 72px;
             background: transparent; border: none; cursor: pointer;
             padding: 2px; border-radius: 4px;
             transition: transform 0.12s, filter 0.12s;
@@ -365,12 +374,12 @@
         }
         /* Die fill */
         .die-poly, .die-poly-rect, .die-poly-circle {
-            fill: var(--dice-fill, rgba(60,44,20,0.82));
+            fill: rgba(60,44,20,0.88);
             transition: fill 0.2s, stroke 0.2s;
         }
         .die-btn:hover .die-poly,
         .die-btn:hover .die-poly-rect,
-        .die-btn:hover .die-poly-circle { fill: var(--dice-fill-hover, rgba(90,68,24,0.92)); }
+        .die-btn:hover .die-poly-circle { fill: rgba(90,68,30,0.95); }
         /* Roll animation — orbit on the SVG element so it doesn't conflict with hover */
         .die-btn.rolling svg { animation: die-spin 0.45s cubic-bezier(.3,.8,.4,1); }
         @keyframes die-spin {
@@ -384,7 +393,7 @@
 
         /* Modifier badge */
         #dice-modifier-display {
-            font-family: 'Cinzel', serif; font-size: 11px; font-weight: 700;
+            font-family: 'Cinzel', serif; font-size: 22px; font-weight: 700;
             color: #e8d080; text-align: center;
             text-shadow: 0 1px 4px rgba(0,0,0,0.9);
             min-height: 16px; letter-spacing: 0.5px;
@@ -392,18 +401,34 @@
         }
 
         /* Dice colour swatches */
-        #dice-color-panel {
+        #dice-color-toggle {
             position: fixed; left: 14px; bottom: 20px;
-            display: flex; flex-direction: column; gap: 4px;
-            z-index: 1001;
+            width: 22px; height: 22px; border-radius: 5px;
+            cursor: pointer; z-index: 1002;
+            background: linear-gradient(135deg, #c8a83c, #9966cc, #4488cc);
+            border: 2px solid rgba(255,255,255,0.2);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+            transition: transform 0.12s;
         }
+        #dice-color-toggle:hover { transform: scale(1.15); }
+        #dice-color-panel {
+            position: fixed; left: 42px; bottom: 14px;
+            display: none; flex-direction: column; gap: 4px;
+            z-index: 1001; pointer-events: auto;
+            background: rgba(20,16,10,0.85);
+            border: 1px solid rgba(200,168,60,0.3);
+            border-radius: 8px; padding: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.7);
+        }
+        #dice-color-panel.open { display: flex; }
         .dice-color-section-label {
             font-family: 'Cinzel', serif; font-size: 9px; color: #777;
             letter-spacing: 1px; text-shadow: 0 1px 3px rgba(0,0,0,0.8);
             user-select: none;
         }
         .dice-swatch-row {
-            display: flex; flex-direction: column; gap: 3px;
+            display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px;
+            max-width: 120px;
         }
         .dice-swatch {
             width: 16px; height: 16px; border-radius: 4px;
@@ -699,6 +724,9 @@
     </div>
 
 
+    <!-- ═══════ DICE TOGGLE ═══════ -->
+    <div id="dice-toggle-btn" title="Show/Hide Dice">🎲</div>
+
     <!-- ═══════ DICE PANEL ═══════ -->
     <div id="dice-column">
         <div id="dice-modifier-display"></div>
@@ -706,8 +734,6 @@
         <button class="die-btn" data-sides="20" title="Roll d20">
             <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
                 <polygon points="30,4 54,18 54,42 30,56 6,42 6,18" class="die-poly"/>
-                <line x1="6" y1="18" x2="54" y2="18" class="die-inner-line"/>
-                <line x1="6" y1="42" x2="54" y2="42" class="die-inner-line"/>
                 <text x="30" y="36" class="die-label">d20</text>
             </svg>
         </button>
@@ -729,8 +755,6 @@
         <button class="die-btn" data-sides="8" title="Roll d8">
             <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
                 <polygon points="30,5 55,30 30,55 5,30" class="die-poly"/>
-                <line x1="5" y1="30" x2="55" y2="30" class="die-inner-line"/>
-                <line x1="30" y1="5" x2="30" y2="55" class="die-inner-line"/>
                 <text x="30" y="36" class="die-label">d8</text>
             </svg>
         </button>
@@ -762,11 +786,38 @@
     <div id="dice-log"></div>
 
     <!-- ═══════ DICE COLOUR SWATCHES ═══════ -->
+    <div id="dice-color-toggle" title="Dice colours" onclick="document.getElementById('dice-color-panel').classList.toggle('open')"></div>
     <div id="dice-color-panel">
         <div class="dice-color-section-label">OUTLINE</div>
-        <div class="dice-swatch-row" id="dice-outline-swatches"></div>
-        <div class="dice-color-section-label" style="margin-top:4px;">NUMBER</div>
-        <div class="dice-swatch-row" id="dice-num-swatches"></div>
+        <div class="dice-swatch-row">
+            <div class="dice-swatch" style="background:#ffffff;border-color:rgba(0,0,0,0.4)" onclick="setDiceOutline('#ffffff',this)" title="White"></div>
+            <div class="dice-swatch" style="background:#222222" onclick="setDiceOutline('#222222',this)" title="Black"></div>
+            <div class="dice-swatch" style="background:#888899" onclick="setDiceOutline('#888899',this)" title="Gray"></div>
+            <div class="dice-swatch" style="background:#4488cc" onclick="setDiceOutline('#4488cc',this)" title="Blue"></div>
+            <div class="dice-swatch" style="background:#44bb66" onclick="setDiceOutline('#44bb66',this)" title="Green"></div>
+            <div class="dice-swatch" style="background:#cc4444" onclick="setDiceOutline('#cc4444',this)" title="Red"></div>
+            <div class="dice-swatch" style="background:#e8d040" onclick="setDiceOutline('#e8d040',this)" title="Yellow"></div>
+            <div class="dice-swatch" style="background:#e07830" onclick="setDiceOutline('#e07830',this)" title="Orange"></div>
+            <div class="dice-swatch" style="background:#9966cc" onclick="setDiceOutline('#9966cc',this)" title="Purple"></div>
+            <div class="dice-swatch" style="background:#ee77aa" onclick="setDiceOutline('#ee77aa',this)" title="Pink"></div>
+            <div class="dice-swatch" style="background:#8b5a2b" onclick="setDiceOutline('#8b5a2b',this)" title="Brown"></div>
+            <div class="dice-swatch" style="background:#c8a87a" onclick="setDiceOutline('#c8a87a',this)" title="Tan"></div>
+        </div>
+        <div class="dice-color-section-label" style="margin-top:6px;">NUMBER</div>
+        <div class="dice-swatch-row">
+            <div class="dice-swatch" style="background:#ffffff;border-color:rgba(0,0,0,0.4)" onclick="setDiceNum('#ffffff',this)" title="White"></div>
+            <div class="dice-swatch" style="background:#222222" onclick="setDiceNum('#222222',this)" title="Black"></div>
+            <div class="dice-swatch" style="background:#888899" onclick="setDiceNum('#888899',this)" title="Gray"></div>
+            <div class="dice-swatch" style="background:#4488cc" onclick="setDiceNum('#4488cc',this)" title="Blue"></div>
+            <div class="dice-swatch" style="background:#44bb66" onclick="setDiceNum('#44bb66',this)" title="Green"></div>
+            <div class="dice-swatch" style="background:#cc4444" onclick="setDiceNum('#cc4444',this)" title="Red"></div>
+            <div class="dice-swatch" style="background:#e8d040" onclick="setDiceNum('#e8d040',this)" title="Yellow"></div>
+            <div class="dice-swatch" style="background:#e07830" onclick="setDiceNum('#e07830',this)" title="Orange"></div>
+            <div class="dice-swatch" style="background:#9966cc" onclick="setDiceNum('#9966cc',this)" title="Purple"></div>
+            <div class="dice-swatch" style="background:#ee77aa" onclick="setDiceNum('#ee77aa',this)" title="Pink"></div>
+            <div class="dice-swatch" style="background:#8b5a2b" onclick="setDiceNum('#8b5a2b',this)" title="Brown"></div>
+            <div class="dice-swatch" style="background:#c8a87a" onclick="setDiceNum('#c8a87a',this)" title="Tan"></div>
+        </div>
     </div>
 
 
@@ -4456,8 +4507,31 @@
     // ═══════════════════════════════════════════════════════════════════════════
     const MAX_LOG_ENTRIES = 12;
     const LOG_FADE_MS     = null; // no auto-fade
+
+    // ── Dice sounds ──
+    const diceSounds = {
+        clicks: ['./audio/click1.m4a', './audio/click2.m4a', './audio/click3.m4a'].map(src => {
+            const a = new Audio(src); a.preload = 'auto'; return a;
+        }),
+        nat: (() => { const a = new Audio('./audio/nat.m4a'); a.preload = 'auto'; return a; })()
+    };
+
+    function playDiceClick() {
+        const snd = diceSounds.clicks[Math.floor(Math.random() * diceSounds.clicks.length)];
+        snd.currentTime = 0;
+        snd.play().catch(() => {});
+    }
+
+    function playNatSound() {
+        setTimeout(() => {
+            diceSounds.nat.currentTime = 0;
+            diceSounds.nat.play().catch(() => {});
+        }, 300);
+    }
     let diceModifier      = 0;
     let diceColor         = { stroke: '#c8a83c', fill: 'rgba(60,44,20,0.82)', fillHover: 'rgba(90,68,24,0.92)' };
+    let diceOutlineColor  = '#c8a83c';
+    let diceNumColorStr   = '#e8d080';
 
     // ── Modifier display ──
     function updateModifierDisplay() {
@@ -4484,172 +4558,55 @@
         return `rgba(${r},${g},${b},${a})`;
     }
 
-    function applyNumColor() {
-        const numFill = `hsl(${numColorHue}, 85%, ${numColorLightness}%)`;
-        document.querySelectorAll('.die-label').forEach(el => {
-            el.style.fill   = numFill;
-            el.style.stroke = 'none'; // prevent outline color bleeding onto text
-        });
-    }
+    function applyNumColor() { if (window.applyDiceColors) window.applyDiceColors(); }
 
-    function updatePickerColor() {
-        const stroke = hslToHex(pickerHue, 85, pickerLightness);
-        const fill   = hexToRgba(hslToHex(pickerHue, 60, Math.max(10, pickerLightness - 30)), 0.85);
-        const fillH  = hexToRgba(hslToHex(pickerHue, 70, Math.max(14, pickerLightness - 22)), 0.93);
-        diceColor = { stroke, fill, fillHover: fillH };
-        // Update CSS vars + SVG elements
-        // Outline shapes only — never touch labels here
-        document.querySelectorAll('.die-poly,.die-poly-rect,.die-poly-circle,.die-inner-line').forEach(el => {
+    function updatePickerColor() { if (window.applyDiceColors) window.applyDiceColors(); }
+
+    function drawHueBar() {}
+    function drawLightnessBar() {}
+    function drawNumHueBar() {}
+    function drawNumColorBar() {}
+
+    window.setDiceOutline = function(color, el) {
+        diceOutlineColor = color;
+        document.querySelectorAll('#dice-color-panel .dice-swatch-row:first-of-type .dice-swatch').forEach(s => s.classList.remove('active'));
+        if (el) el.classList.add('active');
+        window.applyDiceColors();
+    };
+
+    window.setDiceNum = function(color, el) {
+        diceNumColorStr = color;
+        document.querySelectorAll('#dice-color-panel .dice-swatch-row:last-of-type .dice-swatch').forEach(s => s.classList.remove('active'));
+        if (el) el.classList.add('active');
+        window.applyDiceColors();
+    };
+
+    window.applyDiceColors = function() {
+        const stroke = diceOutlineColor;
+        const r = parseInt(stroke.slice(1,3),16), g = parseInt(stroke.slice(3,5),16), b = parseInt(stroke.slice(5,7),16);
+        diceColor = {
+            stroke,
+            fill:      `rgba(${Math.round(r*.45)},${Math.round(g*.45)},${Math.round(b*.45)},0.88)`,
+            fillHover: `rgba(${Math.round(r*.6)},${Math.round(g*.6)},${Math.round(b*.6)},0.95)`
+        };
+        document.querySelectorAll('.die-poly,.die-poly-rect,.die-poly-circle').forEach(el => {
             el.style.stroke = stroke;
+            el.style.fill   = diceColor.fill;
         });
-        // Apply number color independently — called separately too
-        applyNumColor();
-        // Update log text color to match
+        document.querySelectorAll('.die-inner-line').forEach(el => { el.style.stroke = stroke; });
+        document.querySelectorAll('.die-label').forEach(el => { el.style.fill = diceNumColorStr; el.style.stroke = 'none'; });
         document.documentElement.style.setProperty('--log-text-color', stroke);
-        // Preview swatch
-        const prev = document.getElementById('dice-color-preview');
-        if (prev) prev.style.background = `linear-gradient(135deg, ${stroke}, ${fill})`;
-        // Update button gradient hint
-        const btn = document.getElementById('dice-color-btn');
-        if (btn) btn.style.boxShadow = `0 2px 10px ${stroke}88, 0 0 0 2px ${stroke}44`;
-        // Update lightness bar
-        drawLightnessBar();
-    }
-
-    function drawHueBar() {
-        const canvas = document.getElementById('dice-hue-gradient');
-        if (!canvas) return;
-        const ctx2 = canvas.getContext('2d');
-        const grad = ctx2.createLinearGradient(0, 0, canvas.width, 0);
-        for (let i = 0; i <= 360; i += 30) grad.addColorStop(i/360, `hsl(${i},90%,55%)`);
-        ctx2.fillStyle = grad; ctx2.fillRect(0, 0, canvas.width, canvas.height);
-        // Indicator
-        const x = (pickerHue / 360) * canvas.width;
-        ctx2.strokeStyle = '#fff'; ctx2.lineWidth = 2;
-        ctx2.beginPath(); ctx2.moveTo(x, 0); ctx2.lineTo(x, canvas.height); ctx2.stroke();
-    }
-
-    function drawLightnessBar() {
-        const canvas = document.getElementById('dice-lightness-gradient');
-        if (!canvas) return;
-        const ctx2 = canvas.getContext('2d');
-        const grad = ctx2.createLinearGradient(0, 0, canvas.width, 0);
-        grad.addColorStop(0,   `hsl(${pickerHue},80%,15%)`);
-        grad.addColorStop(0.5, `hsl(${pickerHue},90%,55%)`);
-        grad.addColorStop(1,   `hsl(${pickerHue},60%,90%)`);
-        ctx2.fillStyle = grad; ctx2.fillRect(0, 0, canvas.width, canvas.height);
-        const x = ((pickerLightness - 10) / 80) * canvas.width;
-        ctx2.strokeStyle = '#fff'; ctx2.lineWidth = 2;
-        ctx2.beginPath(); ctx2.moveTo(x, 0); ctx2.lineTo(x, canvas.height); ctx2.stroke();
-    }
-
-    function drawNumHueBar() {
-        const canvas = document.getElementById('dice-num-hue');
-        if (!canvas) return;
-        const ctx2 = canvas.getContext('2d');
-        const grad = ctx2.createLinearGradient(0, 0, canvas.width, 0);
-        for (let i = 0; i <= 360; i += 30) grad.addColorStop(i/360, `hsl(${i},90%,65%)`);
-        ctx2.fillStyle = grad; ctx2.fillRect(0, 0, canvas.width, canvas.height);
-        const x = (numColorHue / 360) * canvas.width;
-        ctx2.strokeStyle = '#fff'; ctx2.lineWidth = 2;
-        ctx2.beginPath(); ctx2.moveTo(x, 0); ctx2.lineTo(x, canvas.height); ctx2.stroke();
-    }
-
-    function drawNumColorBar() {
-        const canvas = document.getElementById('dice-num-gradient');
-        if (!canvas) return;
-        const ctx2 = canvas.getContext('2d');
-        const grad = ctx2.createLinearGradient(0, 0, canvas.width, 0);
-        grad.addColorStop(0,    '#000000');
-        grad.addColorStop(0.45, `hsl(${numColorHue},100%,50%)`);
-        grad.addColorStop(1,    '#ffffff');
-        ctx2.fillStyle = grad; ctx2.fillRect(0, 0, canvas.width, canvas.height);
-        // indicator line
-        const x = (numColorLightness / 100) * canvas.width;
-        ctx2.strokeStyle = numColorLightness > 60 ? '#333' : '#fff';
-        ctx2.lineWidth = 2;
-        ctx2.beginPath(); ctx2.moveTo(x, 0); ctx2.lineTo(x, canvas.height); ctx2.stroke();
-    }
+    };
 
     function buildDicePalette() {
-        drawHueBar(); drawLightnessBar(); drawNumHueBar(); drawNumColorBar();
-        updatePickerColor(); applyNumColor();
-
-        const btn   = document.getElementById('dice-color-btn');
-        const panel = document.getElementById('dice-color-picker-panel');
-        if (btn) {
-            btn.addEventListener('click', e => {
-                e.stopPropagation();
-                panel.classList.toggle('open');
-            });
-            btn.addEventListener('mousedown', e => e.stopPropagation());
-        }
-
-        const hueCanvas = document.getElementById('dice-hue-gradient');
-        if (hueCanvas) {
-            const pickHue = e => {
-                const rect = hueCanvas.getBoundingClientRect();
-                pickerHue = Math.round(((e.clientX - rect.left) / rect.width) * 360);
-                pickerHue = Math.max(0, Math.min(360, pickerHue));
-                drawHueBar(); updatePickerColor(); drawNumColorBar();
-            };
-            let hueDragging = false;
-            hueCanvas.addEventListener('mousedown', e => { e.stopPropagation(); hueDragging = true; pickHue(e); });
-            window.addEventListener('mousemove', e => { if (hueDragging) pickHue(e); });
-            window.addEventListener('mouseup', () => { hueDragging = false; });
-        }
-
-        const lightCanvas = document.getElementById('dice-lightness-gradient');
-        if (lightCanvas) {
-            const pickLight = e => {
-                const rect = lightCanvas.getBoundingClientRect();
-                pickerLightness = Math.round(((e.clientX - rect.left) / rect.width) * 80) + 10;
-                pickerLightness = Math.max(10, Math.min(90, pickerLightness));
-                drawLightnessBar(); updatePickerColor();
-            };
-            let lightDragging = false;
-            lightCanvas.addEventListener('mousedown', e => { e.stopPropagation(); lightDragging = true; pickLight(e); });
-            window.addEventListener('mousemove', e => { if (lightDragging) pickLight(e); });
-            window.addEventListener('mouseup', () => { lightDragging = false; });
-        }
-
-        const numHueCanvas = document.getElementById('dice-num-hue');
-        if (numHueCanvas) {
-            const pickNumHue = e => {
-                const rect = numHueCanvas.getBoundingClientRect();
-                numColorHue = Math.round(((e.clientX - rect.left) / rect.width) * 360);
-                numColorHue = Math.max(0, Math.min(360, numColorHue));
-                drawNumHueBar(); drawNumColorBar(); applyNumColor();
-            };
-            let numHueDragging = false;
-            numHueCanvas.addEventListener('mousedown', e => { e.stopPropagation(); numHueDragging = true; pickNumHue(e); });
-            window.addEventListener('mousemove', e => { if (numHueDragging) pickNumHue(e); });
-            window.addEventListener('mouseup', () => { numHueDragging = false; });
-        }
-
-        const numCanvas = document.getElementById('dice-num-gradient');
-        if (numCanvas) {
-            const pickNum = e => {
-                const rect = numCanvas.getBoundingClientRect();
-                numColorLightness = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-                numColorLightness = Math.max(0, Math.min(100, numColorLightness));
-                drawNumColorBar(); applyNumColor();
-            };
-            let numDragging = false;
-            numCanvas.addEventListener('mousedown', e => { e.stopPropagation(); numDragging = true; pickNum(e); });
-            window.addEventListener('mousemove', e => { if (numDragging) pickNum(e); });
-            window.addEventListener('mouseup', () => { numDragging = false; });
-        }
-
-        if (panel) {
-            panel.addEventListener('mousedown', e => e.stopPropagation());
-            // Close on outside click
-            document.addEventListener('click', e => {
-                if (!e.target.closest('#dice-color-btn') && !e.target.closest('#dice-color-picker-panel')) {
-                    panel.classList.remove('open');
-                }
-            });
-        }
+        document.getElementById('dice-color-panel')?.addEventListener('mousedown', e => e.stopPropagation());
+        document.getElementById('dice-color-toggle')?.addEventListener('mousedown', e => e.stopPropagation());
+        document.addEventListener('click', e => {
+            if (!e.target.closest('#dice-color-panel') && !e.target.closest('#dice-color-toggle')) {
+                document.getElementById('dice-color-panel')?.classList.remove('open');
+            }
+        });
+        window.applyDiceColors();
     }
 
     // ── Center-top roll popup ──
@@ -4725,6 +4682,8 @@
         const diceStr = count > 1 ? `${count}d${sides}` : `d${sides}`;
         if (!label && sides === 20 && count === 1 && rolls[0] === 20) label = 'NAT 20';
         if (!label && sides === 20 && count === 1 && rolls[0] === 1)  label = 'NAT 1';
+        playDiceClick();
+        if (label === 'NAT 20' || label === 'NAT 1') playNatSound();
 
         addDiceLogEntry(name, color, sides, rolls, modifier, count, label);
         showRollPopup(diceStr, rolls, modifier, total, label, color, name);
@@ -4775,6 +4734,7 @@
                 const kept = Math.max(r1,r2), total = kept + diceModifier;
                 const name = myName||'?', color = diceColor.stroke;
                 const lbl = `↑ Adv (${r1},${r2})`;
+                playDiceClick();
                 addDiceLogEntry(name, color, 20, [kept], diceModifier, 1, lbl);
                 showRollPopup('d20', [kept], diceModifier, total, lbl, color, myName||'?');
                 broadcast({ type:'dice_roll', playerName:name, color, sides:20, rolls:[kept], modifier:diceModifier, count:1, label:lbl, total });
@@ -4784,6 +4744,7 @@
                 const kept = Math.min(r1,r2), total = kept + diceModifier;
                 const name = myName||'?', color = diceColor.stroke;
                 const lbl = `↓ Dis (${r1},${r2})`;
+                playDiceClick();
                 addDiceLogEntry(name, color, 20, [kept], diceModifier, 1, lbl);
                 showRollPopup('d20', [kept], diceModifier, total, lbl, color, myName||'?');
                 broadcast({ type:'dice_roll', playerName:name, color, sides:20, rolls:[kept], modifier:diceModifier, count:1, label:lbl, total });
@@ -4797,6 +4758,11 @@
 
     // Wire dice after layout pass to guarantee elements are ready
     requestAnimationFrame(() => {
+        document.getElementById('dice-toggle-btn')?.addEventListener('click', e => {
+            e.stopPropagation();
+            document.getElementById('dice-column').classList.toggle('visible');
+        });
+        document.getElementById('dice-toggle-btn')?.addEventListener('mousedown', e => e.stopPropagation());
         document.querySelectorAll('.die-btn').forEach(btn => {
             btn.addEventListener('click', e => {
                 e.stopPropagation();
@@ -5069,8 +5035,6 @@
     renderNoteTabs();
     requestAnimationFrame(() => {
         initNoteToolbar();
-        buildDicePalette();
-        updateModifierDisplay();
     });
     initApp();
     </script>
