@@ -790,33 +790,33 @@
     <div id="dice-color-panel">
         <div class="dice-color-section-label">OUTLINE</div>
         <div class="dice-swatch-row">
-            <div class="dice-swatch" style="background:#ffffff;border-color:rgba(0,0,0,0.4)" onclick="setDiceOutline('#ffffff',this)" title="White"></div>
-            <div class="dice-swatch" style="background:#222222" onclick="setDiceOutline('#222222',this)" title="Black"></div>
-            <div class="dice-swatch" style="background:#888899" onclick="setDiceOutline('#888899',this)" title="Gray"></div>
-            <div class="dice-swatch" style="background:#4488cc" onclick="setDiceOutline('#4488cc',this)" title="Blue"></div>
-            <div class="dice-swatch" style="background:#44bb66" onclick="setDiceOutline('#44bb66',this)" title="Green"></div>
-            <div class="dice-swatch" style="background:#cc4444" onclick="setDiceOutline('#cc4444',this)" title="Red"></div>
-            <div class="dice-swatch" style="background:#e8d040" onclick="setDiceOutline('#e8d040',this)" title="Yellow"></div>
-            <div class="dice-swatch" style="background:#e07830" onclick="setDiceOutline('#e07830',this)" title="Orange"></div>
-            <div class="dice-swatch" style="background:#9966cc" onclick="setDiceOutline('#9966cc',this)" title="Purple"></div>
-            <div class="dice-swatch" style="background:#ee77aa" onclick="setDiceOutline('#ee77aa',this)" title="Pink"></div>
-            <div class="dice-swatch" style="background:#8b5a2b" onclick="setDiceOutline('#8b5a2b',this)" title="Brown"></div>
-            <div class="dice-swatch" style="background:#c8a87a" onclick="setDiceOutline('#c8a87a',this)" title="Tan"></div>
+            <div class="dice-swatch" data-color="#ffffff" style="background:#ffffff;border-color:rgba(0,0,0,0.4)" title="White"></div>
+            <div class="dice-swatch" data-color="#222222" style="background:#222222" title="Black"></div>
+            <div class="dice-swatch" data-color="#888899" style="background:#888899" title="Gray"></div>
+            <div class="dice-swatch" data-color="#4488cc" style="background:#4488cc" title="Blue"></div>
+            <div class="dice-swatch" data-color="#44bb66" style="background:#44bb66" title="Green"></div>
+            <div class="dice-swatch" data-color="#cc4444" style="background:#cc4444" title="Red"></div>
+            <div class="dice-swatch" data-color="#e8d040" style="background:#e8d040" title="Yellow"></div>
+            <div class="dice-swatch" data-color="#e07830" style="background:#e07830" title="Orange"></div>
+            <div class="dice-swatch" data-color="#9966cc" style="background:#9966cc" title="Purple"></div>
+            <div class="dice-swatch" data-color="#ee77aa" style="background:#ee77aa" title="Pink"></div>
+            <div class="dice-swatch" data-color="#8b5a2b" style="background:#8b5a2b" title="Brown"></div>
+            <div class="dice-swatch" data-color="#c8a87a" style="background:#c8a87a" title="Tan"></div>
         </div>
         <div class="dice-color-section-label" style="margin-top:6px;">NUMBER</div>
         <div class="dice-swatch-row">
-            <div class="dice-swatch" style="background:#ffffff;border-color:rgba(0,0,0,0.4)" onclick="setDiceNum('#ffffff',this)" title="White"></div>
-            <div class="dice-swatch" style="background:#222222" onclick="setDiceNum('#222222',this)" title="Black"></div>
-            <div class="dice-swatch" style="background:#888899" onclick="setDiceNum('#888899',this)" title="Gray"></div>
-            <div class="dice-swatch" style="background:#4488cc" onclick="setDiceNum('#4488cc',this)" title="Blue"></div>
-            <div class="dice-swatch" style="background:#44bb66" onclick="setDiceNum('#44bb66',this)" title="Green"></div>
-            <div class="dice-swatch" style="background:#cc4444" onclick="setDiceNum('#cc4444',this)" title="Red"></div>
-            <div class="dice-swatch" style="background:#e8d040" onclick="setDiceNum('#e8d040',this)" title="Yellow"></div>
-            <div class="dice-swatch" style="background:#e07830" onclick="setDiceNum('#e07830',this)" title="Orange"></div>
-            <div class="dice-swatch" style="background:#9966cc" onclick="setDiceNum('#9966cc',this)" title="Purple"></div>
-            <div class="dice-swatch" style="background:#ee77aa" onclick="setDiceNum('#ee77aa',this)" title="Pink"></div>
-            <div class="dice-swatch" style="background:#8b5a2b" onclick="setDiceNum('#8b5a2b',this)" title="Brown"></div>
-            <div class="dice-swatch" style="background:#c8a87a" onclick="setDiceNum('#c8a87a',this)" title="Tan"></div>
+            <div class="dice-swatch" data-color="#ffffff" style="background:#ffffff;border-color:rgba(0,0,0,0.4)" title="White"></div>
+            <div class="dice-swatch" data-color="#222222" style="background:#222222" title="Black"></div>
+            <div class="dice-swatch" data-color="#888899" style="background:#888899" title="Gray"></div>
+            <div class="dice-swatch" data-color="#4488cc" style="background:#4488cc" title="Blue"></div>
+            <div class="dice-swatch" data-color="#44bb66" style="background:#44bb66" title="Green"></div>
+            <div class="dice-swatch" data-color="#cc4444" style="background:#cc4444" title="Red"></div>
+            <div class="dice-swatch" data-color="#e8d040" style="background:#e8d040" title="Yellow"></div>
+            <div class="dice-swatch" data-color="#e07830" style="background:#e07830" title="Orange"></div>
+            <div class="dice-swatch" data-color="#9966cc" style="background:#9966cc" title="Purple"></div>
+            <div class="dice-swatch" data-color="#ee77aa" style="background:#ee77aa" title="Pink"></div>
+            <div class="dice-swatch" data-color="#8b5a2b" style="background:#8b5a2b" title="Brown"></div>
+            <div class="dice-swatch" data-color="#c8a87a" style="background:#c8a87a" title="Tan"></div>
         </div>
     </div>
 
@@ -4558,30 +4558,30 @@
         return `rgba(${r},${g},${b},${a})`;
     }
 
-    function applyNumColor() { if (window.applyDiceColors) window.applyDiceColors(); }
+    function applyNumColor() { if (window.applyDiceColors) applyDiceColors(); }
 
-    function updatePickerColor() { if (window.applyDiceColors) window.applyDiceColors(); }
+    function updatePickerColor() { if (window.applyDiceColors) applyDiceColors(); }
 
     function drawHueBar() {}
     function drawLightnessBar() {}
     function drawNumHueBar() {}
     function drawNumColorBar() {}
 
-    window.setDiceOutline = function(color, el) {
+    function setDiceOutline(color, el) {
         diceOutlineColor = color;
         document.querySelectorAll('#dice-color-panel .dice-swatch-row:first-of-type .dice-swatch').forEach(s => s.classList.remove('active'));
         if (el) el.classList.add('active');
-        window.applyDiceColors();
+        applyDiceColors();
     };
 
-    window.setDiceNum = function(color, el) {
+    function setDiceNum(color, el) {
         diceNumColorStr = color;
         document.querySelectorAll('#dice-color-panel .dice-swatch-row:last-of-type .dice-swatch').forEach(s => s.classList.remove('active'));
         if (el) el.classList.add('active');
-        window.applyDiceColors();
+        applyDiceColors();
     };
 
-    window.applyDiceColors = function() {
+    function applyDiceColors() {
         const stroke = diceOutlineColor;
         const r = parseInt(stroke.slice(1,3),16), g = parseInt(stroke.slice(3,5),16), b = parseInt(stroke.slice(5,7),16);
         diceColor = {
@@ -4599,6 +4599,26 @@
     };
 
     function buildDicePalette() {
+        // Wire outline swatches
+        const outlineRow = document.querySelector('#dice-color-panel .dice-swatch-row:first-of-type');
+        outlineRow?.querySelectorAll('.dice-swatch').forEach(sw => {
+            sw.addEventListener('mousedown', e => e.stopPropagation());
+            sw.addEventListener('click', e => {
+                e.stopPropagation();
+                window.setDiceOutline(sw.dataset.color, sw);
+            });
+        });
+
+        // Wire number swatches
+        const numRow = document.querySelector('#dice-color-panel .dice-swatch-row:last-of-type');
+        numRow?.querySelectorAll('.dice-swatch').forEach(sw => {
+            sw.addEventListener('mousedown', e => e.stopPropagation());
+            sw.addEventListener('click', e => {
+                e.stopPropagation();
+                window.setDiceNum(sw.dataset.color, sw);
+            });
+        });
+
         document.getElementById('dice-color-panel')?.addEventListener('mousedown', e => e.stopPropagation());
         document.getElementById('dice-color-toggle')?.addEventListener('mousedown', e => e.stopPropagation());
         document.addEventListener('click', e => {
@@ -4606,7 +4626,7 @@
                 document.getElementById('dice-color-panel')?.classList.remove('open');
             }
         });
-        window.applyDiceColors();
+        applyDiceColors();
     }
 
     // ── Center-top roll popup ──
