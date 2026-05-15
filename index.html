@@ -4611,8 +4611,8 @@
     }
     let diceModifier      = 0;
     let diceColor         = { stroke: '#c8a83c', fill: 'rgba(60,44,20,0.82)', fillHover: 'rgba(90,68,24,0.92)' };
-    let diceOutlineColor  = '#c8a83c';
-    let diceNumColorStr   = '#e8d080';
+    let diceOutlineColor  = localStorage.getItem('gnoll_dice_outline') || '#c8a83c';
+    let diceNumColorStr   = localStorage.getItem('gnoll_dice_num')     || '#e8d080';
 
     // ── Modifier display ──
     function updateModifierDisplay() {
@@ -4650,6 +4650,7 @@
 
     function setDiceOutline(color, el) {
         diceOutlineColor = color;
+        localStorage.setItem('gnoll_dice_outline', color);
         document.querySelectorAll('#dice-color-panel .dice-swatch-row:first-of-type .dice-swatch').forEach(s => s.classList.remove('active'));
         if (el) el.classList.add('active');
         applyDiceColors();
@@ -4657,6 +4658,7 @@
 
     function setDiceNum(color, el) {
         diceNumColorStr = color;
+        localStorage.setItem('gnoll_dice_num', color);
         document.querySelectorAll('#dice-color-panel .dice-swatch-row:last-of-type .dice-swatch').forEach(s => s.classList.remove('active'));
         if (el) el.classList.add('active');
         applyDiceColors();
