@@ -5715,7 +5715,7 @@
 
         // Stop whatever is playing
         musicAudio.pause();
-        musicAudio.src = `./music/${encodeURIComponent(filename)}`;
+        musicAudio.src = (() => { const u = `./music/${encodeURIComponent(filename)}`; console.log("[Music] src:", u); return u; })();
         currentTrack = filename;
         musicAudio.load();
         musicAudio.play().catch(e => console.error('Music play failed:', e));
