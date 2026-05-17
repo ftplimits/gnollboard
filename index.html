@@ -1991,11 +1991,11 @@
     // PAN / ZOOM / TRANSFORM
     // ═══════════════════════════════════════════════════════════════════════════
     function updateTransform() {
-        const gridSize = 5000, margin = 100;
+        const gridSize = 8000, margin = 100; // 8000 > actual 5000 grid — loose clamping near edges
         const scaledSize = gridSize * zoom;
         const minPanX = -scaledSize + window.innerWidth  - margin;
         const minPanY = -scaledSize + window.innerHeight - margin;
-        // Only clamp if the grid is larger than the viewport — otherwise allow free pan
+        // Only clamp if the virtual size is larger than the viewport
         if (scaledSize > window.innerWidth)  panX = Math.max(minPanX, Math.min(margin, panX));
         if (scaledSize > window.innerHeight) panY = Math.max(minPanY, Math.min(margin, panY));
         gridContainer.style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
