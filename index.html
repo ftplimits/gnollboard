@@ -1664,6 +1664,7 @@
 
             case 'dice_roll':
                 addDiceLogEntry(msg.playerName, msg.color, msg.sides, msg.rolls||[msg.result], msg.modifier||0, msg.count||1, msg.label||'');
+                showRollPopup(msg.count > 1 ? `${msg.count}d${msg.sides}` : `d${msg.sides}`, msg.rolls||[msg.result], msg.modifier||0, msg.total||msg.result, msg.label||'', msg.color, msg.playerName);
                 break;
 
             case 'note_add':
@@ -5233,16 +5234,11 @@
     // Wire dice swatches directly — same pattern as grid swatches (works in Discord iframe)
     (() => {
         const rows = document.querySelectorAll('#dice-color-panel .dice-swatch-row');
-        console.log('[Dice] swatch rows found:', rows.length);
         rows.forEach((row, rowIdx) => {
-            const swatches = row.querySelectorAll('.dice-swatch');
-            console.log(`[Dice] row ${rowIdx} swatches found:`, swatches.length);
-            swatches.forEach(sw => {
-                console.log(`[Dice] wiring swatch color:`, sw.dataset.color);
+            row.querySelectorAll('.dice-swatch').forEach(sw => {
                 sw.addEventListener('mousedown', e => e.stopPropagation());
                 sw.addEventListener('click', e => {
                     e.stopPropagation();
-                    console.log('[Dice] swatch clicked:', rowIdx, sw.dataset.color);
                     if (rowIdx === 0) setDiceOutline(sw.dataset.color, sw);
                     else              setDiceNum(sw.dataset.color, sw);
                 });
