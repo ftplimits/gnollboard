@@ -2332,14 +2332,21 @@
         return null;
     }
 
-    function computeVisibilityPoly(px, py, verts) {
+    function computeVisibilityPoly(px, py, verts, r) {
         const n = verts.length;
-        // Collect angles to all vertices (with epsilon offsets to catch edges)
         const angles = [];
-        verts.forEach(v => {
+        verts.forEach((v, i) => {
+            // Only cast rays toward vertices within or near the light radius
+            if (Math.hypot(v.x - px, v.y - py) > r + 50) return;
             const a = Math.atan2(v.y - py, v.x - px);
             angles.push(a - 0.00005, a, a + 0.00005);
         });
+
+        // Always add cardinal directions so the circle boundary is covered
+        // even if no vertices fall within the radius
+        if (angles.length === 0) {
+            for (let i = 0; i < 8; i++) angles.push((i / 8) * Math.PI * 2);
+        }
 
         const points = [];
         for (const angle of angles) {
@@ -2374,7 +2381,7 @@
                 const octx = off.getContext('2d');
 
                 // Compute visibility polygon (line-of-sight within the polygon)
-                const visPoly = computeVisibilityPoly(cx, cy, polygon.verts);
+                const visPoly = computeVisibilityPoly(cx, cy, polygon.verts, r);
                 if (visPoly.length < 3) return;
 
                 octx.fillStyle = '#fff';
