@@ -454,15 +454,15 @@
         }
         .dice-log-entry {
             font-family: 'Cinzel', 'IM Fell English', serif;
-            font-size: 12px; line-height: 1.5;
+            font-size: 14px; line-height: 1.5;
             color: var(--log-text-color, #e8d080);
-            text-shadow: var(--log-text-shadow, 0 1px 6px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,1));
+            text-shadow: 0 1px 3px rgba(0,0,0,1);
             text-align: right;
             animation: log-fade-in 0.25s ease-out;
             background: none;
         }
         .dice-log-entry .log-result {
-            font-size: 15px; font-weight: 700;
+            font-size: 18px; font-weight: 700;
             color: #fff;
         }
         .dice-log-entry.nat20 .log-result { color: #ffe066; text-shadow: 0 0 10px #ffe066; }
@@ -5211,9 +5211,9 @@
         // Add white shadow for dark colors so log text stays readable
         const brightness = (r * 299 + g * 587 + b * 114) / 1000;
         const shadow = brightness < 80
-            ? '0 1px 6px rgba(0,0,0,1), 0 0 8px #fff, 0 0 2px #fff'
-            : '0 1px 6px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,1)';
-        document.documentElement.style.setProperty('--log-text-shadow', shadow);
+            ? '0 1px 3px rgba(0,0,0,1), 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff'
+            : '0 1px 3px rgba(0,0,0,1)';
+        document.documentElement.style.setProperty('--log-name-shadow', shadow);
     };
 
     function buildDicePalette() {
@@ -5294,10 +5294,10 @@
 
         const modStr    = modifier ? (modifier > 0 ? ` +${modifier}` : ` ${modifier}`) : '';
         const diceStr   = count > 1 ? `${count}d${sides}` : `d${sides}`;
-        const breakdown = rolls.length > 1 ? `<span style="color:#777;font-size:10px;"> [${rolls.join('+')}]</span>` : '';
+        const breakdown = rolls.length > 1 ? `<span style="color:#c8a83c;font-size:10px;opacity:0.8;"> [${rolls.join('+')}]</span>` : '';
         const special   = isNat20 ? ' <span style="color:#ffe066">⭐ NAT 20 ⭐</span>' : isNat1 ? ' <span style="color:#ff6060">💀 NAT 1 💀</span>' : label ? ` <span style="color:#aaa;font-size:10px;">${label}</span>` : '';
 
-        entry.innerHTML = `<span style="color:${color||'#c8a83c'};font-size:10px;font-weight:700;">${playerName||'?'}</span> <span style="color:#888;font-size:10px;">${diceStr}${modStr}:</span> <span class="log-result">${total}</span>${breakdown}${special}`;
+        entry.innerHTML = `<span style="color:${color||'#c8a83c'};font-size:10px;font-weight:700;text-shadow:var(--log-name-shadow, 0 1px 3px rgba(0,0,0,1));">${playerName||'?'}</span> <span style="color:#c8a83c;font-size:11px;">${diceStr}${modStr}:</span> <span class="log-result">${total}</span>${breakdown}${special}`;
 
         log.appendChild(entry);
         // Trim to max 12, remove oldest
