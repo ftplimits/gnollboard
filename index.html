@@ -2375,15 +2375,27 @@
 
                 octx.fillStyle = '#fff';
 
-                // Use visibility polygon for ALL regions — for door-neighbors, only
-                // the neighbor's own edges are checked so the token's polygon walls
-                // don't interfere. The cone then clips what can't pass through the door.
-                const visPoly = computeVisibilityPoly(cx, cy, polygon.verts, r);
-                if (visPoly.length < 3) return;
-                octx.beginPath();
-                octx.moveTo(visPoly[0].x, visPoly[0].y);
-                visPoly.slice(1).forEach(p => octx.lineTo(p.x, p.y));
-                octx.closePath(); octx.fill();
+                if (!cone) {
+                    // Starting polygon — token is inside, compute visibility normally
+                    const visPoly = computeVisibilityPoly(cx, cy, polygon.verts, r);
+                    if (visPoly.length < 3) return;
+                    octx.beginPath();
+                    octx.moveTo(visPoly[0].x, visPoly[0].y);
+                    visPoly.slice(1).forEach(p => octx.lineTo(p.x, p.y));
+                    octx.closePath(); octx.fill();
+                } else {
+                    // Door-neighbor polygon — use virtual viewpoint just inside the polygon
+                    // (the doorSidePoint that falls inside neighbor) so rays are cast correctly
+                    const sides = doorSidePoints(region.door);
+                    const vp = sides.find(pt => pointInPolygon(pt.x, pt.y, polygon.verts))
+                        || { x: (region.door.p1.x + region.door.p2.x) / 2, y: (region.door.p1.y + region.door.p2.y) / 2 };
+                    const visPoly = computeVisibilityPoly(vp.x, vp.y, polygon.verts, r * 4);
+                    if (visPoly.length < 3) return;
+                    octx.beginPath();
+                    octx.moveTo(visPoly[0].x, visPoly[0].y);
+                    visPoly.slice(1).forEach(p => octx.lineTo(p.x, p.y));
+                    octx.closePath(); octx.fill();
+                }
 
                 // Intersect with light circle radius
                 octx.globalCompositeOperation = 'destination-in';
@@ -2770,14 +2782,10 @@
     function getLitRegions(cx, cy) {
         const EXTEND = 8000;
 
-        // Find the fogged polygon containing the token
-        // Use a small epsilon search — try the token center plus 4 cardinal nudges
-        // to handle tokens sitting exactly on a polygon boundary
-        const EPSILON = 3;
         const testPoints = [
             { x: cx, y: cy },
-            { x: cx + EPSILON, y: cy }, { x: cx - EPSILON, y: cy },
-            { x: cx, y: cy + EPSILON }, { x: cx, y: cy - EPSILON },
+            { x: cx + 3, y: cy }, { x: cx - 3, y: cy },
+            { x: cx, y: cy + 3 }, { x: cx, y: cy - 3 },
         ];
         const start = fogPresets.find(p =>
             p.fogged && p.verts.length >= 3 &&
@@ -2785,8 +2793,7 @@
         );
 
         if (start) {
-            // Token inside a fogged polygon — flood-fill through open doors
-            const regions = [{ polygon: start, cone: null }];
+            const regions = [{ polygon: start, cone: null, door: null }];
             const visited = new Set([start.id]);
             const queue   = [{ polygon: start }];
 
@@ -2808,7 +2815,7 @@
                             { x: cx + d2x / l2 * EXTEND, y: cy + d2y / l2 * EXTEND },
                             { x: door.p2.x, y: door.p2.y },
                         ];
-                        const region = { polygon: neighbor, cone };
+                        const region = { polygon: neighbor, cone, door };
                         regions.push(region);
                         queue.push(region);
                     });
@@ -2817,8 +2824,7 @@
             return regions;
         }
 
-        // Token is in an unfogged area — check for open doors that lead into fogged polygons
-        // (token standing in a doorway or just outside it, looking in)
+        // Token in unfogged area — find fogged polygons accessible through nearby open doors
         const regions = [];
         const visited = new Set();
         doors.filter(d => d.open).forEach(door => {
@@ -2838,8 +2844,8 @@
                     { x: cx + d2x / l2 * EXTEND, y: cy + d2y / l2 * EXTEND },
                     { x: door.p2.x, y: door.p2.y },
                 ];
-                regions.push({ polygon: p, cone });
-                // Continue flood-fill from this polygon through further open doors
+                const region = { polygon: p, cone, door };
+                regions.push(region);
                 const queue = [{ polygon: p }];
                 while (queue.length) {
                     const { polygon: current } = queue.shift();
@@ -2859,15 +2865,13 @@
                                 { x: cx + e2x / m2 * EXTEND, y: cy + e2y / m2 * EXTEND },
                                 { x: door2.p2.x, y: door2.p2.y },
                             ];
-                            regions.push({ polygon: neighbor, cone: cone2 });
+                            regions.push({ polygon: neighbor, cone: cone2, door: door2 });
                             queue.push({ polygon: neighbor });
                         });
                     });
                 }
             });
         });
-
-        // Return regions (may be empty = no fog cut, which is correct for tokens in open areas)
         return regions;
     }
 
