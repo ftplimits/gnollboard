@@ -2375,22 +2375,15 @@
 
                 octx.fillStyle = '#fff';
 
-                if (!cone) {
-                    // Starting polygon — use full visibility polygon (correct line-of-sight)
-                    const visPoly = computeVisibilityPoly(cx, cy, polygon.verts, r);
-                    if (visPoly.length < 3) return;
-                    octx.beginPath();
-                    octx.moveTo(visPoly[0].x, visPoly[0].y);
-                    visPoly.slice(1).forEach(p => octx.lineTo(p.x, p.y));
-                    octx.closePath(); octx.fill();
-                } else {
-                    // Neighboring polygon reached through a door — draw full polygon,
-                    // cone handles line-of-sight from the door opening
-                    octx.beginPath();
-                    octx.moveTo(polygon.verts[0].x, polygon.verts[0].y);
-                    polygon.verts.slice(1).forEach(v => octx.lineTo(v.x, v.y));
-                    octx.closePath(); octx.fill();
-                }
+                // Use visibility polygon for ALL regions — for door-neighbors, only
+                // the neighbor's own edges are checked so the token's polygon walls
+                // don't interfere. The cone then clips what can't pass through the door.
+                const visPoly = computeVisibilityPoly(cx, cy, polygon.verts, r);
+                if (visPoly.length < 3) return;
+                octx.beginPath();
+                octx.moveTo(visPoly[0].x, visPoly[0].y);
+                visPoly.slice(1).forEach(p => octx.lineTo(p.x, p.y));
+                octx.closePath(); octx.fill();
 
                 // Intersect with light circle radius
                 octx.globalCompositeOperation = 'destination-in';
