@@ -2368,7 +2368,7 @@
             const regions = getLitRegions(cx, cy);
             if (!regions || regions.length === 0) return;
 
-            regions.forEach(({ polygon, cone }) => {
+            regions.forEach(({ polygon, cone, door }) => {
                 const off  = document.createElement('canvas');
                 off.width  = fogCanvas.width; off.height = fogCanvas.height;
                 const octx = off.getContext('2d');
@@ -2386,9 +2386,9 @@
                 } else {
                     // Door-neighbor polygon — use virtual viewpoint just inside the polygon
                     // (the doorSidePoint that falls inside neighbor) so rays are cast correctly
-                    const sides = doorSidePoints(region.door);
+                    const sides = doorSidePoints(door);
                     const vp = sides.find(pt => pointInPolygon(pt.x, pt.y, polygon.verts))
-                        || { x: (region.door.p1.x + region.door.p2.x) / 2, y: (region.door.p1.y + region.door.p2.y) / 2 };
+                        || { x: (door.p1.x + door.p2.x) / 2, y: (door.p1.y + door.p2.y) / 2 };
                     const visPoly = computeVisibilityPoly(vp.x, vp.y, polygon.verts, r * 4);
                     if (visPoly.length < 3) return;
                     octx.beginPath();
