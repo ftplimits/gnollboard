@@ -935,7 +935,10 @@
     <button id="music-btn" title="Music">🎵 Music</button>
     <button id="btn-dark-mode" title="Toggle Dark Mode" style="display:none;position:fixed;top:12px;right:422px;z-index:1001;background:rgba(42,42,42,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:6px 10px;color:#ccc;font-family:var(--font-serif);font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">🕯 Dark</button>
     <div id="music-panel">
-        <div id="music-panel-header">♪ TRACKS</div>
+        <div id="music-panel-header" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>♪ TRACKS</span>
+            <button id="music-loop-btn" title="Repeat track" style="background:transparent;border:1px solid rgba(200,168,60,0.3);border-radius:4px;color:#666;font-size:12px;cursor:pointer;padding:2px 6px;font-family:var(--font-serif);">⟳</button>
+        </div>
         <div id="music-track-list"></div>
     </div>
 
@@ -5716,8 +5719,19 @@
 
     let currentTrack  = null; // filename string
     let musicAudio    = new Audio();
-    musicAudio.loop   = true;
+    musicAudio.loop   = false;
     musicAudio.volume = parseFloat(localStorage.getItem('gnoll_volume') ?? '0.3');
+
+    let musicLoop = false;
+    document.getElementById('music-loop-btn')?.addEventListener('click', e => {
+        e.stopPropagation();
+        musicLoop = !musicLoop;
+        musicAudio.loop = musicLoop;
+        const btn = document.getElementById('music-loop-btn');
+        btn.style.color       = musicLoop ? '#e8d080' : '#666';
+        btn.style.borderColor = musicLoop ? 'rgba(200,168,60,0.7)' : 'rgba(200,168,60,0.3)';
+        btn.title = musicLoop ? 'Repeat on' : 'Repeat off';
+    });
 
     function setMusicVolume(v) {
         musicAudio.volume = parseFloat(v);
