@@ -616,6 +616,21 @@
             background: #c8a83c; cursor: pointer; border: none;
         }
 
+
+        /* ── Dark Mode ── */
+        body.dark-mode { background: #111; }
+        body.dark-mode #viewport { background: #000; }
+        body.dark-mode #grid-container { background: radial-gradient(circle at center, #111, #000) !important; }
+        body.dark-mode #grid-background {
+            background: url("data:image/svg+xml,%3Csvg width='50' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 0 Q 12 -0.3 25 0.2 Q 37 -0.4 50 0' stroke='%23ffffff' stroke-width='1' fill='none' opacity='0.25'/%3E%3Cpath d='M 0 0 Q -0.4 12 0.3 25 Q -0.2 37 0 50' stroke='%23ffffff' stroke-width='1' fill='none' opacity='0.25'/%3E%3C/svg%3E") !important;
+            border-color: rgba(255,255,255,0.3) !important;
+        }
+        body.dark-mode .sticker-div img,
+        body.dark-mode .sticker-div svg {
+            background: #fff;
+            border-radius: 3px;
+        }
+
     </style>
 </head>
 <body>
@@ -918,6 +933,7 @@
 
     <!-- ═══════ MUSIC PLAYER ═══════ -->
     <button id="music-btn" title="Music">🎵 Music</button>
+    <button id="btn-dark-mode" title="Toggle Dark Mode" style="display:none;position:fixed;top:12px;right:382px;z-index:1001;background:rgba(42,42,42,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:6px 10px;color:#ccc;font-family:var(--font-serif);font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">🕯 Dark</button>
     <div id="music-panel">
         <div id="music-panel-header">♪ TRACKS</div>
         <div id="music-track-list"></div>
@@ -1359,6 +1375,7 @@
             fogPresets:  fogPresets.map(p => ({ ...p })),
             notes:       notes.map(n => ({ ...n })),
             doors:       doors.map(d => ({ ...d })),
+            darkMode:    darkMode,
             canvasData:  canvas.toDataURL('image/webp', 0.85),
             fogCellData: [...fogCells].map(key => { const [cx,cy] = key.split(',').map(Number); return {cx,cy}; })
         };
@@ -1397,6 +1414,7 @@
 
         drawPresetOutlines(); redrawDoors();
         if (snap.notes) { notes = snap.notes; nextNoteId = notes.length ? Math.max(...notes.map(n=>n.id))+1 : 1; renderNoteTabs(); }
+        if (snap.darkMode !== undefined) applyDarkMode(snap.darkMode, true);
         if (snap.canvasData) { const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = snap.canvasData; }
         if (tokens.length)     nextTokenId   = Math.max(...tokens.map(t=>t.id))   + 1;
         if (stickers.length)   nextStickerId = Math.max(...stickers.map(s=>s.id)) + 1;
@@ -1731,6 +1749,10 @@
                 redrawFog(); drawPresetOutlines();
                 break;
 
+            case 'dark_mode':
+                applyDarkMode(msg.enabled, true);
+                break;
+
             case 'board_clear':
                 tokensContainer.innerHTML=''; stickersContainer.innerHTML='';
                 shapesContainer.innerHTML=''; document.getElementById('text-container').innerHTML='';
@@ -1785,6 +1807,7 @@
         const btnLoad = document.getElementById('btn-load');
         const btnClear  = document.getElementById('btn-clear-board');
         const btnMusic  = document.getElementById('music-btn');
+        const btnDark   = document.getElementById('btn-dark-mode');
         const btnMap  = document.getElementById('btn-map-upload-tb');
         const btnCenter = document.getElementById('btn-center-view');
         if (fogTb)     fogTb.style.display     = isHost ? 'flex'  : 'none';
@@ -1795,6 +1818,7 @@
         if (btnLoad)   btnLoad.style.display   = isHost ? 'block' : 'none';
         if (btnClear)  btnClear.style.display  = isHost ? 'block' : 'none';
         if (btnMusic)  btnMusic.style.display  = isHost ? 'block' : 'none';
+        if (btnDark)   btnDark.style.display   = isHost ? 'block' : 'none';
         if (btnMap)    btnMap.style.display    = isHost ? 'block' : 'none';
         if (btnCenter) btnCenter.style.display = isHost ? 'block' : 'none';
         // Reposition toolbar toggle after toolbar becomes visible
@@ -5768,6 +5792,27 @@
 
     // Show music button for host (also handled in updatePeerUI)
     // Volume bar always visible — already in HTML
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DARK MODE
+    // ═══════════════════════════════════════════════════════════════════════════
+    let darkMode = localStorage.getItem('gnoll_dark_mode') === 'true';
+
+    function applyDarkMode(enabled, fromPeer = false) {
+        darkMode = enabled;
+        document.body.classList.toggle('dark-mode', enabled);
+        const btn = document.getElementById('btn-dark-mode');
+        if (btn) { btn.textContent = enabled ? '☀ Light' : '🕯 Dark'; }
+        localStorage.setItem('gnoll_dark_mode', enabled);
+        if (!fromPeer) broadcast({ type: 'dark_mode', enabled });
+    }
+
+    document.getElementById('btn-dark-mode')?.addEventListener('click', () => {
+        applyDarkMode(!darkMode);
+    });
+
+    // Apply saved preference on load
+    if (darkMode) applyDarkMode(true, true);
 
     // ═══════════════════════════════════════════════════════════════════════════
     // INIT
