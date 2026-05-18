@@ -5667,27 +5667,27 @@
     // ═══════════════════════════════════════════════════════════════════════════
     // Add tracks here — place files in /music/ folder in your repo
     const MUSIC_TRACKS = [
-        'Tittle - Combat.mp3',
-        'Bells - Ambience.mp3',
-        'Menu - Ambience.mp3',
-        'Halls - Action.mp3',
-        'Demons - Combat.mp3',
-        'Daemons - Combat.mp3',
-        'Suspense - Suspense.mp3',
-        'Evil - BGM.mp3',
-        'Sinister - Combat.mp3',
-        'Lost - Somber.mp3',
-        'Waltz - Combat.mp3',
-        'Blood - Ambience.mp3',
-        'Cinder - Somber.mp3',
-        'Purity - Town.mp3',
-        'Glum - Epic.mp3',
-        'Dark - Ambient.mp3',
-        'Havel - Metal.mp3',
-        'Isle - BGM.mp3',
-        'Equinox - Epic.mp3',
-        'Roll - Ambience.mp3',
-        'Nameless - Somber.mp3',
+        '1 - Tittle - Combat.mp3',
+        '2 - Bells - Ambience.mp3',
+        '3 - Menu - Ambience.mp3',
+        '4 - Halls - Action.mp3',
+        '5 - Demons - Combat.mp3',
+        '6 - Daemons - Combat.mp3',
+        '7 - Suspense - Suspense.mp3',
+        '8 - Evil - BGM.mp3',
+        '9 - Sinister - Combat.mp3',
+        '10 - Lost - Somber.mp3',
+        '11 - Waltz - Combat.mp3',
+        '12 - Blood - Ambience.mp3',
+        '13 - Cinder - Somber.mp3',
+        '14 - Purity - Town.mp3',
+        '15 - Glum - Epic.mp3',
+        '16 - Dark - Ambient.mp3',
+        '17 - Havel - Metal.mp3',
+        '18 - Isle - BGM.mp3',
+        '19 - Equinox - Epic.mp3',
+        '20 - Roll - Ambience.mp3',
+        '21 - Nameless - Somber.mp3',
     ];
 
     let currentTrack  = null; // filename string
@@ -5715,10 +5715,10 @@
 
         // Stop whatever is playing
         musicAudio.pause();
-        musicAudio.src = (() => { const u = `./music/${encodeURIComponent(filename)}`; console.log("[Music] src:", u); return u; })();
+        musicAudio.src = `./music/${encodeURIComponent(filename)}`;
         currentTrack = filename;
         musicAudio.load();
-        musicAudio.play().catch(e => console.error('Music play failed:', e));
+        musicAudio.play().catch(() => {});
         if (!fromPeer) broadcast({ type: 'music_play', filename });
         updateTrackList();
     }
