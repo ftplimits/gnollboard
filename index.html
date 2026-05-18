@@ -2321,6 +2321,43 @@
         lightCtx.clearRect(0, 0, lightCanvas.width, lightCanvas.height);
     }
 
+    // ── Visibility polygon (line-of-sight within a polygon) ──────────────────
+    function raySegIntersect(ox, oy, dx, dy, ax, ay, bx, by) {
+        const ex = bx - ax, ey = by - ay;
+        const denom = dx * ey - dy * ex;
+        if (Math.abs(denom) < 1e-9) return null;
+        const t = ((ax - ox) * ey - (ay - oy) * ex) / denom;
+        const u = ((ax - ox) * dy - (ay - oy) * dx) / denom;
+        if (t >= 1e-9 && u >= -1e-9 && u <= 1 + 1e-9) return t;
+        return null;
+    }
+
+    function computeVisibilityPoly(px, py, verts) {
+        const n = verts.length;
+        // Collect angles to all vertices (with epsilon offsets to catch edges)
+        const angles = [];
+        verts.forEach(v => {
+            const a = Math.atan2(v.y - py, v.x - px);
+            angles.push(a - 0.00005, a, a + 0.00005);
+        });
+
+        const points = [];
+        for (const angle of angles) {
+            const dx = Math.cos(angle), dy = Math.sin(angle);
+            let minT = Infinity;
+            for (let i = 0; i < n; i++) {
+                const j = (i + 1) % n;
+                const t = raySegIntersect(px, py, dx, dy, verts[i].x, verts[i].y, verts[j].x, verts[j].y);
+                if (t !== null && t < minT) minT = t;
+            }
+            if (minT < Infinity) {
+                points.push({ x: px + dx * minT, y: py + dy * minT, angle });
+            }
+        }
+        points.sort((a, b) => a.angle - b.angle);
+        return points;
+    }
+
     function redrawLightFogCuts() {
         tokens.forEach(t => {
             if (!t.lightRadius || t.lightRadius <= 0) return;
@@ -2329,7 +2366,6 @@
             const r  = t.lightRadius * CELL;
 
             const regions = getLitRegions(cx, cy);
-            // regions is always an array now — empty means no fog to cut (token in open area)
             if (!regions || regions.length === 0) return;
 
             regions.forEach(({ polygon, cone }) => {
@@ -2337,17 +2373,25 @@
                 off.width  = fogCanvas.width; off.height = fogCanvas.height;
                 const octx = off.getContext('2d');
 
+                // Compute visibility polygon (line-of-sight within the polygon)
+                const visPoly = computeVisibilityPoly(cx, cy, polygon.verts);
+                if (visPoly.length < 3) return;
+
                 octx.fillStyle = '#fff';
                 octx.beginPath();
-                octx.moveTo(polygon.verts[0].x, polygon.verts[0].y);
-                polygon.verts.slice(1).forEach(v => octx.lineTo(v.x, v.y));
+                octx.moveTo(visPoly[0].x, visPoly[0].y);
+                visPoly.slice(1).forEach(p => octx.lineTo(p.x, p.y));
                 octx.closePath(); octx.fill();
 
+                // Intersect with light circle radius
                 octx.globalCompositeOperation = 'destination-in';
+                octx.fillStyle = '#fff';
                 octx.beginPath(); octx.arc(cx, cy, r, 0, Math.PI * 2); octx.fill();
 
+                // If reached through a door, intersect with the cone
                 if (cone) {
                     octx.globalCompositeOperation = 'destination-in';
+                    octx.fillStyle = '#fff';
                     octx.beginPath();
                     octx.moveTo(cone[0].x, cone[0].y);
                     cone.slice(1).forEach(pt => octx.lineTo(pt.x, pt.y));
