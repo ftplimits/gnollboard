@@ -777,7 +777,8 @@
         <button class="fog-btn" id="btn-fog-preset-define"   title="Define Fog Preset">📌</button>
         <button class="fog-btn" id="btn-fog-preset-toggle"   title="Toggle Fog Preset">🔘</button>
         <button class="fog-btn" id="btn-fog-preset-delete"   title="Delete Fog Preset">🗑️</button>
-        <button class="fog-btn" id="btn-fog-door"            title="Place Door (click two points on a wall)">🚪</button>
+        <button class="fog-btn" id="btn-fog-door"            title="Place Door (click two snap points)">🚪</button>
+        <button class="fog-btn" id="btn-fog-secret-door"     title="Next door placed will be secret (host-only, invisible to players until opened)"><span style="position:relative;display:inline-block;"><span>🚪</span><span style="position:absolute;top:-1px;right:-3px;font-size:9px;font-weight:900;color:#111;font-family:sans-serif;text-shadow:0 0 2px #fff,-1px -1px 0 #fff,1px 1px 0 #fff;line-height:1;">S</span></span></button>
     </div>
     <div id="fog-toggle">FOG</div>
 
@@ -936,7 +937,13 @@
 
     <!-- ═══════ MUSIC PLAYER ═══════ -->
     <button id="music-btn" title="Music">🎵 Music</button>
-    <button id="btn-dark-mode" title="Toggle Dark Mode" style="display:none;position:fixed;top:12px;right:422px;z-index:1001;background:rgba(42,42,42,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:6px 10px;color:#ccc;font-family:var(--font-serif);font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">🕯 Dark</button>
+    <button id="btn-weather" title="Weather Effects" style="display:none;position:fixed;top:12px;right:510px;z-index:1001;background:rgba(42,42,42,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:6px 10px;color:#ccc;font-family:var(--font-serif);font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">🌦 Weather</button>
+    <div id="weather-panel" style="display:none;position:fixed;top:44px;right:510px;z-index:1002;background:rgba(20,18,14,0.95);border:1px solid rgba(200,168,60,0.4);border-radius:8px;padding:10px 14px;font-family:var(--font-serif);min-width:180px;backdrop-filter:blur(8px);">
+        <div style="color:#c8a83c;font-size:11px;letter-spacing:1px;margin-bottom:8px;">WEATHER EFFECTS</div>
+        <div id="weather-btns" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;"></div>
+    </div>
+    <canvas id="weather-canvas" style="position:fixed;top:0;left:0;pointer-events:none;z-index:1500;"></canvas>
+    <button id="btn-dark-mode" title="Toggle Dark Mode" style="display:none;position:fixed;top:12px;right:468px;z-index:1001;background:rgba(42,42,42,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:6px 10px;color:#ccc;font-family:var(--font-serif);font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">🕯 Dark</button>
     <div id="music-panel">
         <div id="music-panel-header" style="display:flex;justify-content:space-between;align-items:center;">
             <span>♪ TRACKS</span>
@@ -1747,12 +1754,31 @@
                 break;
             case 'door_update': {
                 const d = doors.find(d => d.id === msg.id);
-                if (d) { d.open = msg.open; redrawFog(); drawPresetOutlines(); }
+                if (d) {
+                    d.open = msg.open;
+                    if (msg.secret !== undefined) d.secret = msg.secret;
+                    redrawFog(); drawPresetOutlines();
+                }
                 break;
             }
             case 'door_delete':
                 doors = doors.filter(d => d.id !== msg.id);
                 redrawFog(); drawPresetOutlines();
+                break;
+
+            case 'weather_update':
+                weatherActive = new Set(msg.effects || []);
+                weatherActive.forEach(type => { if (!weatherParticles[type]) initParticles(type); });
+                Object.keys(WEATHER_DEFS).forEach(type => {
+                    const btn = document.querySelector(`[data-weather="${type}"]`);
+                    const on  = weatherActive.has(type);
+                    if (btn) {
+                        btn.style.background  = on ? 'rgba(200,168,60,0.25)' : 'rgba(255,255,255,0.07)';
+                        btn.style.borderColor = on ? 'rgba(200,168,60,0.7)' : 'rgba(255,255,255,0.15)';
+                        btn.style.color       = on ? '#e8d080' : '#bbb';
+                    }
+                });
+                if (weatherActive.size > 0 && !weatherRAF) weatherRAF = requestAnimationFrame(tickWeather);
                 break;
 
             case 'dark_mode':
@@ -1822,9 +1848,11 @@
         if (tbTog)     tbTog.style.display     = isHost ? 'block' : 'none';
         if (btnSave)   btnSave.style.display   = isHost ? 'block' : 'none';
         if (btnLoad)   btnLoad.style.display   = isHost ? 'block' : 'none';
-        if (btnClear)  btnClear.style.display  = isHost ? 'block' : 'none';
-        if (btnMusic)  btnMusic.style.display  = isHost ? 'block' : 'none';
-        if (btnDark)   btnDark.style.display   = isHost ? 'block' : 'none';
+        if (btnClear)   btnClear.style.display   = isHost ? 'block' : 'none';
+        if (btnMusic)   btnMusic.style.display   = isHost ? 'block' : 'none';
+        if (btnDark)    btnDark.style.display    = isHost ? 'block' : 'none';
+        const btnWeather = document.getElementById('btn-weather');
+        if (btnWeather) btnWeather.style.display = isHost ? 'block' : 'none';
         if (btnMap)    btnMap.style.display    = isHost ? 'block' : 'none';
         if (btnCenter) btnCenter.style.display = isHost ? 'block' : 'none';
         // Reposition toolbar toggle after toolbar becomes visible
@@ -2571,23 +2599,21 @@
 
     function isDoorLit(d) {
         if (isHost) return true;
+        // Players never see closed secret doors
+        if (d.secret && !d.open) return false;
         return tokens.some(t => {
             if (!t.lightRadius || t.lightRadius <= 0) return false;
             const cx = t.x + FOG_OFFSET;
             const cy = t.y + FOG_OFFSET;
             const r  = t.lightRadius * CELL;
-            // Door must be within light radius distance
             if (ptSegDist(cx, cy, d.p1.x, d.p1.y, d.p2.x, d.p2.y) > r) return false;
-            // Door must be at the boundary of or inside a lit polygon
             const regions = getLitRegions(cx, cy);
             if (!regions || regions.length === 0) return false;
-            const litPolygonIds = new Set(regions.map(reg => reg.polygon.id));
-            // Door is visible if either side of it touches a lit polygon
             return doorSidePoints(d).some(pt =>
                 regions.some(reg => pointInPolygon(pt.x, pt.y, reg.polygon.verts))
-            ) || regions.some(reg => litPolygonIds.has(reg.polygon.id) &&
-                (pointInPolygon(d.p1.x, d.p1.y, reg.polygon.verts) ||
-                 pointInPolygon(d.p2.x, d.p2.y, reg.polygon.verts))
+            ) || regions.some(reg =>
+                pointInPolygon(d.p1.x, d.p1.y, reg.polygon.verts) ||
+                pointInPolygon(d.p2.x, d.p2.y, reg.polygon.verts)
             );
         });
     }
@@ -2608,6 +2634,14 @@
     let doorMode     = false; // true = placing a door
     let doorP1       = null;  // first point placed
     let doorMouse    = null;  // current mouse pos for preview
+    let secretMode   = false; // next placed door will be secret
+
+    document.getElementById('btn-fog-secret-door')?.addEventListener('click', () => {
+        secretMode = !secretMode;
+        const btn = document.getElementById('btn-fog-secret-door');
+        btn.classList.toggle('active', secretMode);
+        btn.title = secretMode ? 'Secret mode ON — next door placed will be secret' : 'Secret door mode (off)';
+    });
 
     function drawPresetOutlines() {
         fogPresetCtx.clearRect(0, 0, fogPresetCanvas.width, fogPresetCanvas.height);
@@ -2740,14 +2774,26 @@
         ctx.rotate(ang);
 
         if (d.open) {
+            // Open: end caps only, no panel
             ctx.fillStyle   = '#111';
-            ctx.strokeStyle = '#333';
+            ctx.strokeStyle = d.secret ? '#cc3333' : '#333';
             ctx.lineWidth   = 1;
             ctx.fillRect(-half - capW / 2, -capH / 2, capW, capH);
             ctx.strokeRect(-half - capW / 2, -capH / 2, capW, capH);
             ctx.fillRect( half - capW / 2, -capH / 2, capW, capH);
             ctx.strokeRect( half - capW / 2, -capH / 2, capW, capH);
+        } else if (d.secret) {
+            // Secret closed door: host-only red dashed outline, no brown fill
+            ctx.setLineDash([4, 3]);
+            ctx.strokeStyle = '#cc3333';
+            ctx.lineWidth   = 2;
+            ctx.strokeRect(-half, -doorH / 2, len, doorH);
+            ctx.setLineDash([]);
+            ctx.fillStyle   = '#cc3333';
+            ctx.fillRect(-half - capW / 2, -capH / 2, capW, capH);
+            ctx.fillRect( half - capW / 2, -capH / 2, capW, capH);
         } else {
+            // Normal closed door
             ctx.fillStyle   = '#7a4020';
             ctx.strokeStyle = '#111';
             ctx.lineWidth   = 1.5;
@@ -2913,19 +2959,32 @@
         const menu = document.createElement('div');
         menu.className = 'door-ctx-menu';
         menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:#1a1510;border:1px solid #993333;border-radius:7px;padding:8px;z-index:9001;font-family:var(--font-serif);box-shadow:0 4px 16px rgba(0,0,0,0.8);`;
-        const btn = document.createElement('button');
-        btn.textContent = '🗑️ Delete Door';
-        btn.style.cssText = `display:block;width:100%;padding:6px 12px;background:transparent;color:#f88;border:none;border-radius:4px;font-family:var(--font-serif);font-size:13px;cursor:pointer;text-align:left;`;
-        btn.onmouseenter = () => btn.style.background = 'rgba(200,60,60,0.15)';
-        btn.onmouseleave = () => btn.style.background = 'transparent';
-        btn.addEventListener('click', e => {
+
+        const secretBtn = document.createElement('button');
+        secretBtn.textContent = door.secret ? '🔓 Make Normal Door' : '🔴 Make Secret Door';
+        secretBtn.style.cssText = `display:block;width:100%;padding:6px 12px;background:transparent;color:#f8a;border:none;border-radius:4px;font-family:var(--font-serif);font-size:13px;cursor:pointer;text-align:left;`;
+        secretBtn.onmouseenter = () => secretBtn.style.background = 'rgba(200,60,60,0.15)';
+        secretBtn.onmouseleave = () => secretBtn.style.background = 'transparent';
+        secretBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            door.secret = !door.secret;
+            broadcast({ type: 'door_update', id: door.id, open: door.open, secret: door.secret });
+            redrawDoors(); menu.remove();
+        });
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '🗑️ Delete Door';
+        delBtn.style.cssText = `display:block;width:100%;padding:6px 12px;background:transparent;color:#f88;border:none;border-radius:4px;font-family:var(--font-serif);font-size:13px;cursor:pointer;text-align:left;`;
+        delBtn.onmouseenter = () => delBtn.style.background = 'rgba(200,60,60,0.15)';
+        delBtn.onmouseleave = () => delBtn.style.background = 'transparent';
+        delBtn.addEventListener('click', e => {
             e.stopPropagation();
             doors = doors.filter(d => d.id !== door.id);
             broadcast({ type: 'door_delete', id: door.id });
-            redrawFog(); drawPresetOutlines();
-            menu.remove();
+            redrawFog(); drawPresetOutlines(); menu.remove();
         });
-        menu.appendChild(btn);
+
+        menu.appendChild(secretBtn); menu.appendChild(delBtn);
         document.body.appendChild(menu);
         menu.addEventListener('mousedown', e => e.stopPropagation());
         const close = () => { menu.remove(); document.removeEventListener('click', close); };
@@ -2949,7 +3008,7 @@
             const hit = doors.find(d => ptSegDist(pos.x, pos.y, d.p1.x, d.p1.y, d.p2.x, d.p2.y) < 15);
             if (hit) {
                 hit.open = !hit.open;
-                broadcast({ type: 'door_update', id: hit.id, open: hit.open });
+                broadcast({ type: 'door_update', id: hit.id, open: hit.open, secret: hit.secret });
                 redrawFog(); drawPresetOutlines();
                 return;
             }
@@ -2963,7 +3022,7 @@
             const hit = doors.find(d => ptSegDist(pos.x, pos.y, d.p1.x, d.p1.y, d.p2.x, d.p2.y) < 15);
             if (hit) {
                 hit.open = !hit.open;
-                broadcast({ type: 'door_update', id: hit.id, open: hit.open });
+                broadcast({ type: 'door_update', id: hit.id, open: hit.open, secret: hit.secret });
                 redrawFog(); drawPresetOutlines();
                 return;
             }
@@ -2973,10 +3032,15 @@
             if (Math.hypot(snapped.x - doorP1.x, snapped.y - doorP1.y) < 5) {
                 doorP1 = null; drawPresetOutlines(); return;
             }
-            const door = { id: nextDoorId++, p1: { ...doorP1 }, p2: { ...snapped }, open: false };
+            const door = { id: nextDoorId++, p1: { ...doorP1 }, p2: { ...snapped }, open: false, secret: secretMode };
             doors.push(door);
             broadcast({ type: 'door_add', door: { ...door } });
             doorP1 = null;
+            // Reset secret mode after placement so you don't accidentally make all doors secret
+            if (secretMode) {
+                secretMode = false;
+                document.getElementById('btn-fog-secret-door')?.classList.remove('active');
+            }
             drawPresetOutlines();
         }
     });
@@ -5862,8 +5926,192 @@
     // Volume bar always visible — already in HTML
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // DARK MODE
+    // WEATHER EFFECTS
     // ═══════════════════════════════════════════════════════════════════════════
+    const weatherCanvas = document.getElementById('weather-canvas');
+    const weatherCtx    = weatherCanvas.getContext('2d');
+    let   weatherRAF    = null;
+    let   weatherActive = new Set();
+
+    function resizeWeatherCanvas() {
+        weatherCanvas.width  = window.innerWidth;
+        weatherCanvas.height = window.innerHeight;
+    }
+    resizeWeatherCanvas();
+    window.addEventListener('resize', resizeWeatherCanvas);
+
+    const WEATHER_DEFS = {
+        rain:      { label: '🌧 Rain',      color: 'rgba(180,200,255,', count: 300 },
+        snow:      { label: '❄ Snow',       color: 'rgba(220,240,255,', count: 150 },
+        embers:    { label: '🔥 Embers',    color: 'rgba(255,140,20,',  count: 80  },
+        leaves:    { label: '🍂 Leaves',    color: 'rgba(180,100,30,',  count: 60  },
+        fireflies: { label: '✨ Fireflies', color: 'rgba(200,255,100,', count: 40  },
+        fog:       { label: '🌫 Fog',       color: 'rgba(220,225,235,', count: 18  },
+    };
+
+    const weatherParticles = {};
+
+    function spawnParticle(type, W, H) {
+        const p = { type };
+        if (type === 'rain') {
+            p.x = Math.random() * W; p.y = Math.random() * H;
+            p.vx = -1.5; p.vy = 14 + Math.random() * 8;
+            p.len = 12 + Math.random() * 10; p.op = 0.3 + Math.random() * 0.4;
+        } else if (type === 'snow') {
+            p.x = Math.random() * W; p.y = Math.random() * H;
+            p.vx = (Math.random() - 0.5) * 0.6; p.vy = 0.8 + Math.random() * 1.4;
+            p.r = 2 + Math.random() * 3; p.op = 0.5 + Math.random() * 0.5;
+            p.wobble = Math.random() * Math.PI * 2; p.wobbleSpeed = 0.02 + Math.random() * 0.02;
+        } else if (type === 'embers') {
+            p.x = Math.random() * W; p.y = H + 10;
+            p.vx = (Math.random() - 0.5) * 1.5; p.vy = -(1.5 + Math.random() * 2.5);
+            p.r = 1 + Math.random() * 2; p.op = 0.6 + Math.random() * 0.4;
+            p.life = 1.0; p.decay = 0.003 + Math.random() * 0.005;
+        } else if (type === 'leaves') {
+            p.x = Math.random() * W; p.y = -10;
+            p.vx = -1 + Math.random() * 2; p.vy = 1 + Math.random() * 1.5;
+            p.rot = Math.random() * Math.PI * 2; p.rotSpeed = (Math.random() - 0.5) * 0.08;
+            p.size = 6 + Math.random() * 8; p.op = 0.6 + Math.random() * 0.4;
+        } else if (type === 'fireflies') {
+            p.x = Math.random() * W; p.y = Math.random() * H;
+            p.vx = (Math.random() - 0.5) * 0.5; p.vy = (Math.random() - 0.5) * 0.5;
+            p.r = 2 + Math.random() * 2; p.phase = Math.random() * Math.PI * 2;
+            p.phaseSpeed = 0.03 + Math.random() * 0.04;
+        } else if (type === 'fog') {
+            p.x = Math.random() * W; p.y = Math.random() * H;
+            p.vx = (Math.random() - 0.5) * 0.3; p.vy = (Math.random() - 0.5) * 0.15;
+            p.r = 80 + Math.random() * 120; p.phase = Math.random() * Math.PI * 2;
+            p.phaseSpeed = 0.004 + Math.random() * 0.004;
+        }
+        return p;
+    }
+
+    function initParticles(type) {
+        const W = weatherCanvas.width, H = weatherCanvas.height;
+        const count = WEATHER_DEFS[type].count;
+        weatherParticles[type] = Array.from({ length: count }, () => spawnParticle(type, W, H));
+    }
+
+    function tickWeather() {
+        const W = weatherCanvas.width, H = weatherCanvas.height;
+        weatherCtx.clearRect(0, 0, W, H);
+
+        for (const type of weatherActive) {
+            const ps = weatherParticles[type] || [];
+            ps.forEach((p, i) => {
+                if (type === 'rain') {
+                    weatherCtx.strokeStyle = WEATHER_DEFS.rain.color + p.op + ')';
+                    weatherCtx.lineWidth = 1;
+                    weatherCtx.beginPath();
+                    weatherCtx.moveTo(p.x, p.y);
+                    weatherCtx.lineTo(p.x + p.vx * p.len / p.vy, p.y + p.len);
+                    weatherCtx.stroke();
+                    p.x += p.vx; p.y += p.vy;
+                    if (p.y > H + 20) { p.y = -20; p.x = Math.random() * W; }
+                    if (p.x < -20)    { p.x = W + 20; }
+
+                } else if (type === 'snow') {
+                    p.wobble += p.wobbleSpeed;
+                    const grad = weatherCtx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+                    grad.addColorStop(0, WEATHER_DEFS.snow.color + p.op + ')');
+                    grad.addColorStop(1, WEATHER_DEFS.snow.color + '0)');
+                    weatherCtx.fillStyle = grad;
+                    weatherCtx.beginPath(); weatherCtx.arc(p.x, p.y, p.r, 0, Math.PI*2); weatherCtx.fill();
+                    p.x += p.vx + Math.sin(p.wobble) * 0.4; p.y += p.vy;
+                    if (p.y > H + 10) { p.y = -10; p.x = Math.random() * W; }
+
+                } else if (type === 'embers') {
+                    p.life -= p.decay;
+                    if (p.life <= 0) { weatherParticles[type][i] = spawnParticle('embers', W, H); return; }
+                    weatherCtx.fillStyle = WEATHER_DEFS.embers.color + (p.op * p.life) + ')';
+                    weatherCtx.beginPath(); weatherCtx.arc(p.x, p.y, p.r, 0, Math.PI*2); weatherCtx.fill();
+                    p.x += p.vx; p.y += p.vy;
+                    p.vx += (Math.random() - 0.5) * 0.1;
+
+                } else if (type === 'leaves') {
+                    p.rot += p.rotSpeed;
+                    weatherCtx.save(); weatherCtx.translate(p.x, p.y); weatherCtx.rotate(p.rot);
+                    weatherCtx.fillStyle = WEATHER_DEFS.leaves.color + p.op + ')';
+                    weatherCtx.beginPath();
+                    weatherCtx.ellipse(0, 0, p.size * 0.5, p.size, 0, 0, Math.PI * 2);
+                    weatherCtx.fill(); weatherCtx.restore();
+                    p.x += p.vx + Math.sin(p.rot) * 0.5; p.y += p.vy;
+                    if (p.y > H + 20) { p.y = -20; p.x = Math.random() * W; }
+
+                } else if (type === 'fireflies') {
+                    p.phase += p.phaseSpeed;
+                    const glow = (Math.sin(p.phase) + 1) / 2;
+                    const grad = weatherCtx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 3);
+                    grad.addColorStop(0, WEATHER_DEFS.fireflies.color + (0.9 * glow) + ')');
+                    grad.addColorStop(1, WEATHER_DEFS.fireflies.color + '0)');
+                    weatherCtx.fillStyle = grad;
+                    weatherCtx.beginPath(); weatherCtx.arc(p.x, p.y, p.r * 3, 0, Math.PI*2); weatherCtx.fill();
+                    p.x += p.vx + (Math.random() - 0.5) * 0.3;
+                    p.y += p.vy + (Math.random() - 0.5) * 0.3;
+                    if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+                    if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+
+                } else if (type === 'fog') {
+                    p.phase += p.phaseSpeed;
+                    const op = (Math.sin(p.phase) * 0.025 + 0.045);
+                    const grad = weatherCtx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+                    grad.addColorStop(0, WEATHER_DEFS.fog.color + op + ')');
+                    grad.addColorStop(1, WEATHER_DEFS.fog.color + '0)');
+                    weatherCtx.fillStyle = grad;
+                    weatherCtx.beginPath(); weatherCtx.arc(p.x, p.y, p.r, 0, Math.PI*2); weatherCtx.fill();
+                    p.x += p.vx; p.y += p.vy;
+                    if (p.x < -p.r) p.x = W + p.r; if (p.x > W + p.r) p.x = -p.r;
+                    if (p.y < -p.r) p.y = H + p.r; if (p.y > H + p.r) p.y = -p.r;
+                }
+            });
+        }
+
+        if (weatherActive.size > 0) weatherRAF = requestAnimationFrame(tickWeather);
+        else { weatherRAF = null; weatherCtx.clearRect(0, 0, W, H); }
+    }
+
+    function setWeatherEffect(type, on) {
+        if (on) {
+            weatherActive.add(type);
+            if (!weatherParticles[type]) initParticles(type);
+            if (!weatherRAF) weatherRAF = requestAnimationFrame(tickWeather);
+        } else {
+            weatherActive.delete(type);
+        }
+        // Update button appearance
+        const btn = document.querySelector(`[data-weather="${type}"]`);
+        if (btn) {
+            btn.style.background = on ? 'rgba(200,168,60,0.25)' : 'rgba(255,255,255,0.07)';
+            btn.style.borderColor = on ? 'rgba(200,168,60,0.7)' : 'rgba(255,255,255,0.15)';
+            btn.style.color = on ? '#e8d080' : '#bbb';
+        }
+        broadcast({ type: 'weather_update', effects: [...weatherActive] });
+    }
+
+    // Build weather panel buttons
+    const weatherBtnsEl = document.getElementById('weather-btns');
+    Object.entries(WEATHER_DEFS).forEach(([type, def]) => {
+        const btn = document.createElement('button');
+        btn.dataset.weather = type;
+        btn.textContent = def.label;
+        btn.style.cssText = 'padding:5px 8px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:5px;color:#bbb;font-family:var(--font-serif);font-size:12px;cursor:pointer;text-align:center;transition:all 0.15s;';
+        btn.addEventListener('click', e => { e.stopPropagation(); setWeatherEffect(type, !weatherActive.has(type)); });
+        weatherBtnsEl.appendChild(btn);
+    });
+
+    // Weather panel toggle
+    document.getElementById('btn-weather')?.addEventListener('click', e => {
+        e.stopPropagation();
+        const panel = document.getElementById('weather-panel');
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    });
+    document.addEventListener('click', e => {
+        if (!e.target.closest('#weather-panel') && !e.target.closest('#btn-weather'))
+            document.getElementById('weather-panel').style.display = 'none';
+    });
+
+    // P2P receive
+    // (handled in message switch below)
     let darkMode = localStorage.getItem('gnoll_dark_mode') === 'true';
 
     function applyDarkMode(enabled, fromPeer = false) {
