@@ -6155,16 +6155,22 @@
     function addBloodEffect(token) {
         if (token.bloodRAF) return;
         const { w, h } = getObjSize(token);
-        const cW = w, cH = h + 32;
+        const cW = w, cH = h; // no overflow — stays within token bounds
         const canvas = document.createElement('canvas');
         canvas.width = cW; canvas.height = cH;
-        canvas.style.cssText = `position:absolute;left:${Math.round(token.x - w/2 + FOG_OFFSET)}px;top:${Math.round(token.y - h/2 + FOG_OFFSET)}px;pointer-events:none;z-index:201;`;
+        canvas.style.cssText = `position:absolute;left:${Math.round(token.x - w/2 + FOG_OFFSET)}px;top:${Math.round(token.y - h/2 + FOG_OFFSET)}px;pointer-events:none;z-index:201;border-radius:50%;`;
         tokensContainer.appendChild(canvas);
         token.bloodCanvas = canvas;
         const ctx   = canvas.getContext('2d');
+        const r     = Math.min(cW, cH) / 2;
         const drips = Array.from({ length: 14 }, () => createBloodDrip(cW, cH));
         function tick() {
             ctx.clearRect(0, 0, cW, cH);
+            // Clip all drawing to the circular token boundary
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cW / 2, cH / 2, r, 0, Math.PI * 2);
+            ctx.clip();
             drips.forEach((d, i) => {
                 const grad = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r);
                 grad.addColorStop(0,    `rgba(155,0,12,${d.op})`);
@@ -6175,6 +6181,7 @@
                 d.y += d.vy; d.x += Math.sin(d.wobble) * 0.22; d.wobble += d.wobbleSpeed;
                 if (d.y > cH + d.r) drips[i] = createBloodDrip(cW, cH, true);
             });
+            ctx.restore();
             token.bloodRAF = requestAnimationFrame(tick);
         }
         token.bloodRAF = requestAnimationFrame(tick);
