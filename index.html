@@ -441,17 +441,20 @@
 
         /* ── Dice Log ── */
         #dice-log {
-            position: fixed; bottom: 15px; right: 26px;
-            width: 250px; max-height: 300px;
+            position: fixed; bottom: 15px; right: 16px;
+            width: 250px; max-height: 192px;
             display: flex; flex-direction: column;
-            justify-content: flex-end;
-            gap: 4px; z-index: 1000; pointer-events: none;
-            overflow: hidden;
+            gap: 4px; z-index: 1000; pointer-events: auto;
+            overflow-y: auto; overflow-x: hidden;
             background: rgba(0,0,0,0.5);
             border-radius: 8px;
             padding: 8px 10px;
             box-sizing: border-box;
+            scroll-behavior: smooth;
         }
+        #dice-log::-webkit-scrollbar { width: 4px; }
+        #dice-log::-webkit-scrollbar-track { background: transparent; }
+        #dice-log::-webkit-scrollbar-thumb { background: rgba(200,168,60,0.4); border-radius: 2px; }
         .dice-log-entry {
             font-family: 'Cinzel', 'IM Fell English', serif;
             font-size: 14px; line-height: 1.5;
@@ -5192,7 +5195,7 @@
     // ═══════════════════════════════════════════════════════════════════════════
     // DICE SYSTEM
     // ═══════════════════════════════════════════════════════════════════════════
-    const MAX_LOG_ENTRIES = 12;
+    const MAX_LOG_ENTRIES = 20;
     const LOG_FADE_MS     = null; // no auto-fade
 
     // ── Dice sounds ──
@@ -5377,6 +5380,7 @@
         entry.innerHTML = `<span style="color:${color||'#c8a83c'};font-size:10px;font-weight:700;text-shadow:var(--log-name-shadow, 0 1px 3px rgba(0,0,0,1));">${playerName||'?'}</span> <span style="color:#c8a83c;font-size:11px;">${diceStr}${modStr}:</span> <span class="log-result">${total}</span>${breakdown}${special}`;
 
         log.appendChild(entry);
+        log.scrollTop = log.scrollHeight;
         // Trim to max 12, remove oldest
         const all = log.querySelectorAll('.dice-log-entry');
         if (all.length > MAX_LOG_ENTRIES) all[0].remove();
