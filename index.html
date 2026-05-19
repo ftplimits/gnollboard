@@ -1409,7 +1409,7 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         tokens = []; stickers = []; shapes = []; textLabels = []; mapImages = [];
         deselectObject();
-        (snap.tokens     ||[]).forEach(t => { tokens.push(t);     renderToken(t); });
+        (snap.tokens     ||[]).forEach(t => { tokens.push(t); renderToken(t); if (t.blood) addBloodEffect(t); });
         (snap.stickers   ||[]).forEach(s => { stickers.push(s);   renderSticker(s); });
         (snap.shapes     ||[]).forEach(s => { shapes.push(s);     renderShape(s); });
         (snap.textLabels ||[]).forEach(t => { textLabels.push(t); renderTextLabel(t); });
@@ -1489,27 +1489,30 @@
             }
             case 'token_move': {
                 const t = tokens.find(t => t.id === msg.id);
-                if (t) { t.x = msg.x; t.y = msg.y; updateObjDiv(t, tokensContainer.querySelector(`[data-id="${t.id}"]`)); }
+                if (t) { t.x = msg.x; t.y = msg.y; updateObjDiv(t, tokensContainer.querySelector(`[data-id="${t.id}"]`)); updateBloodCanvas(t); }
                 break;
             }
             case 'token_update': {
                 const t = tokens.find(t => t.id === msg.id);
                 if (t) {
+                    const hadBlood = t.blood;
                     Object.assign(t, msg.data);
                     const div = tokensContainer.querySelector(`[data-id="${t.id}"]`);
                     if (div) { div.remove(); renderToken(t); }
-                    if ('lightRadius' in msg.data) redrawFog(); // only redraw fog when light changes
+                    if (t.blood && !hadBlood) addBloodEffect(t);
+                    else if (!t.blood && hadBlood) removeBloodEffect(t);
+                    if ('lightRadius' in msg.data) redrawFog();
                 }
                 break;
             }
             case 'light_sync':
-                redrawFog(); // host dropped a token — recalculate all light cutouts
-                redrawDoors(); // update door visibility for players
+                redrawFog();
+                redrawDoors();
                 break;
 
             case 'token_delete': {
                 const i = tokens.findIndex(t => t.id === msg.id);
-                if (i > -1) { tokensContainer.querySelector(`[data-id="${msg.id}"]`)?.remove(); tokens.splice(i, 1); redrawFog(); }
+                if (i > -1) { removeBloodEffect(tokens[i]); tokensContainer.querySelector(`[data-id="${msg.id}"]`)?.remove(); tokens.splice(i, 1); redrawFog(); }
                 break;
             }
 
@@ -3250,7 +3253,7 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         tokens=[]; stickers=[]; shapes=[]; textLabels=[]; mapImages=[];
         deselectObject();
-        (data.tokens     ||[]).forEach(t=>{tokens.push(t);renderToken(t);});
+        (data.tokens     ||[]).forEach(t=>{tokens.push(t);renderToken(t);if(t.blood)addBloodEffect(t);});
         (data.stickers   ||[]).forEach(s=>{stickers.push(s);renderSticker(s);});
         (data.shapes     ||[]).forEach(s=>{shapes.push(s);renderShape(s);});
         (data.textLabels ||[]).forEach(t=>{textLabels.push(t);renderTextLabel(t);});
@@ -4500,7 +4503,19 @@
             menu.insertBefore(picker, lightBtn.nextSibling);
         };
 
+        // Blood effect button
+        const bloodBtn = document.createElement('button');
+        bloodBtn.textContent = token.blood ? '🩸 Remove Blood' : '🩸 Add Blood';
+        bloodBtn.style.cssText = btnStyle + 'background:#2a0a0a;';
+        bloodBtn.onclick = () => {
+            token.blood = !token.blood;
+            if (token.blood) addBloodEffect(token);
+            else removeBloodEffect(token);
+            broadcast({ type: 'token_update', id: token.id, data: { blood: token.blood } });
+            menu.remove();
+        };
         menu.appendChild(makeAttachBtn(token, 'token', menu, btnStyle));
+        menu.appendChild(bloodBtn);
         menu.appendChild(lightBtn);
         menu.appendChild(labelBtn); menu.appendChild(flip); menu.appendChild(del);
         document.body.appendChild(menu);
@@ -5175,6 +5190,7 @@
                 draggedToken.x=snapped.x; draggedToken.y=snapped.y;
                 const div = tokensContainer.querySelector(`[data-id="${draggedToken.id}"]`);
                 updateObjDiv(draggedToken, div); div?.classList.remove('dragging');
+                updateBloodCanvas(draggedToken);
                 broadcast({ type:'token_move', id:draggedToken.id, x:draggedToken.x, y:draggedToken.y });
                 // Broadcast light sync only if any token has a light radius
                 if (tokens.some(t => t.lightRadius)) broadcast({ type: 'light_sync' });
@@ -6123,6 +6139,59 @@
 
     // P2P receive
     // (handled in message switch below)
+    // ── Blood Drip Effect ────────────────────────────────────────────────────
+    function createBloodDrip(W, H, fromTop = false) {
+        return {
+            x: 8 + Math.random() * (W - 16),
+            y: fromTop ? -(4 + Math.random() * 20) : Math.random() * H,
+            vy: 0.15 + Math.random() * 0.35,
+            r: 4 + Math.random() * 9,
+            op: 0.45 + Math.random() * 0.45,
+            wobble: Math.random() * Math.PI * 2,
+            wobbleSpeed: 0.012 + Math.random() * 0.02,
+        };
+    }
+
+    function addBloodEffect(token) {
+        if (token.bloodRAF) return;
+        const { w, h } = getObjSize(token);
+        const cW = w, cH = h + 32;
+        const canvas = document.createElement('canvas');
+        canvas.width = cW; canvas.height = cH;
+        canvas.style.cssText = `position:absolute;left:${Math.round(token.x - w/2 + FOG_OFFSET)}px;top:${Math.round(token.y - h/2 + FOG_OFFSET)}px;pointer-events:none;z-index:201;`;
+        tokensContainer.appendChild(canvas);
+        token.bloodCanvas = canvas;
+        const ctx   = canvas.getContext('2d');
+        const drips = Array.from({ length: 14 }, () => createBloodDrip(cW, cH));
+        function tick() {
+            ctx.clearRect(0, 0, cW, cH);
+            drips.forEach((d, i) => {
+                const grad = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r);
+                grad.addColorStop(0,    `rgba(155,0,12,${d.op})`);
+                grad.addColorStop(0.55, `rgba(110,0,8,${d.op * 0.5})`);
+                grad.addColorStop(1,    'rgba(70,0,5,0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill();
+                d.y += d.vy; d.x += Math.sin(d.wobble) * 0.22; d.wobble += d.wobbleSpeed;
+                if (d.y > cH + d.r) drips[i] = createBloodDrip(cW, cH, true);
+            });
+            token.bloodRAF = requestAnimationFrame(tick);
+        }
+        token.bloodRAF = requestAnimationFrame(tick);
+    }
+
+    function removeBloodEffect(token) {
+        if (token.bloodRAF) { cancelAnimationFrame(token.bloodRAF); token.bloodRAF = null; }
+        token.bloodCanvas?.remove(); token.bloodCanvas = null;
+    }
+
+    function updateBloodCanvas(token) {
+        if (!token.bloodCanvas) return;
+        const { w, h } = getObjSize(token);
+        token.bloodCanvas.style.left = Math.round(token.x - w/2 + FOG_OFFSET) + 'px';
+        token.bloodCanvas.style.top  = Math.round(token.y - h/2 + FOG_OFFSET) + 'px';
+    }
+
     let darkMode = localStorage.getItem('gnoll_dark_mode') === 'true';
 
     function applyDarkMode(enabled, fromPeer = false) {
