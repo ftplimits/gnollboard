@@ -778,7 +778,7 @@
         <button class="fog-btn" id="btn-fog-preset-toggle"   title="Toggle Fog Preset">🔘</button>
         <button class="fog-btn" id="btn-fog-preset-delete"   title="Delete Fog Preset">🗑️</button>
         <button class="fog-btn" id="btn-fog-door"            title="Place Door (click two snap points)">🚪</button>
-        <button class="fog-btn" id="btn-fog-secret-door"     title="Next door placed will be secret (host-only, invisible to players until opened)"><span style="position:relative;display:inline-block;"><span>🚪</span><span style="position:absolute;top:-1px;right:-3px;font-size:9px;font-weight:900;color:#111;font-family:sans-serif;text-shadow:0 0 2px #fff,-1px -1px 0 #fff,1px 1px 0 #fff;line-height:1;">S</span></span></button>
+        <button class="fog-btn" id="btn-fog-secret-door"     title="Next door placed will be secret (host-only, invisible to players until opened)" style="position:relative;">🚪<span style="position:absolute;top:1px;right:2px;font-size:8px;font-weight:900;color:#cc2222;font-family:sans-serif;pointer-events:none;">S</span></button>
     </div>
     <div id="fog-toggle">FOG</div>
 
@@ -937,7 +937,7 @@
 
     <!-- ═══════ MUSIC PLAYER ═══════ -->
     <button id="music-btn" title="Music">🎵 Music</button>
-    <button id="btn-weather" title="Weather Effects" style="display:none;position:fixed;top:12px;right:510px;z-index:1001;background:rgba(42,42,42,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:6px 10px;color:#ccc;font-family:var(--font-serif);font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">🌦 Weather</button>
+    <button id="btn-weather" title="Weather Effects" style="display:none;position:fixed;top:12px;right:545px;z-index:1001;background:rgba(42,42,42,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:6px 10px;color:#ccc;font-family:var(--font-serif);font-size:13px;cursor:pointer;backdrop-filter:blur(4px);">🌦 Weather</button>
     <div id="weather-panel" style="display:none;position:fixed;top:44px;right:510px;z-index:1002;background:rgba(20,18,14,0.95);border:1px solid rgba(200,168,60,0.4);border-radius:8px;padding:10px 14px;font-family:var(--font-serif);min-width:180px;backdrop-filter:blur(8px);">
         <div style="color:#c8a83c;font-size:11px;letter-spacing:1px;margin-bottom:8px;">WEATHER EFFECTS</div>
         <div id="weather-btns" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;"></div>
@@ -2942,6 +2942,8 @@
         document.getElementById('btn-fog-preset-define')?.classList.remove('active');
         document.getElementById('btn-fog-preset-toggle')?.classList.remove('active');
         document.getElementById('btn-fog-preset-delete')?.classList.remove('active');
+        // Preserve secret mode indicator
+        if (secretMode) document.getElementById('btn-fog-secret-door')?.classList.add('active');
         viewport.style.cursor = doorMode ? 'crosshair' : 'default';
         drawPresetOutlines();
     });
@@ -3137,6 +3139,8 @@
         document.querySelectorAll('.fog-btn').forEach(b => b.classList.remove('active'));
         if (currentFogTool === 'paint')  document.getElementById('btn-fog-paint').classList.add('active');
         if (currentFogTool === 'reveal') document.getElementById('btn-fog-reveal').classList.add('active');
+        // Restore secret mode indicator if active
+        if (secretMode) document.getElementById('btn-fog-secret-door')?.classList.add('active');
         // Cancel any in-progress polygon
         if (fogPolyMode) { fogPolyVerts=[]; fogPolyMousePos=null; fogPolyCtx?.clearRect(0,0,fogPolyCanvas?.width,fogPolyCanvas?.height); fogPolyMode=null; document.getElementById('btn-fog-poly-apply').classList.remove('active'); document.getElementById('btn-fog-poly-cut').classList.remove('active'); }
         if (currentFogTool) { clearTool(); }
