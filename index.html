@@ -2632,15 +2632,22 @@
     function isDoorLit(d) {
         if (isHost) return true;
         if (d.secret && !d.open) return false;
-        // A door is visible if either of its endpoint cells is lit
         const litCells = computeLitCells();
-        const p1cx = Math.floor((d.p1.x - FOG_OFFSET) / CELL);
-        const p1cy = Math.floor((d.p1.y - FOG_OFFSET) / CELL);
-        const p2cx = Math.floor((d.p2.x - FOG_OFFSET) / CELL);
-        const p2cy = Math.floor((d.p2.y - FOG_OFFSET) / CELL);
-        const mcx  = Math.floor(((d.p1.x+d.p2.x)/2 - FOG_OFFSET) / CELL);
-        const mcy  = Math.floor(((d.p1.y+d.p2.y)/2 - FOG_OFFSET) / CELL);
-        return litCells.has(`${p1cx},${p1cy}`) || litCells.has(`${p2cx},${p2cy}`) || litCells.has(`${mcx},${mcy}`);
+        // Door sits on a wall boundary — check its cells AND all immediate neighbours
+        // so it's visible when the lit room is on either side
+        const checkPts = [
+            d.p1,
+            d.p2,
+            { x: (d.p1.x+d.p2.x)/2, y: (d.p1.y+d.p2.y)/2 }
+        ];
+        for (const pt of checkPts) {
+            const cx = Math.floor((pt.x - FOG_OFFSET) / CELL);
+            const cy = Math.floor((pt.y - FOG_OFFSET) / CELL);
+            for (let dx = -1; dx <= 1; dx++)
+                for (let dy = -1; dy <= 1; dy++)
+                    if (litCells.has(`${cx+dx},${cy+dy}`)) return true;
+        }
+        return false;
     }
 
     function redrawDoors() {
