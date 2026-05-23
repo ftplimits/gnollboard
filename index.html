@@ -2640,6 +2640,15 @@
         wallsCtx.lineWidth   = 7;
         wallsCtx.lineCap     = 'square';
 
+        // Host wall lines drawn on fogPresetCtx (z-index 515, above fog)
+        // Set style here so drawWallEdge can use it
+        if (isHost) {
+            fogPresetCtx.strokeStyle = 'rgba(18,14,10,0.9)';
+            fogPresetCtx.lineWidth   = 7;
+            fogPresetCtx.lineCap     = 'square';
+            fogPresetCtx.setLineDash([]);
+        }
+
         fogPresets.forEach(p => {
             if (!p.verts || p.verts.length < 2) return;
             const n = p.verts.length;
@@ -2655,15 +2664,13 @@
         if (len < 1) return;
         const ux = (bx-ax)/len, uy = (by-ay)/len;
 
-        // Find door gaps that fall on this edge
+        // Find door gaps — skip secret closed doors (they look like solid walls)
         const gaps = [];
         doors.forEach(d => {
+            if (d.secret && !d.open) return; // secret door = no gap in wall
             const dx = d.p2.x-d.p1.x, dy = d.p2.y-d.p1.y;
-            // Must be parallel (cross product ≈ 0)
             if (Math.abs(ux*dy - uy*dx) > 5) return;
-            // Door p1 must be on the edge line (perpendicular distance ≈ 0)
             if (Math.abs((d.p1.x-ax)*uy - (d.p1.y-ay)*ux) > 5) return;
-            // Project door onto edge parameter space
             const t1 = (d.p1.x-ax)*ux + (d.p1.y-ay)*uy;
             const t2 = (d.p2.x-ax)*ux + (d.p2.y-ay)*uy;
             const gs = Math.max(0, Math.min(t1,t2));
@@ -2671,31 +2678,25 @@
             if (ge > gs) gaps.push({ s: gs, e: ge });
         });
 
-        if (!gaps.length) {
-            wallsCtx.beginPath();
-            wallsCtx.moveTo(ax, ay);
-            wallsCtx.lineTo(bx, by);
-            wallsCtx.stroke();
-            return;
-        }
+        const drawSegment = (ctx, x1, y1, x2, y2) => {
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        };
 
-        gaps.sort((a,b) => a.s - b.s);
-        let pos = 0;
-        gaps.forEach(g => {
-            if (pos < g.s) {
-                wallsCtx.beginPath();
-                wallsCtx.moveTo(ax+ux*pos, ay+uy*pos);
-                wallsCtx.lineTo(ax+ux*g.s,  ay+uy*g.s);
-                wallsCtx.stroke();
-            }
-            pos = g.e;
-        });
-        if (pos < len) {
-            wallsCtx.beginPath();
-            wallsCtx.moveTo(ax+ux*pos, ay+uy*pos);
-            wallsCtx.lineTo(bx, by);
-            wallsCtx.stroke();
-        }
+        const drawEdge = (ctx) => {
+            if (!gaps.length) { drawSegment(ctx, ax, ay, bx, by); return; }
+            gaps.sort((a,b) => a.s - b.s);
+            let pos = 0;
+            gaps.forEach(g => {
+                if (pos < g.s) drawSegment(ctx, ax+ux*pos, ay+uy*pos, ax+ux*g.s, ay+uy*g.s);
+                pos = g.e;
+            });
+            if (pos < len) drawSegment(ctx, ax+ux*pos, ay+uy*pos, bx, by);
+        };
+
+        // Players: draw on wallsCtx (below fog — hidden in dark areas)
+        drawEdge(wallsCtx);
+        // Host: also draw on fogPresetCtx (above fog — always visible)
+        if (isHost) drawEdge(fogPresetCtx);
     }
 
     function isDoorLit(d) {
@@ -2747,6 +2748,7 @@
     function drawPresetOutlines() {
         fogPresetCtx.clearRect(0, 0, fogPresetCanvas.width, fogPresetCanvas.height);
         redrawDoors(); // always redraw doors for all players
+        redrawWalls(); // wall lines: below fog for players, on fogPresetCtx for host
         if (!isHost) return;
         fogPresets.forEach(p => {
             if (p.verts.length < 2) return;
