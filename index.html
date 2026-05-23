@@ -5068,7 +5068,7 @@
                 draggedToken.x=pos.x-dragOffsetX; draggedToken.y=pos.y-dragOffsetY;
                 updateObjDiv(draggedToken, tokensContainer.querySelector(`[data-id="${draggedToken.id}"]`));
                 updateSelectionOverlay();
-                broadcast({ type:'token_move', id:draggedToken.id, x:draggedToken.x, y:draggedToken.y });
+                broadcastMove('token_'+draggedToken.id, { type:'token_move', id:draggedToken.id, x:draggedToken.x, y:draggedToken.y });
                 moveAttached('token', draggedToken.id, draggedToken.x-prevX, draggedToken.y-prevY);
             }
         }
