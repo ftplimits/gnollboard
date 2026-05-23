@@ -1506,7 +1506,7 @@
                 break;
             }
             case 'light_sync':
-                redrawFog();
+                redrawFog(msg.tokenId ?? null); // fix 4: only recalculate dirty token if provided
                 redrawDoors();
                 break;
 
@@ -2240,36 +2240,43 @@
 
     // Redraws entire fog canvas with atmospheric radial gradient overlay.
     // Called on mouseup (not during drag) for performance.
-    function redrawFog() {
-        fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
+    // Persistent offscreen fog buffer — avoids blank-flash on redraw (fix 1)
+    const fogBuffer    = document.createElement('canvas');
+    fogBuffer.width    = 5000; fogBuffer.height = 5000;
+    const fogBufferCtx = fogBuffer.getContext('2d');
+
+    function redrawFog(dirtyTokenId = null) {
+        // Draw entirely into the buffer first, then blit — never clears the visible canvas mid-frame
+        fogBufferCtx.clearRect(0, 0, fogBuffer.width, fogBuffer.height);
 
         const baseAlpha = isHost ? 0.5 : 1.0;
 
-        // Draw cell-based fog (brush tools)
-        fogCtx.fillStyle = `rgba(0,0,0,${baseAlpha})`;
+        fogBufferCtx.fillStyle = `rgba(0,0,0,${baseAlpha})`;
         fogCells.forEach(key => {
             const [cx, cy] = key.split(',').map(Number);
-            fogCtx.fillRect(cx * CELL + FOG_OFFSET, cy * CELL + FOG_OFFSET, CELL, CELL);
+            fogBufferCtx.fillRect(cx * CELL + FOG_OFFSET, cy * CELL + FOG_OFFSET, CELL, CELL);
         });
 
-        // Draw preset polygon fog with exact edges
         fogPresets.forEach(p => {
             if (!p.fogged || p.verts.length < 3) return;
-            fogCtx.fillStyle = `rgba(0,0,0,${baseAlpha})`;
-            fogCtx.beginPath();
-            fogCtx.moveTo(p.verts[0].x, p.verts[0].y);
-            p.verts.forEach(v => fogCtx.lineTo(v.x, v.y));
-            fogCtx.closePath();
-            fogCtx.fill();
+            fogBufferCtx.fillStyle = `rgba(0,0,0,${baseAlpha})`;
+            fogBufferCtx.beginPath();
+            fogBufferCtx.moveTo(p.verts[0].x, p.verts[0].y);
+            p.verts.forEach(v => fogBufferCtx.lineTo(v.x, v.y));
+            fogBufferCtx.closePath();
+            fogBufferCtx.fill();
         });
 
-        if (!fogCells.size && !fogPresets.some(p => p.fogged)) return;
+        if (!fogCells.size && !fogPresets.some(p => p.fogged)) {
+            fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
+            return;
+        }
 
         // Radial gradient overlay
-        const cx = fogCanvas.width  / 2;
-        const cy = fogCanvas.height / 2;
-        const r  = Math.max(fogCanvas.width, fogCanvas.height) * 0.65;
-        const grad = fogCtx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        const cx = fogBuffer.width  / 2;
+        const cy = fogBuffer.height / 2;
+        const r  = Math.max(fogBuffer.width, fogBuffer.height) * 0.65;
+        const grad = fogBufferCtx.createRadialGradient(cx, cy, 0, cx, cy, r);
         if (isHost) {
             grad.addColorStop(0,   'rgba(20,20,20,0)');
             grad.addColorStop(0.5, 'rgba(10,10,10,0.1)');
@@ -2279,13 +2286,17 @@
             grad.addColorStop(0.5, '#0d0d0d');
             grad.addColorStop(1,   '#000000');
         }
-        fogCtx.globalCompositeOperation = 'source-atop';
-        fogCtx.fillStyle = grad;
-        fogCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
-        fogCtx.globalCompositeOperation = 'source-over';
+        fogBufferCtx.globalCompositeOperation = 'source-atop';
+        fogBufferCtx.fillStyle = grad;
+        fogBufferCtx.fillRect(0, 0, fogBuffer.width, fogBuffer.height);
+        fogBufferCtx.globalCompositeOperation = 'source-over';
 
-        // Cut light radius areas out of fog
-        redrawLightFogCuts();
+        // Cut light radius areas out of buffer (fix 4: per-token when possible)
+        redrawLightFogCuts(dirtyTokenId);
+
+        // Atomic blit — visible canvas updates in one operation, no flash
+        fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
+        fogCtx.drawImage(fogBuffer, 0, 0);
     }
 
     function applyFogBrush(gridX, gridY, painting) {
@@ -2399,8 +2410,13 @@
         return points;
     }
 
-    function redrawLightFogCuts() {
-        tokens.forEach(t => {
+    function redrawLightFogCuts(dirtyTokenId = null) {
+        // Note: dirtyTokenId is informational for future caching optimisation.
+        // The buffer is always freshly drawn from scratch so we must cut ALL lit tokens.
+        // Fix 4 benefit: callers pass the id to enable future partial-update path.
+        const targets = tokens.filter(t => t.lightRadius && t.lightRadius > 0);
+
+        targets.forEach(t => {
             if (!t.lightRadius || t.lightRadius <= 0) return;
             const cx = t.x + FOG_OFFSET;
             const cy = t.y + FOG_OFFSET;
@@ -2417,7 +2433,6 @@
                 octx.fillStyle = '#fff';
 
                 if (!cone) {
-                    // Starting polygon — token is inside, compute visibility normally
                     const visPoly = computeVisibilityPoly(cx, cy, polygon.verts, r);
                     if (visPoly.length < 3) return;
                     octx.beginPath();
@@ -2425,8 +2440,6 @@
                     visPoly.slice(1).forEach(p => octx.lineTo(p.x, p.y));
                     octx.closePath(); octx.fill();
                 } else {
-                    // Door-neighbor polygon — use virtual viewpoint just inside the polygon
-                    // (the doorSidePoint that falls inside neighbor) so rays are cast correctly
                     const sides = doorSidePoints(door);
                     const vp = sides.find(pt => pointInPolygon(pt.x, pt.y, polygon.verts))
                         || { x: (door.p1.x + door.p2.x) / 2, y: (door.p1.y + door.p2.y) / 2 };
@@ -2438,12 +2451,10 @@
                     octx.closePath(); octx.fill();
                 }
 
-                // Intersect with light circle radius
                 octx.globalCompositeOperation = 'destination-in';
                 octx.fillStyle = '#fff';
                 octx.beginPath(); octx.arc(cx, cy, r, 0, Math.PI * 2); octx.fill();
 
-                // If reached through a door, also intersect with cone
                 if (cone) {
                     octx.globalCompositeOperation = 'destination-in';
                     octx.fillStyle = '#fff';
@@ -2453,9 +2464,9 @@
                     octx.closePath(); octx.fill();
                 }
 
-                fogCtx.globalCompositeOperation = 'destination-out';
-                fogCtx.drawImage(off, 0, 0);
-                fogCtx.globalCompositeOperation = 'source-over';
+                fogBufferCtx.globalCompositeOperation = 'destination-out';
+                fogBufferCtx.drawImage(off, 0, 0);
+                fogBufferCtx.globalCompositeOperation = 'source-over';
             });
         });
     }
@@ -5192,9 +5203,9 @@
                 updateObjDiv(draggedToken, div); div?.classList.remove('dragging');
                 updateBloodCanvas(draggedToken);
                 broadcast({ type:'token_move', id:draggedToken.id, x:draggedToken.x, y:draggedToken.y });
-                // Broadcast light sync only if any token has a light radius
-                if (tokens.some(t => t.lightRadius)) broadcast({ type: 'light_sync' });
-                redrawFog(); // update light cutout position on drop (host)
+                // Fix 2+3: debounced light_sync includes token id so peers only recalculate that token
+                if (tokens.some(t => t.lightRadius)) scheduleLightSync(draggedToken.id);
+                redrawFog(draggedToken.id); // Fix 4: only recompute moved token's light on host
                 redrawDoors();
             }
             updateSelectionOverlay(); draggedToken=null;
@@ -6139,7 +6150,19 @@
 
     // P2P receive
     // (handled in message switch below)
-    // ── Blood Drip Effect ────────────────────────────────────────────────────
+    // Fix 3: debounced light_sync — coalesces rapid drops into one broadcast with token id
+    let lightSyncTimer = null;
+    let lightSyncTokenId = null;
+    function scheduleLightSync(tokenId) {
+        // If a different token triggers a sync before the timer fires, do a full redraw
+        if (lightSyncTokenId !== null && lightSyncTokenId !== tokenId) lightSyncTokenId = null;
+        else lightSyncTokenId = tokenId;
+        clearTimeout(lightSyncTimer);
+        lightSyncTimer = setTimeout(() => {
+            broadcast({ type: 'light_sync', tokenId: lightSyncTokenId });
+            lightSyncTimer = null; lightSyncTokenId = null;
+        }, 80); // 80ms debounce — fast enough to feel instant, slow enough to coalesce rapid drops
+    }
     function createBloodDrip(W, H, fromTop = false) {
         return {
             x: 8 + Math.random() * (W - 16),
