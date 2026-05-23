@@ -2249,6 +2249,7 @@
     const fogBufferCtx = fogBuffer.getContext('2d');
 
     function redrawFog(dirtyTokenId = null) {
+        invalidateLitCache(); // new render cycle — recompute lit cells fresh
         // Draw entirely into the buffer first, then blit — never clears the visible canvas mid-frame
         fogBufferCtx.clearRect(0, 0, fogBuffer.width, fogBuffer.height);
 
@@ -2401,11 +2402,14 @@
         return null;
     }
 
-    function computeLitCells() {
-        const litCells = new Set();
-        if (!tokens.some(t=>t.lightRadius>0)) return litCells;
+    // Cache for computeLitCells — invalidated at start of each redrawFog/redrawDoors cycle
+    let litCellsCache = null;
 
-        // Build blocking edges from fogged polygon edges
+    function computeLitCells() {
+        if (litCellsCache) return litCellsCache;
+        const litCells = new Set();
+        if (!tokens.some(t=>t.lightRadius>0)) { litCellsCache = litCells; return litCells; }
+
         const allEdges=[];
         fogPresets.forEach(p=>{
             if(!p.fogged||p.verts.length<3) return;
@@ -2414,7 +2418,6 @@
                 allEdges.push({ax:p.verts[i].x,ay:p.verts[i].y,bx:p.verts[j].x,by:p.verts[j].y,polyId:p.id});
             }
         });
-        // Closed doors are additional blockers; open doors are not
         doors.forEach(d=>{
             if(!d.open) allEdges.push({ax:d.p1.x,ay:d.p1.y,bx:d.p2.x,by:d.p2.y,polyId:-1});
         });
@@ -2423,59 +2426,47 @@
             if(!t.lightRadius||t.lightRadius<=0) return;
             const tx=t.x+FOG_OFFSET, ty=t.y+FOG_OFFSET;
             const r=t.lightRadius;
-
-            // Always use ALL edges as blockers — walls between adjacent fogged
-            // polygons must still block. The token is well inside its polygon so
-            // its own walls won't falsely block the first few steps.
             const blocking = allEdges;
-
-            // Enough rays to hit every cell on the perimeter
             const numRays=Math.max(24,r*12);
-
-            // Token's own cell is always lit (step loop starts at 1)
             const tcx = Math.floor((tx-FOG_OFFSET)/CELL);
             const tcy = Math.floor((ty-FOG_OFFSET)/CELL);
             if(tcx>=0&&tcy>=0&&tcx<100&&tcy<100) litCells.add(`${tcx},${tcy}`);
-
             for(let i=0;i<numRays;i++){
                 const angle=(i/numRays)*Math.PI*2;
                 const dx=Math.cos(angle),dy=Math.sin(angle);
                 let px=tx,py=ty;
-
                 for(let step=1;step<=r;step++){
                     const x=tx+dx*step*CELL, y=ty+dy*step*CELL;
                     const cx=Math.floor((x-FOG_OFFSET)/CELL);
                     const cy=Math.floor((y-FOG_OFFSET)/CELL);
                     if(cx<0||cy<0||cx>=100||cy>=100) break;
-
                     let blocked=false;
                     for(const e of blocking){
                         const pt = segIntersectPt(px,py,x,y,e.ax,e.ay,e.bx,e.by);
                         if(!pt) continue;
-                        // If the intersection is inside an open door (strictly between endpoints), the ray passes through
                         const throughDoor = doors.some(d => {
                             if (!d.open) return false;
                             const ddx = d.p2.x-d.p1.x, ddy = d.p2.y-d.p1.y;
                             const dlen = Math.hypot(ddx, ddy);
                             if (dlen < 1) return false;
-                            // Project intersection point onto door segment
-                            const t = ((pt.x-d.p1.x)*ddx + (pt.y-d.p1.y)*ddy) / (dlen*dlen);
-                            // Exclude the cap regions at each end (first/last 8%)
-                            if (t < 0.08 || t > 0.92) return false;
-                            const cpx = d.p1.x + t*ddx, cpy = d.p1.y + t*ddy;
+                            const t2 = ((pt.x-d.p1.x)*ddx + (pt.y-d.p1.y)*ddy) / (dlen*dlen);
+                            if (t2 < 0.08 || t2 > 0.92) return false;
+                            const cpx = d.p1.x + t2*ddx, cpy = d.p1.y + t2*ddy;
                             return Math.hypot(pt.x-cpx, pt.y-cpy) < 5;
                         });
                         if(!throughDoor){ blocked=true; break; }
                     }
                     if(blocked) break;
-
                     litCells.add(`${cx},${cy}`);
                     px=x; py=y;
                 }
             }
         });
+        litCellsCache = litCells;
         return litCells;
     }
+
+    function invalidateLitCache() { litCellsCache = null; }
 
     function redrawLightFogCuts() {
         const litCells=computeLitCells();
@@ -2720,6 +2711,7 @@
     }
 
     function redrawDoors() {
+        invalidateLitCache(); // ensure fresh lit cells for isDoorLit
         doorCtx.clearRect(0, 0, doorCanvas.width, doorCanvas.height);
         doors.forEach(d => { if (isDoorLit(d)) drawDoor(d, doorCtx); });
     }
@@ -5793,9 +5785,15 @@
             document.execCommand('insertText', false, text);
         });
 
+        let noteDebounce = null;
         ed.addEventListener('input', () => {
             const note = notes.find(n => n.id === activeNoteId);
-            if (note) { note.content = ed.innerHTML; broadcast({ type: 'note_update', id: note.id, content: note.content }); }
+            if (!note) return;
+            note.content = ed.innerHTML;
+            clearTimeout(noteDebounce);
+            noteDebounce = setTimeout(() => {
+                broadcast({ type: 'note_update', id: note.id, content: note.content });
+            }, 300);
         });
 
         document.getElementById('note-toolbar')?.addEventListener('mousedown', e => e.stopPropagation());
@@ -6142,7 +6140,7 @@
         lightSyncTimer = setTimeout(() => {
             broadcast({ type: 'light_sync', tokenId: lightSyncTokenId });
             lightSyncTimer = null; lightSyncTokenId = null;
-        }, 80); // 80ms debounce — fast enough to feel instant, slow enough to coalesce rapid drops
+        }, 150); // 150ms debounce — coalesces multi-token group moves
     }
     function createBloodDrip(W, H, fromTop = false) {
         return {
