@@ -2635,13 +2635,11 @@
     const wallsCtx        = wallsCanvas.getContext('2d');
 
     function redrawWalls() {
-        wallsCtx.clearRect(0, 0, wallsCanvas.width, wallsCanvas.height);
+        if (!isHost) wallsCtx.clearRect(0, 0, wallsCanvas.width, wallsCanvas.height);
         wallsCtx.strokeStyle = 'rgba(18,14,10,0.9)';
         wallsCtx.lineWidth   = 7;
         wallsCtx.lineCap     = 'square';
 
-        // Host wall lines drawn on fogPresetCtx (z-index 515, above fog)
-        // Set style here so drawWallEdge can use it
         if (isHost) {
             fogPresetCtx.strokeStyle = 'rgba(18,14,10,0.9)';
             fogPresetCtx.lineWidth   = 7;
@@ -2693,10 +2691,11 @@
             if (pos < len) drawSegment(ctx, ax+ux*pos, ay+uy*pos, bx, by);
         };
 
-        // Players: draw on wallsCtx (below fog — hidden in dark areas)
-        drawEdge(wallsCtx);
-        // Host: also draw on fogPresetCtx (above fog — always visible)
+        // Each viewer draws on exactly ONE canvas to avoid double-draw artifacts:
+        // Host → fogPresetCtx (z-index 515, above fog, always visible)
+        // Players → wallsCtx (z-index 349, below fog, hidden in dark areas)
         if (isHost) drawEdge(fogPresetCtx);
+        else        drawEdge(wallsCtx);
     }
 
     function isDoorLit(d) {
