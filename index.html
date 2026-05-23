@@ -2374,100 +2374,81 @@
     }
 
     // ── Visibility polygon (line-of-sight within a polygon) ──────────────────
-    function raySegIntersect(ox, oy, dx, dy, ax, ay, bx, by) {
-        const ex = bx - ax, ey = by - ay;
-        const denom = dx * ey - dy * ex;
-        if (Math.abs(denom) < 1e-9) return null;
-        const t = ((ax - ox) * ey - (ay - oy) * ex) / denom;
-        const u = ((ax - ox) * dy - (ay - oy) * dx) / denom;
-        if (t >= 1e-9 && u >= -1e-9 && u <= 1 + 1e-9) return t;
-        return null;
+    // ── Grid-space ray-march light system ───────────────────────────────────
+    // Casts rays from each lit token, steps cell-by-cell, stops at polygon edges.
+    // Result: Set of "cx,cy" strings — cells cleared from the fog buffer.
+    // No offscreen canvases, no compositing, no visibility polygon computation.
+
+    function segsIntersect(ax,ay,bx,by,cx,cy,dx,dy) {
+        const d = (bx-ax)*(dy-cy)-(by-ay)*(dx-cx);
+        if (Math.abs(d)<1e-9) return false;
+        const t=((cx-ax)*(dy-cy)-(cy-ay)*(dx-cx))/d;
+        const u=((cx-ax)*(by-ay)-(cy-ay)*(bx-ax))/d;
+        return t>0.001&&t<0.999&&u>0.001&&u<0.999;
     }
 
-    function computeVisibilityPoly(px, py, verts, r) {
-        const n = verts.length;
-        const angles = [];
-        // Use all vertices — culling by distance can cause gaps at shadow boundaries
-        verts.forEach(v => {
-            const a = Math.atan2(v.y - py, v.x - px);
-            angles.push(a - 0.00005, a, a + 0.00005);
+    function computeLitCells() {
+        const litCells = new Set();
+        if (!tokens.some(t=>t.lightRadius>0)) return litCells;
+
+        // Build blocking edges from fogged polygon edges
+        const allEdges=[];
+        fogPresets.forEach(p=>{
+            if(!p.fogged||p.verts.length<3) return;
+            for(let i=0;i<p.verts.length;i++){
+                const j=(i+1)%p.verts.length;
+                allEdges.push({ax:p.verts[i].x,ay:p.verts[i].y,bx:p.verts[j].x,by:p.verts[j].y,polyId:p.id});
+            }
+        });
+        // Closed doors are additional blockers; open doors are not
+        doors.forEach(d=>{
+            if(!d.open) allEdges.push({ax:d.p1.x,ay:d.p1.y,bx:d.p2.x,by:d.p2.y,polyId:-1});
         });
 
-        const points = [];
-        for (const angle of angles) {
-            const dx = Math.cos(angle), dy = Math.sin(angle);
-            let minT = Infinity;
-            for (let i = 0; i < n; i++) {
-                const j = (i + 1) % n;
-                const t = raySegIntersect(px, py, dx, dy, verts[i].x, verts[i].y, verts[j].x, verts[j].y);
-                if (t !== null && t < minT) minT = t;
+        tokens.forEach(t=>{
+            if(!t.lightRadius||t.lightRadius<=0) return;
+            const tx=t.x+FOG_OFFSET, ty=t.y+FOG_OFFSET;
+            const r=t.lightRadius;
+
+            // Exclude edges belonging to the polygon the token is standing inside
+            const EPS=4;
+            const testPts=[{x:tx,y:ty},{x:tx+EPS,y:ty},{x:tx-EPS,y:ty},{x:tx,y:ty+EPS},{x:tx,y:ty-EPS}];
+            const containId=fogPresets.find(p=>p.fogged&&p.verts.length>=3&&testPts.some(pt=>pointInPolygon(pt.x,pt.y,p.verts)))?.id??-99;
+            const blocking=allEdges.filter(e=>e.polyId!==containId);
+
+            // Enough rays to hit every cell on the perimeter
+            const numRays=Math.max(24,r*12);
+
+            for(let i=0;i<numRays;i++){
+                const angle=(i/numRays)*Math.PI*2;
+                const dx=Math.cos(angle),dy=Math.sin(angle);
+                let px=tx,py=ty;
+
+                for(let step=1;step<=r;step++){
+                    const x=tx+dx*step*CELL, y=ty+dy*step*CELL;
+                    const cx=Math.floor((x-FOG_OFFSET)/CELL);
+                    const cy=Math.floor((y-FOG_OFFSET)/CELL);
+                    if(cx<0||cy<0||cx>=100||cy>=100) break;
+
+                    let blocked=false;
+                    for(const e of blocking){
+                        if(segsIntersect(px,py,x,y,e.ax,e.ay,e.bx,e.by)){blocked=true;break;}
+                    }
+                    if(blocked) break;
+
+                    litCells.add(`${cx},${cy}`);
+                    px=x; py=y;
+                }
             }
-            if (minT < Infinity) {
-                points.push({ x: px + dx * minT, y: py + dy * minT, angle });
-            }
-        }
-        points.sort((a, b) => a.angle - b.angle);
-        return points;
+        });
+        return litCells;
     }
 
-    function redrawLightFogCuts(dirtyTokenId = null) {
-        // Note: dirtyTokenId is informational for future caching optimisation.
-        // The buffer is always freshly drawn from scratch so we must cut ALL lit tokens.
-        // Fix 4 benefit: callers pass the id to enable future partial-update path.
-        const targets = tokens.filter(t => t.lightRadius && t.lightRadius > 0);
-
-        targets.forEach(t => {
-            if (!t.lightRadius || t.lightRadius <= 0) return;
-            const cx = t.x + FOG_OFFSET;
-            const cy = t.y + FOG_OFFSET;
-            const r  = t.lightRadius * CELL;
-
-            const regions = getLitRegions(cx, cy);
-            if (!regions || regions.length === 0) return;
-
-            regions.forEach(({ polygon, cone, door }) => {
-                const off  = document.createElement('canvas');
-                off.width  = fogCanvas.width; off.height = fogCanvas.height;
-                const octx = off.getContext('2d');
-
-                octx.fillStyle = '#fff';
-
-                if (!cone) {
-                    const visPoly = computeVisibilityPoly(cx, cy, polygon.verts, r);
-                    if (visPoly.length < 3) return;
-                    octx.beginPath();
-                    octx.moveTo(visPoly[0].x, visPoly[0].y);
-                    visPoly.slice(1).forEach(p => octx.lineTo(p.x, p.y));
-                    octx.closePath(); octx.fill();
-                } else {
-                    const sides = doorSidePoints(door);
-                    const vp = sides.find(pt => pointInPolygon(pt.x, pt.y, polygon.verts))
-                        || { x: (door.p1.x + door.p2.x) / 2, y: (door.p1.y + door.p2.y) / 2 };
-                    const visPoly = computeVisibilityPoly(vp.x, vp.y, polygon.verts, r * 4);
-                    if (visPoly.length < 3) return;
-                    octx.beginPath();
-                    octx.moveTo(visPoly[0].x, visPoly[0].y);
-                    visPoly.slice(1).forEach(p => octx.lineTo(p.x, p.y));
-                    octx.closePath(); octx.fill();
-                }
-
-                octx.globalCompositeOperation = 'destination-in';
-                octx.fillStyle = '#fff';
-                octx.beginPath(); octx.arc(cx, cy, r, 0, Math.PI * 2); octx.fill();
-
-                if (cone) {
-                    octx.globalCompositeOperation = 'destination-in';
-                    octx.fillStyle = '#fff';
-                    octx.beginPath();
-                    octx.moveTo(cone[0].x, cone[0].y);
-                    cone.slice(1).forEach(pt => octx.lineTo(pt.x, pt.y));
-                    octx.closePath(); octx.fill();
-                }
-
-                fogBufferCtx.globalCompositeOperation = 'destination-out';
-                fogBufferCtx.drawImage(off, 0, 0);
-                fogBufferCtx.globalCompositeOperation = 'source-over';
-            });
+    function redrawLightFogCuts() {
+        const litCells=computeLitCells();
+        litCells.forEach(key=>{
+            const [cx,cy]=key.split(',').map(Number);
+            fogBufferCtx.clearRect(cx*CELL+FOG_OFFSET,cy*CELL+FOG_OFFSET,CELL,CELL);
         });
     }
 
@@ -2620,23 +2601,16 @@
 
     function isDoorLit(d) {
         if (isHost) return true;
-        // Players never see closed secret doors
         if (d.secret && !d.open) return false;
-        return tokens.some(t => {
-            if (!t.lightRadius || t.lightRadius <= 0) return false;
-            const cx = t.x + FOG_OFFSET;
-            const cy = t.y + FOG_OFFSET;
-            const r  = t.lightRadius * CELL;
-            if (ptSegDist(cx, cy, d.p1.x, d.p1.y, d.p2.x, d.p2.y) > r) return false;
-            const regions = getLitRegions(cx, cy);
-            if (!regions || regions.length === 0) return false;
-            return doorSidePoints(d).some(pt =>
-                regions.some(reg => pointInPolygon(pt.x, pt.y, reg.polygon.verts))
-            ) || regions.some(reg =>
-                pointInPolygon(d.p1.x, d.p1.y, reg.polygon.verts) ||
-                pointInPolygon(d.p2.x, d.p2.y, reg.polygon.verts)
-            );
-        });
+        // A door is visible if either of its endpoint cells is lit
+        const litCells = computeLitCells();
+        const p1cx = Math.floor((d.p1.x - FOG_OFFSET) / CELL);
+        const p1cy = Math.floor((d.p1.y - FOG_OFFSET) / CELL);
+        const p2cx = Math.floor((d.p2.x - FOG_OFFSET) / CELL);
+        const p2cy = Math.floor((d.p2.y - FOG_OFFSET) / CELL);
+        const mcx  = Math.floor(((d.p1.x+d.p2.x)/2 - FOG_OFFSET) / CELL);
+        const mcy  = Math.floor(((d.p1.y+d.p2.y)/2 - FOG_OFFSET) / CELL);
+        return litCells.has(`${p1cx},${p1cy}`) || litCells.has(`${p2cx},${p2cy}`) || litCells.has(`${mcx},${mcy}`);
     }
 
     function redrawDoors() {
@@ -2845,106 +2819,6 @@
     }
 
     // Returns true if this door touches (has a side inside) the given polygon
-    function doorTouchesPolygon(d, poly) {
-        return doorSidePoints(d).some(pt => pointInPolygon(pt.x, pt.y, poly.verts));
-    }
-
-    function getLitRegions(cx, cy) {
-        const EXTEND = 8000;
-
-        const testPoints = [
-            { x: cx, y: cy },
-            { x: cx + 3, y: cy }, { x: cx - 3, y: cy },
-            { x: cx, y: cy + 3 }, { x: cx, y: cy - 3 },
-        ];
-        const start = fogPresets.find(p =>
-            p.fogged && p.verts.length >= 3 &&
-            testPoints.some(pt => pointInPolygon(pt.x, pt.y, p.verts))
-        );
-
-        if (start) {
-            const regions = [{ polygon: start, cone: null, door: null }];
-            const visited = new Set([start.id]);
-            const queue   = [{ polygon: start }];
-
-            while (queue.length) {
-                const { polygon: current } = queue.shift();
-                doors.filter(d => d.open && doorTouchesPolygon(d, current)).forEach(door => {
-                    const sides = doorSidePoints(door);
-                    fogPresets.forEach(neighbor => {
-                        if (!neighbor.fogged || visited.has(neighbor.id)) return;
-                        if (!sides.some(pt => pointInPolygon(pt.x, pt.y, neighbor.verts))) return;
-                        visited.add(neighbor.id);
-                        const d1x = door.p1.x - cx, d1y = door.p1.y - cy;
-                        const d2x = door.p2.x - cx, d2y = door.p2.y - cy;
-                        const l1  = Math.hypot(d1x, d1y) || 1;
-                        const l2  = Math.hypot(d2x, d2y) || 1;
-                        const cone = [
-                            { x: door.p1.x, y: door.p1.y },
-                            { x: cx + d1x / l1 * EXTEND, y: cy + d1y / l1 * EXTEND },
-                            { x: cx + d2x / l2 * EXTEND, y: cy + d2y / l2 * EXTEND },
-                            { x: door.p2.x, y: door.p2.y },
-                        ];
-                        const region = { polygon: neighbor, cone, door };
-                        regions.push(region);
-                        queue.push(region);
-                    });
-                });
-            }
-            return regions;
-        }
-
-        // Token in unfogged area — find fogged polygons accessible through nearby open doors
-        const regions = [];
-        const visited = new Set();
-        doors.filter(d => d.open).forEach(door => {
-            if (ptSegDist(cx, cy, door.p1.x, door.p1.y, door.p2.x, door.p2.y) > 80) return;
-            const sides = doorSidePoints(door);
-            fogPresets.forEach(p => {
-                if (!p.fogged || visited.has(p.id)) return;
-                if (!sides.some(pt => pointInPolygon(pt.x, pt.y, p.verts))) return;
-                visited.add(p.id);
-                const d1x = door.p1.x - cx, d1y = door.p1.y - cy;
-                const d2x = door.p2.x - cx, d2y = door.p2.y - cy;
-                const l1  = Math.hypot(d1x, d1y) || 1;
-                const l2  = Math.hypot(d2x, d2y) || 1;
-                const cone = [
-                    { x: door.p1.x, y: door.p1.y },
-                    { x: cx + d1x / l1 * EXTEND, y: cy + d1y / l1 * EXTEND },
-                    { x: cx + d2x / l2 * EXTEND, y: cy + d2y / l2 * EXTEND },
-                    { x: door.p2.x, y: door.p2.y },
-                ];
-                const region = { polygon: p, cone, door };
-                regions.push(region);
-                const queue = [{ polygon: p }];
-                while (queue.length) {
-                    const { polygon: current } = queue.shift();
-                    doors.filter(d2 => d2.open && d2.id !== door.id && doorTouchesPolygon(d2, current)).forEach(door2 => {
-                        const sides2 = doorSidePoints(door2);
-                        fogPresets.forEach(neighbor => {
-                            if (!neighbor.fogged || visited.has(neighbor.id)) return;
-                            if (!sides2.some(pt => pointInPolygon(pt.x, pt.y, neighbor.verts))) return;
-                            visited.add(neighbor.id);
-                            const e1x = door2.p1.x - cx, e1y = door2.p1.y - cy;
-                            const e2x = door2.p2.x - cx, e2y = door2.p2.y - cy;
-                            const m1  = Math.hypot(e1x, e1y) || 1;
-                            const m2  = Math.hypot(e2x, e2y) || 1;
-                            const cone2 = [
-                                { x: door2.p1.x, y: door2.p1.y },
-                                { x: cx + e1x / m1 * EXTEND, y: cy + e1y / m1 * EXTEND },
-                                { x: cx + e2x / m2 * EXTEND, y: cy + e2y / m2 * EXTEND },
-                                { x: door2.p2.x, y: door2.p2.y },
-                            ];
-                            regions.push({ polygon: neighbor, cone: cone2, door: door2 });
-                            queue.push({ polygon: neighbor });
-                        });
-                    });
-                }
-            });
-        });
-        return regions;
-    }
-
     // Point-to-segment distance helper for door click detection
     function ptSegDist(px, py, ax, ay, bx, by) {
         const dx = bx - ax, dy = by - ay;
