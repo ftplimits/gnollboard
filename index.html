@@ -810,7 +810,7 @@
             <canvas id="fog-poly-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:510;"></canvas>
             <canvas id="fog-preset-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:515;"></canvas>
             <canvas id="door-canvas"  width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:516;"></canvas>
-            <canvas id="walls-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:518;"></canvas>
+            <canvas id="walls-canvas" width="5000" height="5000" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:349;"></canvas>
         </div>
     </div>
 
@@ -2636,7 +2636,7 @@
 
     function redrawWalls() {
         wallsCtx.clearRect(0, 0, wallsCanvas.width, wallsCanvas.height);
-        wallsCtx.strokeStyle = 'rgba(18,14,10,0.82)';
+        wallsCtx.strokeStyle = 'rgba(18,14,10,0.9)';
         wallsCtx.lineWidth   = 7;
         wallsCtx.lineCap     = 'square';
 
