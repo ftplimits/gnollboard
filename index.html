@@ -2410,14 +2410,18 @@
             const tx=t.x+FOG_OFFSET, ty=t.y+FOG_OFFSET;
             const r=t.lightRadius;
 
-            // Exclude edges belonging to the polygon the token is standing inside
-            const EPS=4;
-            const testPts=[{x:tx,y:ty},{x:tx+EPS,y:ty},{x:tx-EPS,y:ty},{x:tx,y:ty+EPS},{x:tx,y:ty-EPS}];
-            const containId=fogPresets.find(p=>p.fogged&&p.verts.length>=3&&testPts.some(pt=>pointInPolygon(pt.x,pt.y,p.verts)))?.id??-99;
-            const blocking=allEdges.filter(e=>e.polyId!==containId);
+            // Always use ALL edges as blockers — walls between adjacent fogged
+            // polygons must still block. The token is well inside its polygon so
+            // its own walls won't falsely block the first few steps.
+            const blocking = allEdges;
 
             // Enough rays to hit every cell on the perimeter
             const numRays=Math.max(24,r*12);
+
+            // Token's own cell is always lit (step loop starts at 1)
+            const tcx = Math.floor((tx-FOG_OFFSET)/CELL);
+            const tcy = Math.floor((ty-FOG_OFFSET)/CELL);
+            if(tcx>=0&&tcy>=0&&tcx<100&&tcy<100) litCells.add(`${tcx},${tcy}`);
 
             for(let i=0;i<numRays;i++){
                 const angle=(i/numRays)*Math.PI*2;
