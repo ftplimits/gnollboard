@@ -2384,7 +2384,9 @@
         if (Math.abs(d)<1e-9) return false;
         const t=((cx-ax)*(dy-cy)-(cy-ay)*(dx-cx))/d;
         const u=((cx-ax)*(by-ay)-(cy-ay)*(bx-ax))/d;
-        return t>0.001&&t<0.999&&u>0.001&&u<0.999;
+        // t: along ray step — exclude t≈0 to avoid re-hitting the starting point
+        // u: along polygon edge — include endpoints (0 and 1) so vertices aren't skipped
+        return t>0.01&&t<1.01&&u>=-0.01&&u<=1.01;
     }
 
     function computeLitCells() {
