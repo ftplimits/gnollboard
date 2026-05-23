@@ -2449,10 +2449,19 @@
                     for(const e of blocking){
                         const pt = segIntersectPt(px,py,x,y,e.ax,e.ay,e.bx,e.by);
                         if(!pt) continue;
-                        // If the intersection is inside an open door, the ray passes through
-                        const throughDoor = doors.some(d =>
-                            d.open && ptSegDist(pt.x,pt.y,d.p1.x,d.p1.y,d.p2.x,d.p2.y) < 4
-                        );
+                        // If the intersection is inside an open door (strictly between endpoints), the ray passes through
+                        const throughDoor = doors.some(d => {
+                            if (!d.open) return false;
+                            const ddx = d.p2.x-d.p1.x, ddy = d.p2.y-d.p1.y;
+                            const dlen = Math.hypot(ddx, ddy);
+                            if (dlen < 1) return false;
+                            // Project intersection point onto door segment
+                            const t = ((pt.x-d.p1.x)*ddx + (pt.y-d.p1.y)*ddy) / (dlen*dlen);
+                            // Exclude the cap regions at each end (first/last 8%)
+                            if (t < 0.08 || t > 0.92) return false;
+                            const cpx = d.p1.x + t*ddx, cpy = d.p1.y + t*ddy;
+                            return Math.hypot(pt.x-cpx, pt.y-cpy) < 5;
+                        });
                         if(!throughDoor){ blocked=true; break; }
                     }
                     if(blocked) break;
