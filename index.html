@@ -2627,25 +2627,34 @@
 
     function redrawWalls() {
         if (!isHost) wallsCtx.clearRect(0, 0, wallsCanvas.width, wallsCanvas.height);
-        wallsCtx.strokeStyle = 'rgba(18,14,10,0.9)';
-        wallsCtx.lineWidth   = 7;
+        wallsCtx.strokeStyle = 'rgba(18,14,10,0.7)';
+        wallsCtx.lineWidth   = 6;
         wallsCtx.lineCap     = 'square';
 
         if (isHost) {
-            fogPresetCtx.strokeStyle = 'rgba(18,14,10,0.9)';
-            fogPresetCtx.lineWidth   = 7;
+            fogPresetCtx.strokeStyle = 'rgba(18,14,10,0.7)';
+            fogPresetCtx.lineWidth   = 6;
             fogPresetCtx.lineCap     = 'square';
             fogPresetCtx.setLineDash([]);
         }
 
+        // Collect edges and deduplicate shared walls between adjacent polygons
+        // so each wall segment is drawn exactly once (no double-draw artifacts)
+        const unique = [];
         fogPresets.forEach(p => {
             if (!p.verts || p.verts.length < 2) return;
             const n = p.verts.length;
             for (let i = 0; i < n; i++) {
-                const a = p.verts[i], b = p.verts[(i+1) % n];
-                drawWallEdge(a.x, a.y, b.x, b.y);
+                const a = p.verts[i], b = p.verts[(i+1)%n];
+                const dup = unique.some(e =>
+                    (Math.hypot(e.ax-a.x,e.ay-a.y)<3 && Math.hypot(e.bx-b.x,e.by-b.y)<3) ||
+                    (Math.hypot(e.ax-b.x,e.ay-b.y)<3 && Math.hypot(e.bx-a.x,e.by-a.y)<3)
+                );
+                if (!dup) unique.push({ax:a.x,ay:a.y,bx:b.x,by:b.y});
             }
         });
+
+        unique.forEach(e => drawWallEdge(e.ax, e.ay, e.bx, e.by));
     }
 
     function drawWallEdge(ax, ay, bx, by) {
@@ -2853,6 +2862,9 @@
     }
 
     function drawDoor(d, ctx) {
+        // Hard guard — players never see closed secret doors under any circumstances
+        if (!isHost && d.secret && !d.open) return;
+
         const mx   = (d.p1.x + d.p2.x) / 2;
         const my   = (d.p1.y + d.p2.y) / 2;
         const len  = Math.hypot(d.p2.x - d.p1.x, d.p2.y - d.p1.y) || 1;
