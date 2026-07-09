@@ -334,6 +334,15 @@
             gap: 6px; z-index: 1000; pointer-events: auto;
         }
         #dice-column.visible { display: flex; }
+        .ah-btn {
+            width: 66px; background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(200,168,60,0.4); border-radius: 7px;
+            color: #c8a83c; font-family: var(--font-serif); font-size: 13px;
+            font-weight: 700; cursor: pointer; padding: 6px 4px 4px;
+            text-align: center; line-height: 1.2; transition: all 0.15s;
+        }
+        .ah-btn:hover { background: rgba(200,168,60,0.18); border-color: rgba(200,168,60,0.8); color: #e8d080; }
+        .ah-label { font-size: 9px; font-weight: 400; opacity: 0.75; letter-spacing: 0.5px; }
         .die-btn {
             width: 72px; height: 72px;
             background: transparent; border: none; cursor: pointer;
@@ -816,11 +825,13 @@
 
 
     <!-- ═══════ DICE TOGGLE ═══════ -->
-    <div id="dice-toggle-btn" title="Show/Hide Dice">🎲</div>
+    <div id="dice-toggle-btn" title="Show/Hide Dice (right-click to change game mode)">🎲</div>
 
     <!-- ═══════ DICE PANEL ═══════ -->
     <div id="dice-column">
         <div id="dice-modifier-display"></div>
+        <!-- Standard DnD dice (hidden in AH mode) -->
+        <div id="dnd-dice">
         <!-- d20 -->
         <button class="die-btn" data-sides="20" title="Roll d20">
             <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
@@ -871,6 +882,17 @@
                 <text x="30" y="40" class="die-label" style="font-size:9px;opacity:0.6">%</text>
             </svg>
         </button>
+        </div><!-- end #dnd-dice -->
+
+        <!-- Adversus Haeresim dice (hidden in DnD mode) -->
+        <div id="ah-dice" style="display:none;flex-direction:column;gap:5px;align-items:center;width:100%;">
+            <button class="ah-btn" data-ah-count="6" data-ah-name="Uber-Boon"   title="Uber-Boon — 6d6">6d6<br><span class="ah-label">Uber-Boon</span></button>
+            <button class="ah-btn" data-ah-count="5" data-ah-name="Double-Boon" title="Double-Boon — 5d6">5d6<br><span class="ah-label">Double-Boon</span></button>
+            <button class="ah-btn" data-ah-count="4" data-ah-name="Boon"        title="Boon — 4d6">4d6<br><span class="ah-label">Boon</span></button>
+            <button class="ah-btn" data-ah-count="3" data-ah-name="Standard"    title="Standard — 3d6">3d6<br><span class="ah-label">Standard</span></button>
+            <button class="ah-btn" data-ah-count="2" data-ah-name="Bane"        title="Bane — 2d6">2d6<br><span class="ah-label">Bane</span></button>
+            <button class="ah-btn" data-ah-count="1" data-ah-name="Uber-Bane"   title="Uber-Bane — 1d6">1d6<br><span class="ah-label">Uber-Bane</span></button>
+        </div>
     </div>
 
     <!-- ═══════ DICE LOG ═══════ -->
@@ -1703,6 +1725,11 @@
             }
             case 'grid_color':
                 setGridColor(msg.key, true);
+                break;
+
+            case 'ah_roll':
+                addAHLogEntry(msg.playerName, msg.color, msg.rollName, msg.diceCount, msg.rolls, msg.successes);
+                showAHPopup(msg.rollName, msg.diceCount, msg.rolls, msg.successes, new Set(msg.successDice), msg.color, msg.playerName);
                 break;
 
             case 'dice_roll':
@@ -5581,7 +5608,157 @@
         setTimeout(() => document.addEventListener('click', close), 10);
     }
 
-    // Wire dice after layout pass to guarantee elements are ready
+    // ─── Adversus Haeresim Dice System ──────────────────────────────────────
+    let ahMode = false;
+
+    function calcAHSuccesses(rolls) {
+        // Each 6 = 1 success; pairs of matching non-6s = 1 success per pair
+        const successDice = new Set();
+        let successes = 0;
+        const counts = {};
+        rolls.forEach((v, i) => { if (!counts[v]) counts[v] = []; counts[v].push(i); });
+        Object.entries(counts).forEach(([val, indices]) => {
+            if (parseInt(val) === 6) {
+                indices.forEach(i => successDice.add(i));
+                successes += indices.length;
+            } else {
+                const pairs = Math.floor(indices.length / 2);
+                successes += pairs;
+                for (let p = 0; p < pairs * 2; p++) successDice.add(indices[p]);
+            }
+        });
+        return { successes, successDice };
+    }
+
+    function showAHPopup(rollName, diceCount, rolls, successes, successDice, color, playerName) {
+        let popup = document.getElementById('dice-popup');
+        if (!popup) {
+            popup = document.createElement('div');
+            popup.id = 'dice-popup';
+            popup.style.cssText = `position:fixed;top:14px;left:50%;transform:translateX(-50%);
+                z-index:9500;pointer-events:none;text-align:center;
+                font-family:'Cinzel',serif;
+                background:rgba(20,16,10,0.82);
+                border:1px solid rgba(200,168,60,0.25);
+                border-radius:10px;padding:12px 24px 14px;
+                backdrop-filter:blur(6px);
+                transition:opacity 0.4s;opacity:0;`;
+            document.body.appendChild(popup);
+        }
+
+        // Render individual dice with success/failure coloring
+        const diceHTML = rolls.map((val, i) => {
+            const isSuccess = successDice.has(i);
+            const glow = isSuccess ? `0 0 12px ${color}, 0 0 24px ${color}` : 'none';
+            const clr  = isSuccess ? '#fff' : 'rgba(180,170,160,0.4)';
+            return `<span style="
+                display:inline-block;width:36px;height:36px;line-height:36px;
+                background:rgba(255,255,255,0.07);border:1px solid ${isSuccess ? color : 'rgba(255,255,255,0.15)'};
+                border-radius:6px;margin:2px;font-size:18px;font-weight:700;
+                color:${clr};text-shadow:${glow};
+            ">${val}</span>`;
+        }).join('');
+
+        const resultText = successes > 0
+            ? `<div style="font-size:34px;font-weight:700;color:#fff;
+                text-shadow:0 0 20px ${color},0 2px 8px rgba(0,0,0,0.9);
+                line-height:1.1;margin-top:6px;">${successes} ${successes === 1 ? 'Success' : 'Successes'}</div>`
+            : `<div style="font-size:34px;font-weight:700;color:#cc4444;
+                text-shadow:0 0 20px #cc4444,0 2px 8px rgba(0,0,0,0.9);
+                line-height:1.1;margin-top:6px;">Failure</div>`;
+
+        popup.innerHTML = `
+            <div style="font-size:10px;color:#aaa;letter-spacing:1px;margin-bottom:3px;">${playerName||'?'}</div>
+            <div style="font-size:11px;color:${color};letter-spacing:2px;margin-bottom:6px;">${rollName.toUpperCase()} — ${diceCount}D6</div>
+            <div style="margin-bottom:4px;">${diceHTML}</div>
+            ${resultText}`;
+        popup.style.opacity = '1';
+        clearTimeout(rollPopupTimer);
+        rollPopupTimer = setTimeout(() => { popup.style.opacity = '0'; }, 4000);
+    }
+
+    function addAHLogEntry(playerName, color, rollName, diceCount, rolls, successes) {
+        const log = document.getElementById('dice-log');
+        if (!log) return;
+        const entry = document.createElement('div');
+        entry.className = 'dice-log-entry';
+        const resultText = successes > 0
+            ? `<span class="log-result">${successes}</span> <span style="color:#c8a83c;font-size:10px;">${successes === 1 ? 'Success' : 'Successes'}</span>`
+            : `<span class="log-result" style="color:#cc4444;">Failure</span>`;
+        entry.innerHTML = `<span style="color:${color||'#c8a83c'};font-size:10px;font-weight:700;text-shadow:var(--log-name-shadow);">${playerName||'?'}</span> <span style="color:#c8a83c;font-size:11px;">${rollName} ${diceCount}d6:</span> ${resultText}`;
+        log.appendChild(entry);
+        log.scrollTop = log.scrollHeight;
+        const all = log.querySelectorAll('.dice-log-entry');
+        if (all.length > MAX_LOG_ENTRIES) all[0].remove();
+    }
+
+    function rollAH(diceCount, rollName) {
+        const rolls = Array.from({ length: diceCount }, () => Math.floor(Math.random() * 6) + 1);
+        const { successes, successDice } = calcAHSuccesses(rolls);
+        const name  = myName || 'Unknown';
+        const color = diceColor.stroke;
+        playDiceClick();
+        showAHPopup(rollName, diceCount, rolls, successes, successDice, color, name);
+        addAHLogEntry(name, color, rollName, diceCount, rolls, successes);
+        broadcast({ type: 'ah_roll', playerName: name, color, rollName, diceCount, rolls, successes, successDice: [...successDice] });
+    }
+
+    function setAHMode(on) {
+        ahMode = on;
+        document.getElementById('dnd-dice').style.display = on ? 'none' : 'flex';
+        document.getElementById('ah-dice').style.display  = on ? 'flex' : 'none';
+        document.getElementById('dice-modifier-display').style.display = on ? 'none' : 'block';
+        document.getElementById('dice-toggle-btn').title = on
+            ? 'Adversus Haeresim Mode (right-click to switch)'
+            : 'Show/Hide Dice (right-click to change game mode)';
+    }
+
+    // Wire AH buttons
+    requestAnimationFrame(() => {
+        document.querySelectorAll('.ah-btn').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                rollAH(parseInt(btn.dataset.ahCount), btn.dataset.ahName);
+            });
+        });
+
+        // Right-click dice toggle for mode switch
+        document.getElementById('dice-toggle-btn')?.addEventListener('contextmenu', e => {
+            e.preventDefault(); e.stopPropagation();
+            document.querySelectorAll('.dice-ctx-menu').forEach(m => m.remove());
+            const menu = document.createElement('div');
+            menu.className = 'dice-ctx-menu';
+            menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY - 10}px;
+                background:#1a1510;border:1px solid rgba(200,168,60,0.4);border-radius:7px;
+                padding:8px;z-index:9001;font-family:var(--font-serif);box-shadow:0 4px 16px rgba(0,0,0,0.8);min-width:180px;`;
+
+            [
+                { label: '🎲 Standard (D&D)', mode: false },
+                { label: '⚔ Adversus Haeresim', mode: true  },
+            ].forEach(opt => {
+                const btn2 = document.createElement('button');
+                btn2.textContent = opt.label;
+                const active = ahMode === opt.mode;
+                btn2.style.cssText = `display:block;width:100%;padding:6px 12px;
+                    background:${active ? 'rgba(200,168,60,0.2)' : 'transparent'};
+                    color:${active ? '#e8d080' : '#ccc'};border:none;border-radius:4px;
+                    font-family:var(--font-serif);font-size:13px;cursor:pointer;text-align:left;`;
+                btn2.onmouseenter = () => { if (!active) btn2.style.background='rgba(255,255,255,0.07)'; };
+                btn2.onmouseleave = () => { if (!active) btn2.style.background='transparent'; };
+                btn2.addEventListener('click', ev => {
+                    ev.stopPropagation();
+                    setAHMode(opt.mode);
+                    menu.remove();
+                });
+                menu.appendChild(btn2);
+            });
+            document.body.appendChild(menu);
+            const close = () => { menu.remove(); document.removeEventListener('click', close); };
+            setTimeout(() => document.addEventListener('click', close), 10);
+        });
+    });
+
+    // ─── Wire dice after layout pass ─────────────────────────────────────────
     requestAnimationFrame(() => {
         document.getElementById('dice-toggle-btn')?.addEventListener('click', e => {
             e.stopPropagation();
