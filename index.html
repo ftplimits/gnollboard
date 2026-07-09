@@ -335,13 +335,13 @@
         }
         #dice-column.visible { display: flex; }
         .ah-btn {
-            width: 66px; background: rgba(255,255,255,0.07);
+            width: 66px; background: rgba(60,44,20,0.82);
             border: 1px solid rgba(200,168,60,0.4); border-radius: 7px;
             color: #c8a83c; font-family: var(--font-serif); font-size: 13px;
             font-weight: 700; cursor: pointer; padding: 6px 4px 4px;
             text-align: center; line-height: 1.2; transition: all 0.15s;
         }
-        .ah-btn:hover { background: rgba(200,168,60,0.18); border-color: rgba(200,168,60,0.8); color: #e8d080; }
+        .ah-btn:hover { background: rgba(90,68,24,0.95); border-color: rgba(200,168,60,0.8); color: #e8d080; }
         .ah-label { font-size: 9px; font-weight: 400; opacity: 0.75; letter-spacing: 0.5px; }
         .die-btn {
             width: 72px; height: 72px;
@@ -831,7 +831,7 @@
     <div id="dice-column">
         <div id="dice-modifier-display"></div>
         <!-- Standard DnD dice (hidden in AH mode) -->
-        <div id="dnd-dice">
+        <div id="dnd-dice" style="display:flex;flex-direction:column;gap:0;align-items:center;width:100%;">
         <!-- d20 -->
         <button class="die-btn" data-sides="20" title="Roll d20">
             <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
@@ -5423,8 +5423,9 @@
         document.querySelectorAll('.die-label').forEach(el => { el.style.fill = diceNumColorStr; el.style.stroke = 'none'; });
         // Apply color to AH buttons too
         document.querySelectorAll('.ah-btn').forEach(btn => {
-            btn.style.borderColor = `rgba(${r},${g},${b},0.5)`;
-            btn.style.color       = stroke;
+            btn.style.borderColor  = `rgba(${r},${g},${b},0.5)`;
+            btn.style.color        = stroke;
+            btn.style.background   = diceColor.fill;
         });
         document.documentElement.style.setProperty('--log-text-color', stroke);
         // Add white shadow for dark colors so log text stays readable
