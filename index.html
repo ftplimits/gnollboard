@@ -5424,8 +5424,8 @@
         // Apply color to AH buttons too
         document.querySelectorAll('.ah-btn').forEach(btn => {
             btn.style.borderColor  = `rgba(${r},${g},${b},0.5)`;
-            btn.style.color        = stroke;
-            btn.style.background   = diceColor.fill;
+            btn.style.color        = diceNumColorStr; // bottom palette controls text/numbers
+            btn.style.background   = diceColor.fill;  // top palette controls fill
         });
         document.documentElement.style.setProperty('--log-text-color', stroke);
         // Add white shadow for dark colors so log text stays readable
