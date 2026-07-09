@@ -5421,6 +5421,11 @@
         });
         document.querySelectorAll('.die-inner-line').forEach(el => { el.style.stroke = stroke; });
         document.querySelectorAll('.die-label').forEach(el => { el.style.fill = diceNumColorStr; el.style.stroke = 'none'; });
+        // Apply color to AH buttons too
+        document.querySelectorAll('.ah-btn').forEach(btn => {
+            btn.style.borderColor = `rgba(${r},${g},${b},0.5)`;
+            btn.style.color       = stroke;
+        });
         document.documentElement.style.setProperty('--log-text-color', stroke);
         // Add white shadow for dark colors so log text stays readable
         const brightness = (r * 299 + g * 587 + b * 114) / 1000;
@@ -5698,6 +5703,7 @@
         const name  = myName || 'Unknown';
         const color = diceColor.stroke;
         playDiceClick();
+        if (successes === 0) playNatSound(); // Failure = NAT 1 sound
         showAHPopup(rollName, diceCount, rolls, successes, successDice, color, name);
         addAHLogEntry(name, color, rollName, diceCount, rolls, successes);
         broadcast({ type: 'ah_roll', playerName: name, color, rollName, diceCount, rolls, successes, successDice: [...successDice] });
