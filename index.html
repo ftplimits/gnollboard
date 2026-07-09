@@ -1784,6 +1784,23 @@
                 if (currentTrack === msg.filename) { musicAudio.pause(); updateTrackList(); }
                 break;
 
+            case 'kill_fade': {
+                // Peer received kill — fade and remove the blood sticker after delay
+                const fadeDelay = msg.delay || 20000;
+                setTimeout(() => {
+                    const sDiv = stickersContainer.querySelector(`[data-id="${msg.stickerId}"]`);
+                    if (sDiv) {
+                        sDiv.style.transition = 'opacity 3s ease';
+                        sDiv.style.opacity = '0';
+                        setTimeout(() => {
+                            stickers = stickers.filter(s => s.id !== msg.stickerId);
+                            sDiv.remove();
+                        }, 3000);
+                    }
+                }, fadeDelay);
+                break;
+            }
+
             case 'door_add':
                 if (!doors.find(d => d.id === msg.door.id)) {
                     doors.push(msg.door);
@@ -4209,6 +4226,12 @@
         if (sticker.hidden) div.style.opacity = '0.2';
         div.appendChild(img); updateObjDiv(sticker, div);
 
+        if (sticker.noInteract) {
+            div.style.pointerEvents = 'none';
+            stickersContainer.appendChild(div);
+            return;
+        }
+
         div.addEventListener('mousedown', e => {
             if (e.button === 0 && !currentTool && !selectedIconUrl && !sticker.locked) {
                 e.stopPropagation();
@@ -4557,8 +4580,53 @@
             broadcast({ type: 'token_update', id: token.id, data: { blood: token.blood } });
             menu.remove();
         };
+        // Kill button — deletes token, drops a blood splatter sticker with fade
+        const killBtn = document.createElement('button');
+        killBtn.textContent = '💀 Kill';
+        killBtn.style.cssText = btnStyle + 'background:#6b0000;margin-top:4px;';
+        killBtn.onclick = () => {
+            menu.remove();
+            // Pick random blood splatter
+            const bloods = ['Blood1.webp','Blood2.webp','Blood3.webp','Blood4.webp'];
+            const pick   = bloods[Math.floor(Math.random() * bloods.length)];
+            const iconUrl = `./icons/${pick}`;
+            // Match token size
+            const { w, h } = getObjSize(token);
+            const bloodSticker = {
+                id: nextStickerId++, x: token.x, y: token.y,
+                iconUrl, size: 'small', w, h,
+                locked: true, noInteract: true
+            };
+            stickers.push(bloodSticker);
+            renderSticker(bloodSticker);
+            broadcast({ type: 'sticker_add', sticker: { ...bloodSticker } });
+
+            // Delete the token
+            removeBloodEffect(token);
+            tokensContainer.querySelector(`[data-id="${token.id}"]`)?.remove();
+            tokens = tokens.filter(t => t.id !== token.id);
+            broadcast({ type: 'token_delete', id: token.id });
+            redrawFog();
+
+            // Fade out after 20s over 3s, then remove
+            const stickerDiv = stickersContainer.querySelector(`[data-id="${bloodSticker.id}"]`);
+            if (stickerDiv) {
+                setTimeout(() => {
+                    stickerDiv.style.transition = 'opacity 3s ease';
+                    stickerDiv.style.opacity = '0';
+                    setTimeout(() => {
+                        stickers = stickers.filter(s => s.id !== bloodSticker.id);
+                        stickerDiv.remove();
+                        broadcast({ type: 'sticker_delete', id: bloodSticker.id });
+                    }, 3000);
+                }, 20000);
+            }
+            broadcast({ type: 'kill_fade', stickerId: bloodSticker.id, delay: 20000 });
+        };
+
         menu.appendChild(makeAttachBtn(token, 'token', menu, btnStyle));
         menu.appendChild(bloodBtn);
+        menu.appendChild(killBtn);
         menu.appendChild(lightBtn);
         menu.appendChild(labelBtn); menu.appendChild(flip); menu.appendChild(del);
         document.body.appendChild(menu);
