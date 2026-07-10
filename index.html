@@ -5911,10 +5911,32 @@
 
         const overlay = document.createElement('div');
         overlay.id = 'ah-sheet-overlay';
-        overlay.style.cssText = `position:fixed;inset:0;z-index:8000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);`;
+        overlay.style.cssText = `position:fixed;inset:0;z-index:8000;display:flex;align-items:center;justify-content:center;pointer-events:none;`;
 
         const sheet = document.createElement('div');
-        sheet.style.cssText = `background:rgba(22,16,16,0.96);border:2px solid #7a1a1a;border-radius:10px;padding:20px 24px 24px;width:340px;font-family:var(--font-serif);color:#c8a83c;box-shadow:0 0 40px rgba(120,20,20,0.6),inset 0 0 60px rgba(0,0,0,0.4);position:relative;max-height:90vh;overflow-y:auto;`;
+        sheet.style.cssText = `background:rgba(22,16,16,0.96);border:2px solid #7a1a1a;border-radius:10px;padding:20px 24px 24px;width:340px;font-family:var(--font-serif);color:#c8a83c;box-shadow:0 0 40px rgba(120,20,20,0.6),inset 0 0 60px rgba(0,0,0,0.4);position:fixed;max-height:90vh;overflow-y:auto;pointer-events:auto;cursor:default;`;
+
+        // Centre on screen initially
+        sheet.style.top  = `${Math.round(window.innerHeight/2 - 300)}px`;
+        sheet.style.left = `${Math.round(window.innerWidth/2  - 170)}px`;
+
+        // Drag-to-move via sheet header area
+        let dragSX=0,dragSY=0,startL=0,startT=0,sheetDragging=false;
+        sheet.addEventListener('mousedown', e => {
+            // Only drag when clicking on the sheet background (not inputs/buttons/textareas)
+            if (['INPUT','TEXTAREA','SELECT','BUTTON','OPTION'].includes(e.target.tagName)) return;
+            sheetDragging=true;
+            dragSX=e.clientX; dragSY=e.clientY;
+            startL=parseInt(sheet.style.left)||0; startT=parseInt(sheet.style.top)||0;
+            sheet.style.cursor='grabbing';
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', e => {
+            if (!sheetDragging) return;
+            sheet.style.left = `${startL + e.clientX - dragSX}px`;
+            sheet.style.top  = `${startT + e.clientY - dragSY}px`;
+        });
+        document.addEventListener('mouseup', () => { if(sheetDragging){ sheetDragging=false; sheet.style.cursor='default'; } });
 
         const saveSheet = () => { token.ahSheetData={...data}; broadcast({type:'token_update',id:token.id,data:{ahSheetData:token.ahSheetData}}); };
 
@@ -6003,7 +6025,6 @@
 
         overlay.appendChild(sheet);
         document.body.appendChild(overlay);
-        overlay.addEventListener('mousedown',e=>{if(e.target===overlay)overlay.remove();});
     }
 
     // ─── Wire dice after layout pass ─────────────────────────────────────────
