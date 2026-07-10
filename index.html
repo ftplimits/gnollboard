@@ -1543,6 +1543,13 @@
                     if (t.blood && !hadBlood) addBloodEffect(t);
                     else if (!t.blood && hadBlood) removeBloodEffect(t);
                     if ('lightRadius' in msg.data) redrawFog();
+                    // Refresh sheet if it's open for this token
+                    if ('ahSheetData' in msg.data) {
+                        const openSheet = document.getElementById('ah-sheet-overlay');
+                        if (openSheet && openSheet.dataset.tokenId === String(t.id)) {
+                            openAHSheet(t); // reopen with fresh data in place
+                        }
+                    }
                 }
                 break;
             }
@@ -5905,20 +5912,28 @@
     // ADVERSUS HAERESIM CHARACTER SHEET
     // ═══════════════════════════════════════════════════════════════════════════
     function openAHSheet(token) {
-        document.getElementById('ah-sheet-overlay')?.remove();
+        // Preserve position if sheet is already open for this token
+        const existing = document.getElementById('ah-sheet-overlay');
+        let savedTop = null, savedLeft = null;
+        if (existing && existing.dataset.tokenId === String(token.id)) {
+            const s = existing.querySelector('div');
+            if (s) { savedTop = s.style.top; savedLeft = s.style.left; }
+        }
+        existing?.remove();
         const data = token.ahSheetData || { name:'', type:'Astartes', favor:0, autoBoon:'', autoBane:'', special:'', equipment:Array(8).fill('') };
         if (!data.equipment || data.equipment.length < 8) data.equipment = [...(data.equipment||[]),...Array(8).fill('')].slice(0,8);
 
         const overlay = document.createElement('div');
         overlay.id = 'ah-sheet-overlay';
+        overlay.dataset.tokenId = String(token.id);
         overlay.style.cssText = `position:fixed;inset:0;z-index:8000;display:flex;align-items:center;justify-content:center;pointer-events:none;`;
 
         const sheet = document.createElement('div');
         sheet.style.cssText = `background:rgba(22,16,16,0.96);border:2px solid #7a1a1a;border-radius:10px;padding:20px 24px 24px;width:340px;font-family:var(--font-serif);color:#c8a83c;box-shadow:0 0 40px rgba(120,20,20,0.6),inset 0 0 60px rgba(0,0,0,0.4);position:fixed;max-height:90vh;overflow-y:auto;pointer-events:auto;cursor:default;`;
 
-        // Centre on screen initially
-        sheet.style.top  = `${Math.round(window.innerHeight/2 - 300)}px`;
-        sheet.style.left = `${Math.round(window.innerWidth/2  - 170)}px`;
+        // Centre on screen initially, or restore previous position
+        sheet.style.top  = savedTop  || `${Math.round(window.innerHeight/2 - 300)}px`;
+        sheet.style.left = savedLeft || `${Math.round(window.innerWidth/2  - 170)}px`;
 
         // Drag-to-move via sheet header area
         let dragSX=0,dragSY=0,startL=0,startT=0,sheetDragging=false;
