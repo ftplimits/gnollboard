@@ -5932,6 +5932,45 @@
     // ═══════════════════════════════════════════════════════════════════════════
     // ADVERSUS HAERESIM CHARACTER SHEET
     // ═══════════════════════════════════════════════════════════════════════════
+    const AH_EQUIPMENT = [
+        { name: 'Auspex Scanner',       favor: 3,    desc: 'Handheld device for detecting life signs, energy sources, and movement.' },
+        { name: 'Bolt Pistol',          favor: 2,    desc: 'Compact but devastating bolt weapon. Fires self-propelled explosive rounds.' },
+        { name: 'Bolt Rifle',           favor: 3,    desc: 'The holy bolter in rifle form. Reliable and terrifyingly effective.' },
+        { name: 'Chainsword',           favor: 3,    desc: 'A roaring, serrated power blade. A rare and prized close-combat weapon.' },
+        { name: 'Combat Knife / Bayonet', favor: 1,  desc: "Every soldier's trusted utility blade." },
+        { name: 'Dried Realmeat',       favor: 4,    desc: "A much sought after rare delicacy, Actual tangible sun dried meat. It's power for loosening lips and it's weight in negotiating can not be understated." },
+        { name: 'EMP Grenade',          favor: 1,    desc: 'Disables electronics and power armour systems in a small area.' },
+        { name: 'Entrenching Tool',     favor: 1,    desc: 'Issued shovel. Useful for digging and surprisingly effective as an improvised weapon.' },
+        { name: 'Exitus Rifle',         favor: 3,    desc: 'Legendary long-range assassin rifle. Fires specialized armour-piercing and explosive rounds.' },
+        { name: 'Flak Armour',          favor: 1,    desc: 'Standard layered protection against shrapnel and light energy weapons.' },
+        { name: 'Flak Helmet',          favor: 1,    desc: 'Basic head protection. Better than nothing.' },
+        { name: 'Flamer',               favor: 3,    desc: 'Projects burning promethium. Ideal for clearing rooms and purging the unclean.' },
+        { name: 'Frag Grenades',        favor: 1,    desc: 'Standard anti-personnel explosives.' },
+        { name: 'Gas Mask / Rebreather',favor: 1,    desc: 'Essential protection in toxic or chemical environments.' },
+        { name: 'Grenade Launcher',     favor: 4,    desc: 'Launches frag or krak grenades at range.' },
+        { name: 'Heavy Stubber',        favor: 3,    desc: 'Belt-fed heavy slug-thrower. Excellent for suppression.' },
+        { name: 'Holocon',              favor: 3,    desc: 'Projects a hologram of a valiant Militarium Trooper for a few minutes.' },
+        { name: 'Holy Blade',           favor: 3,    desc: 'Blessed close combat weapon, often carried by Sisters of Battle or zealous warriors.' },
+        { name: 'Holy Symbol',          favor: 'NA', desc: 'Sacred aquila or rosarius. Focuses faith and may ward off the unclean.' },
+        { name: 'Incendiary Grenade',   favor: 1,    desc: 'Spreads napalm like flames in an area that burns for several minutes. Attempting to douse with liquids only spreads the effect.' },
+        { name: 'Jump Pack',            favor: 4,    desc: 'A hulking combustion driven propulsion device.' },
+        { name: 'Krak Grenades',        favor: 1,    desc: 'Focused anti-armour charges.' },
+        { name: 'Lasgun',               favor: 2,    desc: 'The ubiquitous "flashlight" of the Imperium. Reliable, lightweight, and rechargeable.' },
+        { name: 'Laspistol',            favor: 1,    desc: 'Compact las sidearm for close quarters.' },
+        { name: 'Meltagun',             favor: 3,    desc: 'Delivers superheated beams of destructive energy. Devastating against vehicles at short range.' },
+        { name: 'Missile Launcher',     favor: 4,    desc: 'Versatile heavy weapon effective against both infantry and armour.' },
+        { name: 'Piercer Knife',        favor: 2,    desc: 'Monomolecular blade designed to punch through armour.' },
+        { name: 'Plasticus Maximus',    favor: 2,    desc: 'A block of plastic explosive with accompanying remote detonator.' },
+        { name: 'Power Armour',         favor: 5,    desc: 'Rare and revered suits of ceramite plate. Grants immense strength, protection, and life support. Typically reserved for Space Marines, Sisters of Battle, and elite agents.' },
+        { name: 'Sensor Drone',         favor: 3,    desc: 'Small floating probe that scans for movement, heat, and life signs.' },
+        { name: 'Shotgun',              favor: 2,    desc: 'Brutal at close range. Excellent for trench and hive fighting.' },
+        { name: 'Stem Pack',            favor: 2,    desc: 'Small syringe choked full of the best stimulants the Imperium can produce. Restores a health state and grants an additional boon on your next action.' },
+        { name: 'Stub Pistol',          favor: 1,    desc: 'Cheap, reliable slug-throwing sidearm. Common among militia and officers.' },
+        { name: 'Uplifting Primer',     favor: 'NA', desc: 'The official Imperial self-help manual. Contains equal parts useful advice and propaganda.' },
+        { name: 'Vox-Caster',          favor: 1,    desc: 'Squad-level communicator. Often crackles with static and prayers.' },
+        { name: 'Zip Chord',            favor: 2,    desc: 'Woven fiberized ceremite. Exceedingly strong chord great for carrying or strangling.' },
+    ];
+
     const AH_CLASS_DATA = {
         'Astartes': {
             autoBoon: 'Auto-Boons: Attempts to physical feats and all attacks with human made weapons.',
@@ -6088,13 +6127,111 @@
         const eqTitle=document.createElement('div'); eqTitle.textContent='Equipment';
         eqTitle.style.cssText='font-size:14px;font-weight:700;letter-spacing:2px;text-decoration:underline;text-underline-offset:4px;text-decoration-color:#7a1a1a;margin-bottom:7px;';
         sheet.appendChild(eqTitle);
-        data.equipment.forEach((val,i)=>{
-            const row=document.createElement('div'); row.style.cssText='display:flex;align-items:center;gap:6px;margin:4px 0;';
-            const dot=document.createElement('span'); dot.textContent='•'; dot.style.cssText='color:#7a1a1a;font-size:16px;flex-shrink:0;';
-            const ei=document.createElement('input'); ei.type='text'; ei.value=val; ei.placeholder='—';
-            ei.style.cssText='background:transparent;border:none;border-bottom:1px solid rgba(122,26,26,0.45);color:#c8a83c;font-family:var(--font-serif);font-size:12px;outline:none;flex:1;padding:1px 4px;';
-            ei.addEventListener('change',()=>{data.equipment[i]=ei.value;saveSheet();});
-            row.appendChild(dot); row.appendChild(ei); sheet.appendChild(row);
+        data.equipment.forEach((val, i) => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;gap:6px;margin:5px 0;position:relative;';
+            const dot = document.createElement('span');
+            dot.textContent = '•'; dot.style.cssText = 'color:#7a1a1a;font-size:16px;flex-shrink:0;';
+
+            const slot = document.createElement('div');
+            slot.style.cssText = 'flex:1;position:relative;';
+
+            const makeSlot = (currentVal) => {
+                slot.innerHTML = '';
+                const item = AH_EQUIPMENT.find(e => e.name === currentVal);
+
+                if (item || currentVal) {
+                    // Locked display
+                    const locked = document.createElement('div');
+                    locked.style.cssText = 'display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(122,26,26,0.45);padding:1px 4px;cursor:default;';
+                    const nameSpan = document.createElement('span');
+                    nameSpan.style.cssText = 'color:#c8a83c;font-size:12px;flex:1;';
+                    nameSpan.textContent = item ? `${item.name}  ★${item.favor}` : currentVal;
+                    const clearBtn = document.createElement('button');
+                    clearBtn.textContent = '✕';
+                    clearBtn.style.cssText = 'background:none;border:none;color:#7a1a1a;cursor:pointer;font-size:10px;padding:0 2px;line-height:1;';
+                    clearBtn.addEventListener('click', () => {
+                        data.equipment[i] = '';
+                        makeSlot('');
+                        saveSheet();
+                    });
+                    locked.appendChild(nameSpan);
+                    locked.appendChild(clearBtn);
+
+                    // Tooltip on hover
+                    if (item?.desc) {
+                        const tip = document.createElement('div');
+                        tip.textContent = item.desc;
+                        tip.style.cssText = 'display:none;position:absolute;left:0;bottom:calc(100% + 4px);background:#1a0808;border:1px solid #7a1a1a;border-radius:5px;padding:6px 8px;font-size:11px;color:#c8a83c;z-index:9999;width:260px;line-height:1.4;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,0.7);';
+                        locked.addEventListener('mouseenter', () => tip.style.display = 'block');
+                        locked.addEventListener('mouseleave', () => tip.style.display = 'none');
+                        slot.appendChild(tip);
+                    }
+                    slot.appendChild(locked);
+                } else {
+                    // Search input
+                    const inp = document.createElement('input');
+                    inp.type = 'text'; inp.placeholder = 'Search or type item…';
+                    inp.style.cssText = 'background:transparent;border:none;border-bottom:1px solid rgba(122,26,26,0.45);color:#c8a83c;font-family:var(--font-serif);font-size:12px;outline:none;width:100%;padding:1px 4px;';
+
+                    const dropdown = document.createElement('div');
+                    dropdown.style.cssText = 'display:none;position:absolute;left:0;top:100%;background:#1a0808;border:1px solid #7a1a1a;border-radius:0 0 5px 5px;z-index:9999;max-height:160px;overflow-y:auto;width:100%;box-shadow:0 4px 12px rgba(0,0,0,0.7);';
+
+                    const renderDropdown = (filter) => {
+                        dropdown.innerHTML = '';
+                        const matches = AH_EQUIPMENT.filter(e => e.name.toLowerCase().includes(filter.toLowerCase()));
+                        matches.forEach(e => {
+                            const opt = document.createElement('div');
+                            opt.style.cssText = 'padding:5px 8px;cursor:pointer;font-size:11px;color:#c8a83c;border-bottom:1px solid rgba(122,26,26,0.2);';
+                            opt.innerHTML = `<span style="font-weight:700;">${e.name}</span> <span style="color:#7a1a1a;font-size:10px;">★${e.favor}</span><div style="font-size:10px;opacity:0.65;line-height:1.3;margin-top:2px;">${e.desc}</div>`;
+                            opt.addEventListener('mouseenter', () => opt.style.background = 'rgba(122,26,26,0.2)');
+                            opt.addEventListener('mouseleave', () => opt.style.background = '');
+                            opt.addEventListener('mousedown', (ev) => {
+                                ev.preventDefault();
+                                data.equipment[i] = e.name;
+                                makeSlot(e.name);
+                                saveSheet();
+                            });
+                            dropdown.appendChild(opt);
+                        });
+                        // Custom text option if no exact match
+                        if (filter && !matches.find(e => e.name.toLowerCase() === filter.toLowerCase())) {
+                            const custom = document.createElement('div');
+                            custom.style.cssText = 'padding:5px 8px;cursor:pointer;font-size:11px;color:#888;border-top:1px solid rgba(122,26,26,0.3);font-style:italic;';
+                            custom.textContent = `Use "${filter}"`;
+                            custom.addEventListener('mouseenter', () => custom.style.background = 'rgba(122,26,26,0.2)');
+                            custom.addEventListener('mouseleave', () => custom.style.background = '');
+                            custom.addEventListener('mousedown', (ev) => {
+                                ev.preventDefault();
+                                data.equipment[i] = filter;
+                                makeSlot(filter);
+                                saveSheet();
+                            });
+                            dropdown.appendChild(custom);
+                        }
+                        dropdown.style.display = matches.length || filter ? 'block' : 'none';
+                    };
+
+                    inp.addEventListener('input', () => renderDropdown(inp.value));
+                    inp.addEventListener('focus',  () => renderDropdown(inp.value));
+                    inp.addEventListener('blur',   () => setTimeout(() => dropdown.style.display = 'none', 150));
+                    inp.addEventListener('keydown', e => {
+                        if (e.key === 'Enter' && inp.value) {
+                            const exact = AH_EQUIPMENT.find(eq => eq.name.toLowerCase() === inp.value.toLowerCase());
+                            data.equipment[i] = exact ? exact.name : inp.value;
+                            makeSlot(data.equipment[i]);
+                            saveSheet();
+                        }
+                    });
+
+                    slot.appendChild(inp);
+                    slot.appendChild(dropdown);
+                }
+            };
+
+            makeSlot(val);
+            row.appendChild(dot); row.appendChild(slot);
+            sheet.appendChild(row);
         });
 
         // ── Close ────────────────────────────────────────────────────────────
