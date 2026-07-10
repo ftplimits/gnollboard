@@ -4353,23 +4353,44 @@
         }
 
         if (token.healthState) {
-            const states = ['U','P','H','I','W','D'];
             const bubble = document.createElement('div');
             bubble.className = 'token-health-state';
             bubble.dataset.hs = token.healthState;
             bubble.textContent = token.healthState;
-            bubble.title = 'Double-click to cycle health state';
+            bubble.title = 'Double-left-click: worse ↓  Double-right-click: better ↑';
             bubble.addEventListener('mousedown', e => e.stopPropagation());
             if (token.flipped) bubble.style.transform = 'scaleX(-1)';
+
+            const states = ['U','P','H','I','W','D'];
+            const setHS = (hs) => {
+                token.healthState = hs;
+                bubble.dataset.hs = hs;
+                bubble.textContent = hs;
+                broadcast({ type: 'token_update', id: token.id, data: { healthState: hs } });
+            };
+
+            // Double left-click → cycle DOWN (toward worse)
             bubble.addEventListener('dblclick', e => {
                 e.stopPropagation();
                 if (!isHost) return;
                 const idx = states.indexOf(token.healthState);
-                token.healthState = states[(idx + 1) % states.length];
-                bubble.dataset.hs = token.healthState;
-                bubble.textContent = token.healthState;
-                broadcast({ type: 'token_update', id: token.id, data: { healthState: token.healthState } });
+                setHS(states[(idx + 1) % states.length]);
             });
+
+            // Double right-click → cycle UP (toward better)
+            let lastRightClick = 0;
+            bubble.addEventListener('contextmenu', e => {
+                e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                if (!isHost) return;
+                const now = Date.now();
+                if (now - lastRightClick < 400) {
+                    const idx = states.indexOf(token.healthState);
+                    setHS(states[(idx - 1 + states.length) % states.length]);
+                    lastRightClick = 0;
+                } else {
+                    lastRightClick = now;
+                }
+            }, true); // capture phase — fires before parent token handler
             div.appendChild(bubble);
         }
 
