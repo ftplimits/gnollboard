@@ -4726,6 +4726,10 @@
         menu.appendChild(lightBtn);
         menu.appendChild(labelBtn); menu.appendChild(flip); menu.appendChild(del);
         document.body.appendChild(menu);
+        // Clamp to viewport so menu never bleeds off screen
+        const mr = menu.getBoundingClientRect();
+        if (mr.right  > window.innerWidth)  menu.style.left = `${x - mr.width  - 4}px`;
+        if (mr.bottom > window.innerHeight) menu.style.top  = `${window.innerHeight - mr.height - 8}px`;
         const close = () => { menu.remove(); document.removeEventListener('click', close); };
         setTimeout(() => document.addEventListener('click', close), 10);
     }
@@ -6021,11 +6025,21 @@
         overlay.style.cssText = `position:fixed;inset:0;z-index:8000;display:flex;align-items:center;justify-content:center;pointer-events:none;`;
 
         const sheet = document.createElement('div');
-        sheet.style.cssText = `background:rgba(22,16,16,0.96);border:2px solid #7a1a1a;border-radius:10px;padding:20px 24px 24px;width:340px;font-family:var(--font-serif);color:#c8a83c;box-shadow:0 0 40px rgba(120,20,20,0.6),inset 0 0 60px rgba(0,0,0,0.4);position:fixed;max-height:90vh;overflow-y:auto;pointer-events:auto;cursor:default;`;
+        sheet.style.cssText = `background:rgba(22,16,16,0.96);border:2px solid #7a1a1a;border-radius:10px;padding:24px 29px 29px;width:408px;font-family:var(--font-serif);color:#c8a83c;box-shadow:0 0 40px rgba(120,20,20,0.6),inset 0 0 60px rgba(0,0,0,0.4);position:fixed;max-height:90vh;overflow-y:auto;pointer-events:auto;cursor:default;`;
 
         // Centre on screen initially, or restore previous position
         sheet.style.top  = savedTop  || `${Math.round(window.innerHeight/2 - 300)}px`;
-        sheet.style.left = savedLeft || `${Math.round(window.innerWidth/2  - 170)}px`;
+        sheet.style.left = savedLeft || `${Math.round(window.innerWidth/2  - 204)}px`;
+
+        const clampSheet = () => {
+            const W = window.innerWidth, H = window.innerHeight;
+            const r = sheet.getBoundingClientRect();
+            if (r.right  > W - 8) sheet.style.left = `${W - r.width  - 8}px`;
+            if (r.bottom > H - 8) sheet.style.top  = `${H - r.height - 8}px`;
+            if (r.left   < 8)     sheet.style.left = '8px';
+            if (r.top    < 8)     sheet.style.top  = '8px';
+        };
+        requestAnimationFrame(clampSheet);
 
         // Drag-to-move via sheet header area
         let dragSX=0,dragSY=0,startL=0,startT=0,sheetDragging=false;
@@ -6040,8 +6054,10 @@
         });
         document.addEventListener('mousemove', e => {
             if (!sheetDragging) return;
-            sheet.style.left = `${startL + e.clientX - dragSX}px`;
-            sheet.style.top  = `${startT + e.clientY - dragSY}px`;
+            const W = window.innerWidth, H = window.innerHeight;
+            const w = sheet.offsetWidth, h = sheet.offsetHeight;
+            sheet.style.left = `${Math.max(8, Math.min(W - w - 8, startL + e.clientX - dragSX))}px`;
+            sheet.style.top  = `${Math.max(8, Math.min(H - h - 8, startT + e.clientY - dragSY))}px`;
         });
         document.addEventListener('mouseup', () => { if(sheetDragging){ sheetDragging=false; sheet.style.cursor='default'; } });
 
@@ -6050,7 +6066,7 @@
         const mkInput = (val, key, w='160px') => {
             const el = document.createElement('input');
             el.type='text'; el.value=val; el.placeholder='—';
-            el.style.cssText=`background:transparent;border:none;border-bottom:1px solid #7a1a1a;color:#c8a83c;font-family:var(--font-serif);font-size:13px;outline:none;width:${w};padding:2px 4px;`;
+            el.style.cssText=`background:transparent;border:none;border-bottom:1px solid #7a1a1a;color:#c8a83c;font-family:var(--font-serif);font-size:15px;outline:none;width:${w};padding:2px 4px;`;
             el.addEventListener('change',()=>{data[key]=el.value;saveSheet();});
             return el;
         };
@@ -6063,16 +6079,16 @@
         left.style.cssText='display:flex;flex-direction:column;gap:7px;';
 
         const nameRow = document.createElement('div');
-        nameRow.style.cssText='font-size:12px;display:flex;align-items:center;gap:6px;';
+        nameRow.style.cssText='font-size:14px;display:flex;align-items:center;gap:6px;';
         nameRow.appendChild(document.createTextNode('Inquisitor Name:'));
-        nameRow.appendChild(mkInput(data.name,'name','130px'));
+        nameRow.appendChild(mkInput(data.name,'name','156px'));
         left.appendChild(nameRow);
 
         const typeRow = document.createElement('div');
-        typeRow.style.cssText='font-size:12px;display:flex;align-items:center;gap:6px;';
+        typeRow.style.cssText='font-size:14px;display:flex;align-items:center;gap:6px;';
         typeRow.appendChild(document.createTextNode('Inquisitor Type:'));
         const sel = document.createElement('select');
-        sel.style.cssText='background:#1a0a0a;border:1px solid #7a1a1a;color:#c8a83c;font-family:var(--font-serif);font-size:11px;padding:2px 4px;border-radius:3px;outline:none;';
+        sel.style.cssText='background:#1a0a0a;border:1px solid #7a1a1a;color:#c8a83c;font-family:var(--font-serif);font-size:13px;padding:2px 4px;border-radius:3px;outline:none;';
         ['Astartes','Sororitas','Assassinorum','Mechanicus','Astra Telepathica','Militarum'].forEach(t=>{
             const o=document.createElement('option'); o.value=t; o.textContent=t; if(data.type===t)o.selected=true; sel.appendChild(o);
         });
@@ -6090,9 +6106,9 @@
         const mkFavBtn = (txt) => { const b=document.createElement('button'); b.textContent=txt; b.style.cssText='background:none;border:none;color:#7a1a1a;cursor:pointer;font-size:13px;line-height:1;padding:0 2px;'; return b; };
         const fUp=mkFavBtn('▲'), fDn=mkFavBtn('▼');
         const fNum=document.createElement('div');
-        fNum.style.cssText='width:42px;height:42px;border-radius:50%;border:2px solid #7a1a1a;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;';
+        fNum.style.cssText='width:50px;height:50px;border-radius:50%;border:2px solid #7a1a1a;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;';
         fNum.textContent=data.favor??0;
-        const fLbl=document.createElement('div'); fLbl.textContent='Favor'; fLbl.style.cssText='font-size:10px;color:#7a1a1a;letter-spacing:1px;';
+        const fLbl=document.createElement('div'); fLbl.textContent='Favor'; fLbl.style.cssText='font-size:12px;color:#7a1a1a;letter-spacing:1px;';
         fUp.addEventListener('click',()=>{if(data.favor<9){data.favor++;fNum.textContent=data.favor;saveSheet();}});
         fDn.addEventListener('click',()=>{if(data.favor>0){data.favor--;fNum.textContent=data.favor;saveSheet();}});
         favorBox.appendChild(fUp); favorBox.appendChild(fNum); favorBox.appendChild(fDn); favorBox.appendChild(fLbl);
@@ -6109,7 +6125,7 @@
             const box = document.createElement('div');
             box.style.cssText = 'border:1px solid #7a1a1a;border-radius:5px;padding:8px 10px;margin:7px 0;';
             const display = document.createElement('div');
-            display.style.cssText = 'font-size:12px;color:#c8a83c;line-height:1.5;opacity:0.9;white-space:pre-wrap;';
+            display.style.cssText = 'font-size:14px;color:#c8a83c;line-height:1.5;opacity:0.9;white-space:pre-wrap;';
             display.textContent = (AH_CLASS_DATA[data.type] || {})[key] || '';
             classDisplays[key] = display;
             box.appendChild(display);
@@ -6125,7 +6141,7 @@
         // ── Equipment ────────────────────────────────────────────────────────
         sheet.appendChild(rule());
         const eqTitle=document.createElement('div'); eqTitle.textContent='Equipment';
-        eqTitle.style.cssText='font-size:14px;font-weight:700;letter-spacing:2px;text-decoration:underline;text-underline-offset:4px;text-decoration-color:#7a1a1a;margin-bottom:7px;';
+        eqTitle.style.cssText='font-size:17px;font-weight:700;letter-spacing:2px;text-decoration:underline;text-underline-offset:4px;text-decoration-color:#7a1a1a;margin-bottom:8px;';
         sheet.appendChild(eqTitle);
         data.equipment.forEach((val, i) => {
             const row = document.createElement('div');
@@ -6145,8 +6161,8 @@
                     const locked = document.createElement('div');
                     locked.style.cssText = 'display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(122,26,26,0.45);padding:1px 4px;cursor:default;';
                     const nameSpan = document.createElement('span');
-                    nameSpan.style.cssText = 'color:#c8a83c;font-size:12px;flex:1;';
-                    nameSpan.textContent = item ? `${item.name}  ★${item.favor}` : currentVal;
+                    nameSpan.style.cssText = 'color:#c8a83c;font-size:14px;flex:1;';
+                    nameSpan.innerHTML = item ? `${item.name} <span style='color:#cc2200;font-weight:700;'>★${item.favor}</span>` : currentVal;
                     const clearBtn = document.createElement('button');
                     clearBtn.textContent = '✕';
                     clearBtn.style.cssText = 'background:none;border:none;color:#7a1a1a;cursor:pointer;font-size:10px;padding:0 2px;line-height:1;';
@@ -6162,7 +6178,7 @@
                     if (item?.desc) {
                         const tip = document.createElement('div');
                         tip.textContent = item.desc;
-                        tip.style.cssText = 'display:none;position:absolute;left:0;bottom:calc(100% + 4px);background:#1a0808;border:1px solid #7a1a1a;border-radius:5px;padding:6px 8px;font-size:11px;color:#c8a83c;z-index:9999;width:260px;line-height:1.4;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,0.7);';
+                        tip.style.cssText = 'display:none;position:absolute;left:0;bottom:calc(100% + 4px);background:#1a0808;border:1px solid #7a1a1a;border-radius:5px;padding:7px 10px;font-size:13px;color:#c8a83c;z-index:9999;width:300px;line-height:1.4;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,0.7);';
                         locked.addEventListener('mouseenter', () => tip.style.display = 'block');
                         locked.addEventListener('mouseleave', () => tip.style.display = 'none');
                         slot.appendChild(tip);
@@ -6172,7 +6188,7 @@
                     // Search input
                     const inp = document.createElement('input');
                     inp.type = 'text'; inp.placeholder = 'Search or type item…';
-                    inp.style.cssText = 'background:transparent;border:none;border-bottom:1px solid rgba(122,26,26,0.45);color:#c8a83c;font-family:var(--font-serif);font-size:12px;outline:none;width:100%;padding:1px 4px;';
+                    inp.style.cssText = 'background:transparent;border:none;border-bottom:1px solid rgba(122,26,26,0.45);color:#c8a83c;font-family:var(--font-serif);font-size:14px;outline:none;width:100%;padding:1px 4px;';
 
                     const dropdown = document.createElement('div');
                     dropdown.style.cssText = 'display:none;position:absolute;left:0;top:100%;background:#1a0808;border:1px solid #7a1a1a;border-radius:0 0 5px 5px;z-index:9999;max-height:160px;overflow-y:auto;width:100%;box-shadow:0 4px 12px rgba(0,0,0,0.7);';
@@ -6182,8 +6198,8 @@
                         const matches = AH_EQUIPMENT.filter(e => e.name.toLowerCase().includes(filter.toLowerCase()));
                         matches.forEach(e => {
                             const opt = document.createElement('div');
-                            opt.style.cssText = 'padding:5px 8px;cursor:pointer;font-size:11px;color:#c8a83c;border-bottom:1px solid rgba(122,26,26,0.2);';
-                            opt.innerHTML = `<span style="font-weight:700;">${e.name}</span> <span style="color:#7a1a1a;font-size:10px;">★${e.favor}</span><div style="font-size:10px;opacity:0.65;line-height:1.3;margin-top:2px;">${e.desc}</div>`;
+                            opt.style.cssText = 'padding:6px 10px;cursor:pointer;font-size:13px;color:#c8a83c;border-bottom:1px solid rgba(122,26,26,0.2);';
+                            opt.innerHTML = `<span style="font-weight:700;">${e.name}</span> <span style="color:#cc2200;font-size:12px;font-weight:700;">★${e.favor}</span><div style="font-size:11px;opacity:0.65;line-height:1.3;margin-top:2px;">${e.desc}</div>`;
                             opt.addEventListener('mouseenter', () => opt.style.background = 'rgba(122,26,26,0.2)');
                             opt.addEventListener('mouseleave', () => opt.style.background = '');
                             opt.addEventListener('mousedown', (ev) => {
@@ -6197,7 +6213,7 @@
                         // Custom text option if no exact match
                         if (filter && !matches.find(e => e.name.toLowerCase() === filter.toLowerCase())) {
                             const custom = document.createElement('div');
-                            custom.style.cssText = 'padding:5px 8px;cursor:pointer;font-size:11px;color:#888;border-top:1px solid rgba(122,26,26,0.3);font-style:italic;';
+                            custom.style.cssText = 'padding:6px 10px;cursor:pointer;font-size:13px;color:#888;border-top:1px solid rgba(122,26,26,0.3);font-style:italic;';
                             custom.textContent = `Use "${filter}"`;
                             custom.addEventListener('mouseenter', () => custom.style.background = 'rgba(122,26,26,0.2)');
                             custom.addEventListener('mouseleave', () => custom.style.background = '');
