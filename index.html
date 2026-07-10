@@ -5911,6 +5911,38 @@
     // ═══════════════════════════════════════════════════════════════════════════
     // ADVERSUS HAERESIM CHARACTER SHEET
     // ═══════════════════════════════════════════════════════════════════════════
+    const AH_CLASS_DATA = {
+        'Astartes': {
+            autoBoon: 'Auto-Boons: Attempts to physical feats and all attacks with human made weapons.',
+            autoBane: 'Auto-Banes: Incoming physical and natural damage sources.',
+            special:  'Special: You have an additional health state above healthy known as "Prime," You cannot be frightened.'
+        },
+        'Sororitas': {
+            autoBoon: 'Auto-Boons: Efforts to interrogate a mortal creature.',
+            autoBane: 'Auto-Banes: Incoming physical and psychic damage sources.',
+            special:  'Special: As long as you posses your holy symbol, You can apply boon to allies or bane to foes within close range,\nOr,\nYou may attempt to recover one health state for an ally in melee range. This cannot be used to stabilize.'
+        },
+        'Assassinorum': {
+            autoBoon: 'Auto-Boons: Attacks vs. foes that are unaware of your presence or when attempting to move about unnoticed.',
+            autoBane: 'Auto-Banes: To foes actively searching for signs of your passing.',
+            special:  'Special: An advanced remote drone accompanies you, It receives the same boons and imposes the same banes you do but any damage destroys it.'
+        },
+        'Mechanicus': {
+            autoBoon: 'Auto-Boons: Attempting to work with machines or tech, excludes attacks.',
+            autoBane: 'Auto-Banes: To efforts to impose technical issues upon you, You and your equipment are unaffected by EMP.',
+            special:  'Special: You have a mechanical arm with independent health states. It can act on your turn taking it\'s own action. It can still act if you are incapacitated. It is strong enough to crush bone if need be.'
+        },
+        'Astra Telepathica': {
+            autoBoon: 'Auto-Boons: Using your powers against close range foes whose eyes you can look into.',
+            autoBane: 'Auto-Banes: Any psychic based powers used against you.',
+            special:  'Special: Warp Casting, Every 1 you roll grants a stack of warp corruption. Horrible death at 6 stacks, You can spend your turn in prayer to clear your corruption.'
+        },
+        'Militarum': {
+            autoBoon: 'Auto-Boons: None',
+            autoBane: 'Auto-Banes: None',
+            special:  'Special: As a normal human, you have one less health state and will skip the injured state.'
+        },
+    };
     function openAHSheet(token) {
         // Preserve position if sheet is already open for this token
         const existing = document.getElementById('ah-sheet-overlay');
@@ -5984,7 +6016,11 @@
         ['Astartes','Sororitas','Assassinorum','Mechanicus','Astra Telepathica','Militarum'].forEach(t=>{
             const o=document.createElement('option'); o.value=t; o.textContent=t; if(data.type===t)o.selected=true; sel.appendChild(o);
         });
-        sel.addEventListener('change',()=>{data.type=sel.value;saveSheet();});
+        sel.addEventListener('change',()=>{
+            data.type=sel.value;
+            updateClassDisplays(sel.value);
+            saveSheet();
+        });
         typeRow.appendChild(sel);
         left.appendChild(typeRow);
 
@@ -6007,16 +6043,24 @@
         const rule = ()=>{ const d=document.createElement('div'); d.style.cssText='border-top:1px solid #7a1a1a;margin:8px 0;'; return d; };
         sheet.appendChild(rule());
 
-        // ── Auto-Boon / Auto-Bane / Special ─────────────────────────────────
-        [['autoBoon','Auto-Boon:'],['autoBane','Auto-Bane:'],['special','Special:']].forEach(([key,label])=>{
-            const box=document.createElement('div');
-            box.style.cssText='border:1px solid #7a1a1a;border-radius:5px;padding:7px 10px;margin:7px 0;';
-            const lbl=document.createElement('div'); lbl.textContent=label; lbl.style.cssText='font-size:11px;color:#c8a83c;letter-spacing:1px;margin-bottom:3px;';
-            const ta=document.createElement('textarea'); ta.value=data[key]||''; ta.placeholder='—'; ta.rows=2;
-            ta.style.cssText='background:transparent;border:none;color:#c8a83c;font-family:var(--font-serif);font-size:12px;outline:none;width:100%;resize:none;opacity:0.85;';
-            ta.addEventListener('change',()=>{data[key]=ta.value;saveSheet();});
-            box.appendChild(lbl); box.appendChild(ta); sheet.appendChild(box);
+        // ── Auto-Boon / Auto-Bane / Special (read-only, driven by class) ────
+        const classDisplays = {};
+        ['autoBoon','autoBane','special'].forEach(key => {
+            const box = document.createElement('div');
+            box.style.cssText = 'border:1px solid #7a1a1a;border-radius:5px;padding:8px 10px;margin:7px 0;';
+            const display = document.createElement('div');
+            display.style.cssText = 'font-size:12px;color:#c8a83c;line-height:1.5;opacity:0.9;white-space:pre-wrap;';
+            display.textContent = (AH_CLASS_DATA[data.type] || {})[key] || '';
+            classDisplays[key] = display;
+            box.appendChild(display);
+            sheet.appendChild(box);
         });
+
+        // Update displays when type changes
+        const updateClassDisplays = (type) => {
+            const cd = AH_CLASS_DATA[type] || {};
+            Object.entries(classDisplays).forEach(([key, el]) => { el.textContent = cd[key] || ''; });
+        };
 
         // ── Equipment ────────────────────────────────────────────────────────
         sheet.appendChild(rule());
