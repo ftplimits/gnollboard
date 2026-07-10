@@ -43,6 +43,26 @@
             border: 1px solid rgba(255,255,255,0.15); border-bottom: none;
             max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
         .token-conditions { position: absolute; top: -10px; right: -10px;
+        .token-health-state {
+            position: absolute; top: 2px; left: 2px; z-index: 205;
+            display: flex; gap: 1px; padding: 2px 3px;
+            background: rgba(0,0,0,0.55); border-radius: 4px;
+            backdrop-filter: blur(3px);
+        }
+        .hs-pip {
+            width: 14px; height: 14px; border-radius: 3px;
+            font-size: 9px; font-weight: 900; line-height: 14px;
+            text-align: center; cursor: pointer; color: rgba(0,0,0,0.75);
+            font-family: var(--font-serif); transition: all 0.15s;
+            border: 1px solid rgba(0,0,0,0.3); opacity: 0.45;
+            user-select: none;
+        }
+        .hs-pip.active { opacity: 1; transform: scale(1.2); border-color: rgba(255,255,255,0.6); color: rgba(0,0,0,0.9); }
+        .hs-pip[data-hs="P"] { background: #7ec8e3; }
+        .hs-pip[data-hs="H"] { background: #6fcf6f; }
+        .hs-pip[data-hs="I"] { background: #f0d060; }
+        .hs-pip[data-hs="W"] { background: #f09040; }
+        .hs-pip[data-hs="D"] { background: #e04040; }
             display: flex; flex-wrap: wrap; gap: 1px; max-width: 36px;
             pointer-events: none; z-index: 202; }
         .token-condition { font-size: 13px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8)); }
@@ -4327,6 +4347,30 @@
             div.appendChild(lbl);
         }
 
+        if (token.healthState) {
+            const states = token.hasPrime
+                ? ['P','H','I','W','D']
+                : ['H','I','W','D'];
+            const tracker = document.createElement('div');
+            tracker.className = 'token-health-state';
+            states.forEach(hs => {
+                const pip = document.createElement('div');
+                pip.className = 'hs-pip' + (token.healthState === hs ? ' active' : '');
+                pip.dataset.hs = hs;
+                pip.textContent = hs;
+                pip.addEventListener('mousedown', e => { e.stopPropagation(); });
+                pip.addEventListener('click', e => {
+                    e.stopPropagation();
+                    if (!isHost) return;
+                    token.healthState = hs;
+                    tracker.querySelectorAll('.hs-pip').forEach(p => p.classList.toggle('active', p.dataset.hs === hs));
+                    broadcast({ type: 'token_update', id: token.id, data: { healthState: hs } });
+                });
+                tracker.appendChild(pip);
+            });
+            div.appendChild(tracker);
+        }
+
         if (token.conditions && token.conditions.length) {
             // Eliminated X — full overlay
             if (token.conditions.includes('❌')) {
@@ -4626,6 +4670,41 @@
 
         menu.appendChild(makeAttachBtn(token, 'token', menu, btnStyle));
         menu.appendChild(bloodBtn);
+
+        // Health state toggle
+        const hsBtn = document.createElement('button');
+        hsBtn.textContent = token.healthState ? '❤ Health States: On' : '❤ Enable Health States';
+        hsBtn.style.cssText = btnStyle + 'background:#1a3a2a;';
+        hsBtn.onclick = () => {
+            if (token.healthState) {
+                // Disable
+                token.healthState = null; token.hasPrime = false;
+            } else {
+                token.healthState = 'H'; // default Healthy
+            }
+            broadcast({ type: 'token_update', id: token.id, data: { healthState: token.healthState, hasPrime: token.hasPrime } });
+            const d = tokensContainer.querySelector(`[data-id="${token.id}"]`);
+            if (d) { d.remove(); renderToken(token); }
+            menu.remove();
+        };
+
+        // Prime toggle (only visible when health states are active)
+        if (token.healthState) {
+            const primeBtn = document.createElement('button');
+            primeBtn.textContent = token.hasPrime ? '✦ Prime State: On' : '✦ Enable Prime State';
+            primeBtn.style.cssText = btnStyle + 'background:#102030;font-size:11px;';
+            primeBtn.onclick = () => {
+                token.hasPrime = !token.hasPrime;
+                // If turning off prime and currently in P state, reset to H
+                if (!token.hasPrime && token.healthState === 'P') token.healthState = 'H';
+                broadcast({ type: 'token_update', id: token.id, data: { healthState: token.healthState, hasPrime: token.hasPrime } });
+                const d = tokensContainer.querySelector(`[data-id="${token.id}"]`);
+                if (d) { d.remove(); renderToken(token); }
+                menu.remove();
+            };
+            menu.appendChild(primeBtn);
+        }
+        menu.appendChild(hsBtn);
         menu.appendChild(killBtn);
         menu.appendChild(lightBtn);
         menu.appendChild(labelBtn); menu.appendChild(flip); menu.appendChild(del);
