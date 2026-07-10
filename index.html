@@ -4441,6 +4441,7 @@
             dragOffsetX = pos.x - token.x; dragOffsetY = pos.y - token.y;
         });
         div.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); showTokenContextMenu(e.clientX,e.clientY,token,div); });
+        div.addEventListener('dblclick', e => { e.stopPropagation(); if (token.ahSheet) openAHSheet(token); });
         tokensContainer.appendChild(div);
     }
 
@@ -4666,8 +4667,17 @@
         menu.appendChild(makeAttachBtn(token, 'token', menu, btnStyle));
         menu.appendChild(bloodBtn);
 
-        // Health state toggle
-        const hsBtn = document.createElement('button');
+        // AH Sheet toggle
+        const ahSheetBtn = document.createElement('button');
+        ahSheetBtn.textContent = token.ahSheet ? '📋 AH Sheet: On' : '📋 Enable AH Sheet';
+        ahSheetBtn.style.cssText = btnStyle + 'background:#2a0a0a;';
+        ahSheetBtn.onclick = () => {
+            token.ahSheet = !token.ahSheet;
+            if (!token.ahSheetData) token.ahSheetData = { name:'', type:'Astartes', favor:0, autoBoon:'', autoBane:'', special:'', equipment:['','','','','','','',''] };
+            broadcast({ type:'token_update', id:token.id, data:{ ahSheet:token.ahSheet, ahSheetData:token.ahSheetData } });
+            menu.remove();
+        };
+        menu.appendChild(ahSheetBtn);
         hsBtn.textContent = token.healthState ? '❤ Health States: On' : '❤ Enable Health States';
         hsBtn.style.cssText = btnStyle + 'background:#1a3a2a;';
         hsBtn.onclick = () => {
@@ -5884,6 +5894,111 @@
             setTimeout(() => document.addEventListener('click', close), 10);
         });
     });
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ADVERSUS HAERESIM CHARACTER SHEET
+    // ═══════════════════════════════════════════════════════════════════════════
+    function openAHSheet(token) {
+        document.getElementById('ah-sheet-overlay')?.remove();
+        const data = token.ahSheetData || { name:'', type:'Astartes', favor:0, autoBoon:'', autoBane:'', special:'', equipment:Array(8).fill('') };
+        if (!data.equipment || data.equipment.length < 8) data.equipment = [...(data.equipment||[]),...Array(8).fill('')].slice(0,8);
+
+        const overlay = document.createElement('div');
+        overlay.id = 'ah-sheet-overlay';
+        overlay.style.cssText = `position:fixed;inset:0;z-index:8000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);`;
+
+        const sheet = document.createElement('div');
+        sheet.style.cssText = `background:rgba(22,16,16,0.96);border:2px solid #7a1a1a;border-radius:10px;padding:20px 24px 24px;width:340px;font-family:var(--font-serif);color:#c8a83c;box-shadow:0 0 40px rgba(120,20,20,0.6),inset 0 0 60px rgba(0,0,0,0.4);position:relative;max-height:90vh;overflow-y:auto;`;
+
+        const saveSheet = () => { token.ahSheetData={...data}; broadcast({type:'token_update',id:token.id,data:{ahSheetData:token.ahSheetData}}); };
+
+        const mkInput = (val, key, w='160px') => {
+            const el = document.createElement('input');
+            el.type='text'; el.value=val; el.placeholder='—';
+            el.style.cssText=`background:transparent;border:none;border-bottom:1px solid #7a1a1a;color:#c8a83c;font-family:var(--font-serif);font-size:13px;outline:none;width:${w};padding:2px 4px;`;
+            el.addEventListener('change',()=>{data[key]=el.value;saveSheet();});
+            return el;
+        };
+
+        // ── Header ───────────────────────────────────────────────────────────
+        const header = document.createElement('div');
+        header.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:10px;';
+
+        const left = document.createElement('div');
+        left.style.cssText='display:flex;flex-direction:column;gap:7px;';
+
+        const nameRow = document.createElement('div');
+        nameRow.style.cssText='font-size:12px;display:flex;align-items:center;gap:6px;';
+        nameRow.appendChild(document.createTextNode('Inquisitor Name:'));
+        nameRow.appendChild(mkInput(data.name,'name','130px'));
+        left.appendChild(nameRow);
+
+        const typeRow = document.createElement('div');
+        typeRow.style.cssText='font-size:12px;display:flex;align-items:center;gap:6px;';
+        typeRow.appendChild(document.createTextNode('Inquisitor Type:'));
+        const sel = document.createElement('select');
+        sel.style.cssText='background:#1a0a0a;border:1px solid #7a1a1a;color:#c8a83c;font-family:var(--font-serif);font-size:11px;padding:2px 4px;border-radius:3px;outline:none;';
+        ['Astartes','Sororitas','Assassinorum','Mechanicus','Astra Telepathica','Militarum'].forEach(t=>{
+            const o=document.createElement('option'); o.value=t; o.textContent=t; if(data.type===t)o.selected=true; sel.appendChild(o);
+        });
+        sel.addEventListener('change',()=>{data.type=sel.value;saveSheet();});
+        typeRow.appendChild(sel);
+        left.appendChild(typeRow);
+
+        // Favor widget
+        const favorBox = document.createElement('div');
+        favorBox.style.cssText='display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;';
+        const mkFavBtn = (txt) => { const b=document.createElement('button'); b.textContent=txt; b.style.cssText='background:none;border:none;color:#7a1a1a;cursor:pointer;font-size:13px;line-height:1;padding:0 2px;'; return b; };
+        const fUp=mkFavBtn('▲'), fDn=mkFavBtn('▼');
+        const fNum=document.createElement('div');
+        fNum.style.cssText='width:42px;height:42px;border-radius:50%;border:2px solid #7a1a1a;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;';
+        fNum.textContent=data.favor??0;
+        const fLbl=document.createElement('div'); fLbl.textContent='Favor'; fLbl.style.cssText='font-size:10px;color:#7a1a1a;letter-spacing:1px;';
+        fUp.addEventListener('click',()=>{if(data.favor<9){data.favor++;fNum.textContent=data.favor;saveSheet();}});
+        fDn.addEventListener('click',()=>{if(data.favor>0){data.favor--;fNum.textContent=data.favor;saveSheet();}});
+        favorBox.appendChild(fUp); favorBox.appendChild(fNum); favorBox.appendChild(fDn); favorBox.appendChild(fLbl);
+        header.appendChild(left); header.appendChild(favorBox);
+        sheet.appendChild(header);
+
+        // ── Crimson rule ─────────────────────────────────────────────────────
+        const rule = ()=>{ const d=document.createElement('div'); d.style.cssText='border-top:1px solid #7a1a1a;margin:8px 0;'; return d; };
+        sheet.appendChild(rule());
+
+        // ── Auto-Boon / Auto-Bane / Special ─────────────────────────────────
+        [['autoBoon','Auto-Boon:'],['autoBane','Auto-Bane:'],['special','Special:']].forEach(([key,label])=>{
+            const box=document.createElement('div');
+            box.style.cssText='border:1px solid #7a1a1a;border-radius:5px;padding:7px 10px;margin:7px 0;';
+            const lbl=document.createElement('div'); lbl.textContent=label; lbl.style.cssText='font-size:11px;color:#c8a83c;letter-spacing:1px;margin-bottom:3px;';
+            const ta=document.createElement('textarea'); ta.value=data[key]||''; ta.placeholder='—'; ta.rows=2;
+            ta.style.cssText='background:transparent;border:none;color:#c8a83c;font-family:var(--font-serif);font-size:12px;outline:none;width:100%;resize:none;opacity:0.85;';
+            ta.addEventListener('change',()=>{data[key]=ta.value;saveSheet();});
+            box.appendChild(lbl); box.appendChild(ta); sheet.appendChild(box);
+        });
+
+        // ── Equipment ────────────────────────────────────────────────────────
+        sheet.appendChild(rule());
+        const eqTitle=document.createElement('div'); eqTitle.textContent='Equipment';
+        eqTitle.style.cssText='font-size:14px;font-weight:700;letter-spacing:2px;text-decoration:underline;text-underline-offset:4px;text-decoration-color:#7a1a1a;margin-bottom:7px;';
+        sheet.appendChild(eqTitle);
+        data.equipment.forEach((val,i)=>{
+            const row=document.createElement('div'); row.style.cssText='display:flex;align-items:center;gap:6px;margin:4px 0;';
+            const dot=document.createElement('span'); dot.textContent='•'; dot.style.cssText='color:#7a1a1a;font-size:16px;flex-shrink:0;';
+            const ei=document.createElement('input'); ei.type='text'; ei.value=val; ei.placeholder='—';
+            ei.style.cssText='background:transparent;border:none;border-bottom:1px solid rgba(122,26,26,0.45);color:#c8a83c;font-family:var(--font-serif);font-size:12px;outline:none;flex:1;padding:1px 4px;';
+            ei.addEventListener('change',()=>{data.equipment[i]=ei.value;saveSheet();});
+            row.appendChild(dot); row.appendChild(ei); sheet.appendChild(row);
+        });
+
+        // ── Close ────────────────────────────────────────────────────────────
+        const closeBtn=document.createElement('button');
+        closeBtn.textContent='✕'; closeBtn.style.cssText='position:absolute;top:10px;right:12px;background:none;border:none;color:#7a1a1a;font-size:18px;cursor:pointer;line-height:1;';
+        closeBtn.addEventListener('click',()=>overlay.remove());
+        sheet.appendChild(closeBtn);
+
+        overlay.appendChild(sheet);
+        document.body.appendChild(overlay);
+        overlay.addEventListener('mousedown',e=>{if(e.target===overlay)overlay.remove();});
+    }
 
     // ─── Wire dice after layout pass ─────────────────────────────────────────
     requestAnimationFrame(() => {
