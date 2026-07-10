@@ -4678,6 +4678,9 @@
             menu.remove();
         };
         menu.appendChild(ahSheetBtn);
+
+        // Health state toggle
+        const hsBtn = document.createElement('button');
         hsBtn.textContent = token.healthState ? '❤ Health States: On' : '❤ Enable Health States';
         hsBtn.style.cssText = btnStyle + 'background:#1a3a2a;';
         hsBtn.onclick = () => {
@@ -4688,6 +4691,9 @@
             menu.remove();
         };
         menu.appendChild(hsBtn);
+
+        menu.appendChild(makeAttachBtn(token, 'token', menu, btnStyle));
+        menu.appendChild(bloodBtn);
         menu.appendChild(killBtn);
         menu.appendChild(lightBtn);
         menu.appendChild(labelBtn); menu.appendChild(flip); menu.appendChild(del);
