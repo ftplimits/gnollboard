@@ -125,7 +125,6 @@
         .color-swatch { width: 28px; height: 28px; border: 2px solid var(--ink-dark); border-radius: 4px; cursor: pointer; transition: transform 0.15s; }
         .color-swatch:hover { transform: scale(1.1); }
         .color-swatch.active { border: 3px solid white; box-shadow: 0 0 8px rgba(255,255,255,0.8); transform: scale(1.15); }
-        #vtt-logo { position: fixed; top: 12px; left: 12px; width: 48px; height: 48px; z-index: 1001; pointer-events: auto; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4)); }
 
         /* ── Selection system ── */
         #selection-overlay { position: fixed; display: none; pointer-events: none; z-index: 800; outline: 2px dashed rgba(139,69,19,0.9); outline-offset: 2px; }
@@ -669,7 +668,6 @@
     </style>
 </head>
 <body>
-    <img id="vtt-logo" src="./icons/Logo.webp" alt="Logo">
     <button id="btn-center-view" title="Sync all player views to yours">👁 Sync Views</button>
 
     <!-- Name prompt -->
